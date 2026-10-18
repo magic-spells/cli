@@ -1,0 +1,41 @@
+---
+name: 'Operation registry: the per-product list of operations, and the shell''s merged view across products'
+kind: library
+status: planned
+framework: typescript
+connections:
+  - DATATYPE-OPERATION
+  - DECISION-OPERATIONS-ARE-THE-CONTRACT
+  - DECISION-OPERATION-CONTRACT
+  - COMPONENT-PYRAMID-PACKAGE
+  - COMPONENT-SITES-ADAPTER
+  - COMPONENT-APP-PACKAGE
+  - COMPONENT-MARKETING-PACKAGE
+  - DOC-OPERATION-AUTHORING
+  - FLOW-RUN-OPERATION
+  - FLOW-MCP-TOOL-CALL
+---
+
+# Operation registry
+
+Each product package default-exports a `ProductModule`:
+
+```ts
+interface ProductModule {
+  id: 'pyramid' | 'sites' | 'app' | 'marketing';
+  title: string;                          // "Pyramid"
+  credential: 'pyk_' | 'pk_' | 'pmk_' | 'ak_';
+  load(ctx: KitContext): Promise<Operation[]>;   // binary-backed products build the list here
+  client(session: ProductSession, cfg: CliConfig): unknown;
+  doctor?: DoctorCheck[];
+  mcp?: { instructions?: string; resources?: unknown[]; prompts?: unknown[] };
+}
+```
+
+The shell keeps one map `name → { product, operation }` built lazily per product. Lookups: CLI by `<product> <noun> <verb>` (aliases from `meta.cli.aliases`), MCP by tool name.
+
+## Rules
+
+- A name is unique across the whole map; a duplicate fails the build test, not the run.
+- `load` is the only async step. Native products return a static array; the Sites adapter spawns its child there ([[FLOW-SITES-ADAPTER-BOOT]]).
+- An operation's `run` receives `OpContext { config, session, client, cache, signal }` and returns a plain object; it never prints.

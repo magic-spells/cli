@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.constellation/
+.DS_Store
+*.log
