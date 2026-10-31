@@ -63,11 +63,18 @@ export interface Operation<I = any, O = unknown, C = any> {
 /** A non-operation product command (interactive, local), e.g. a browser login. */
 export type ProductCommand = (argv: string[]) => Promise<number>;
 
+/**
+ * The context for one MCP call, resolved per call so a product without a key still
+ * lists its tools and a key stored later is picked up (FEATURE-MCP-AGGREGATOR).
+ * Rejects with not_logged_in when there is no key.
+ */
+export type ContextSource<C = any> = () => Promise<OpContext<C>>;
+
 export interface ProductMcp<C = any> {
 	/** The product's model-facing text; `version` is the CLI's. */
 	instructions?: (version: string) => string;
 	/** Register the product's resources and prompts; names must carry the product prefix. */
-	register?(server: unknown, ctx: OpContext<C>): void;
+	register?(server: unknown, context: ContextSource<C>): void;
 }
 
 export interface ProductModule<C = any> {

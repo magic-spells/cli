@@ -19,6 +19,8 @@ const SECURITY = '/usr/bin/security';
 export interface CredentialStore {
 	/** Never throws; unavailable -> null. */
 	get(item: string): Promise<string | null>;
+	/** Which backend holds the item (the macOS store falls back to the file), or null. */
+	locate(item: string): Promise<'keyring' | 'file' | null>;
 	set(item: string, secret: string): Promise<void>;
 	/** Idempotent. */
 	delete(item: string): Promise<void>;
@@ -79,11 +81,17 @@ export function createFileStore(path: string, warn: (line: string) => void): Cre
 		writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
 		chmodSync(path, 0o600);
 	};
+	const value = (item: string): string | null => {
+		const v = read().items[item];
+		return typeof v === 'string' && v.length > 0 ? v : null;
+	};
 	return {
 		backend: 'file',
 		async get(item) {
-			const v = read().items[item];
-			return typeof v === 'string' && v.length > 0 ? v : null;
+			return value(item);
+		},
+		async locate(item) {
+			return value(item) === null ? null : 'file';
 		},
 		async set(item, secret) {
 			if (!warned) {
@@ -109,23 +117,29 @@ export function createFileStore(path: string, warn: (line: string) => void): Cre
 // ============ macOS Keychain backend ============
 
 function createMacStore(exec: ExecFile, file: CredentialStore): CredentialStore {
+	const fromKeychain = (item: string): string | null => {
+		try {
+			const v = exec(SECURITY, [
+				'find-generic-password',
+				'-s',
+				KEYCHAIN_SERVICE,
+				'-a',
+				item,
+				'-w',
+			]).trim();
+			return v.length > 0 ? v : null;
+		} catch {
+			// Missing item or locked keychain.
+			return null;
+		}
+	};
 	return {
 		backend: 'keyring',
 		async get(item) {
-			try {
-				const v = exec(SECURITY, [
-					'find-generic-password',
-					'-s',
-					KEYCHAIN_SERVICE,
-					'-a',
-					item,
-					'-w',
-				]).trim();
-				if (v.length > 0) return v;
-			} catch {
-				// Missing item or locked keychain: fall through to the file.
-			}
-			return file.get(item);
+			return fromKeychain(item) ?? file.get(item);
+		},
+		async locate(item) {
+			return fromKeychain(item) !== null ? 'keyring' : file.locate(item);
 		},
 		async set(item, secret) {
 			try {

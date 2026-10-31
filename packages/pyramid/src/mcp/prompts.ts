@@ -8,8 +8,6 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-import type { OpContext } from '../operations/index.js';
-
 const DOCTOR_DESCRIPTION =
 	'Check your Pyramid setup: confirm the API key authenticates and show the user, workspace, and accessible projects.';
 
@@ -27,11 +25,10 @@ const DOCTOR_INSTRUCTION = [
 ].join('\n');
 
 /**
- * Register the `pyramid_doctor` prompt on the server. `ctx` is accepted for parity with
- * the other skins (and future prompts that pre-fetch context); the doctor prompt
- * itself is static — it instructs the model to invoke the `pyramid_whoami` tool.
+ * Register the `pyramid_doctor` prompt on the server. The prompt is static: it
+ * instructs the model to invoke the `pyramid_whoami` tool.
  */
-export function registerPrompts(server: McpServer, _ctx: OpContext): void {
+export function registerPrompts(server: McpServer): void {
 	server.registerPrompt('pyramid_doctor', { description: DOCTOR_DESCRIPTION }, () => ({
 		messages: [
 			{

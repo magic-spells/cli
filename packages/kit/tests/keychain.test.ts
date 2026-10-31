@@ -90,6 +90,7 @@ describe('macOS keychain backend', () => {
 		await store.set('demo:manual', 'v');
 		expect(await store.get('demo:manual')).toBe('secret');
 		await store.delete('demo:manual');
+		expect(await store.locate('demo:manual')).toBe('keyring');
 		expect(calls[0]).toEqual([
 			'add-generic-password',
 			'-U',
@@ -127,6 +128,8 @@ describe('macOS keychain backend', () => {
 		await store.set('demo:manual', 'v');
 		expect(warn).toHaveBeenCalledOnce();
 		expect(await store.get('demo:manual')).toBe('v');
+		expect(await store.locate('demo:manual')).toBe('file');
+		expect(await store.locate('other:manual')).toBeNull();
 		expect(await store.list()).toEqual(['demo:manual']);
 	});
 });

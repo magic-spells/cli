@@ -12,7 +12,9 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { toPyramidError } from '../errors.js';
 import { operationsByName } from '../operations/index.js';
-import type { Operation, OpContext } from '../operations/index.js';
+import type { ContextSource } from '@magic-spells/kit';
+
+import type { Operation } from '../operations/index.js';
 
 /** An operation by name; the registry always carries these three. */
 function op(name: string): Operation {
@@ -26,10 +28,10 @@ function op(name: string): Operation {
  * `{ error: { code, message, hint?, candidates? } }` envelope the tools use, so a
  * resource read never throws raw across the wire.
  */
-async function renderOp(op: Operation, ctx: OpContext): Promise<string> {
+async function renderOp(op: Operation, context: ContextSource): Promise<string> {
 	try {
 		const input = op.input.parse({});
-		const result = await op.run(input, ctx);
+		const result = await op.run(input, await context());
 		return JSON.stringify(result, null, 2);
 	} catch (err) {
 		return JSON.stringify({ error: toPyramidError(err).toJSON() }, null, 2);
@@ -37,7 +39,7 @@ async function renderOp(op: Operation, ctx: OpContext): Promise<string> {
 }
 
 /** Register `pyramid://me` and `pyramid://projects` as read-only resources. */
-export function registerResources(server: McpServer, ctx: OpContext): void {
+export function registerResources(server: McpServer, context: ContextSource): void {
 	server.registerResource(
 		'pyramid_me',
 		'pyramid://me',
@@ -47,7 +49,7 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 			mimeType: 'application/json',
 		},
 		async (uri: URL) => {
-			const text = await renderOp(op('pyramid.whoami'), ctx);
+			const text = await renderOp(op('pyramid.whoami'), context);
 			return {
 				contents: [{ uri: uri.href, mimeType: 'application/json', text }],
 			};
@@ -63,7 +65,7 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 			mimeType: 'application/json',
 		},
 		async (uri: URL) => {
-			const text = await renderOp(op('pyramid.project.list'), ctx);
+			const text = await renderOp(op('pyramid.project.list'), context);
 			return {
 				contents: [{ uri: uri.href, mimeType: 'application/json', text }],
 			};
@@ -87,7 +89,10 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 			let text: string;
 			if (handle) {
 				try {
-					const result = await workflow.run(workflow.input.parse({ project: handle }), ctx);
+					const result = await workflow.run(
+						workflow.input.parse({ project: handle }),
+						await context()
+					);
 					text = JSON.stringify(result, null, 2);
 				} catch (err) {
 					text = JSON.stringify({ error: toPyramidError(err).toJSON() }, null, 2);

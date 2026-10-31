@@ -15,7 +15,7 @@ import { MagicError, toMagicError, toToolError } from './errors.js';
 import {
 	onSurface,
 	toolName,
-	type OpContext,
+	type ContextSource,
 	type Operation,
 	type ProductModule,
 } from './operation.js';
@@ -23,30 +23,34 @@ import {
 export interface McpProduct<C = any> {
 	module: ProductModule<C>;
 	operations: Operation<any, unknown, C>[];
-	ctx: OpContext<C>;
+	context: ContextSource<C>;
 }
 
 export interface McpServerOptions {
 	name: string;
 	version: string;
+	/** Family text placed before the products' instructions, which then get headings. */
+	preamble?: string;
 	products: McpProduct[];
 }
 
 /** Build (not connect) a server over the products' operations. */
 export function createMcpServer(opts: McpServerOptions): McpServer {
-	const instructions = opts.products
-		.map((p) => p.module.mcp?.instructions?.(opts.version))
-		.filter((t): t is string => typeof t === 'string' && t.length > 0)
-		.join('\n\n');
+	const sections = opts.products.flatMap((p) => {
+		const text = p.module.mcp?.instructions?.(opts.version);
+		if (!text) return [];
+		return [opts.preamble ? `## ${p.module.title}\n\n${text}` : text];
+	});
+	const instructions = [...(opts.preamble ? [opts.preamble] : []), ...sections].join('\n\n');
 	const server = new McpServer(
 		{ name: opts.name, version: opts.version },
 		instructions ? { instructions } : {}
 	);
 	for (const p of opts.products) {
 		for (const op of p.operations) {
-			if (onSurface(op, 'mcp')) registerTool(server, p.module.id, op, p.ctx);
+			if (onSurface(op, 'mcp')) registerTool(server, p.module.id, op, p.context);
 		}
-		p.module.mcp?.register?.(server, p.ctx);
+		p.module.mcp?.register?.(server, p.context);
 	}
 	return server;
 }
@@ -64,14 +68,15 @@ export function toolInputShape(op: Operation): ZodRawShape {
 	};
 }
 
-/** Run one tool call: validate, gate, run, and wrap the result or the error. */
+/** Run one tool call: resolve the context, gate, validate, run, and wrap the result or the error. */
 export async function callTool(
 	product: string,
 	op: Operation,
-	ctx: OpContext,
+	context: ContextSource,
 	args: unknown
 ): Promise<{ content: { type: 'text'; text: string }[]; isError?: true }> {
 	try {
+		const ctx = await context();
 		const { yes, ...rest } = (args ?? {}) as Record<string, unknown>;
 		if (op.meta?.destructive) {
 			if (!ctx.config.allowDestructive) throw destructiveDisabled(product);
@@ -102,11 +107,16 @@ function invalidInput(product: string, error: z.ZodError): MagicError {
 	});
 }
 
-function registerTool(server: McpServer, product: string, op: Operation, ctx: OpContext): void {
+function registerTool(
+	server: McpServer,
+	product: string,
+	op: Operation,
+	context: ContextSource
+): void {
 	const description = op.detail ? `${op.summary}\n\n${op.detail}` : op.summary;
 	server.registerTool(
 		toolName(op),
 		{ description, inputSchema: toolInputShape(op) },
-		async (args: unknown) => callTool(product, op, ctx, args)
+		async (args: unknown) => callTool(product, op, context, args)
 	);
 }

@@ -6,7 +6,11 @@ import type { OpContext } from './operation.js';
 
 export interface DoctorResult {
 	name: string;
+	/** The product the check belongs to; `magic` for the shell's own checks. */
+	product: string;
 	ok: boolean;
+	/** Passed, but with something worth knowing (e.g. the file credential store). */
+	warn?: boolean;
 	/** One human line. */
 	detail: string;
 	/** Scriptable payload for --json. */
@@ -17,7 +21,7 @@ export interface DoctorResult {
 
 export interface DoctorCheck<C = unknown> {
 	name: string;
-	run(ctx: OpContext<C>): Promise<Omit<DoctorResult, 'name'>>;
+	run(ctx: OpContext<C>): Promise<Omit<DoctorResult, 'name' | 'product'>>;
 }
 
 export async function runDoctorChecks<C>(
@@ -28,11 +32,12 @@ export async function runDoctorChecks<C>(
 	const results: DoctorResult[] = [];
 	for (const check of checks) {
 		try {
-			results.push({ name: check.name, ...(await check.run(ctx)) });
+			results.push({ name: check.name, product, ...(await check.run(ctx)) });
 		} catch (err) {
 			const e = toMagicError(err, { product });
 			results.push({
 				name: check.name,
+				product,
 				ok: false,
 				detail: e.hint ? `${e.message} — ${e.hint}` : e.message,
 				code: e.code,

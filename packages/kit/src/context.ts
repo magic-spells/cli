@@ -33,14 +33,23 @@ export async function buildContext<C>(
 	deps: ContextDeps,
 	requiresSession = true
 ): Promise<OpContext<C>> {
-	let session: ProductSession | null = null;
-	if (requiresSession) {
-		session = await resolveCredential(product, { env: deps.env ?? process.env, store: deps.store });
-	}
+	const session = requiresSession
+		? await resolveCredential(product, { env: deps.env ?? process.env, store: deps.store })
+		: null;
+	return contextFor(product, config, session, deps.signal);
+}
+
+/** The context for an already-resolved session (null: a local-only operation). */
+export function contextFor<C>(
+	product: ProductModule<C>,
+	config: CliConfig,
+	session: ProductSession | null,
+	signal: AbortSignal = new AbortController().signal
+): OpContext<C> {
 	return {
 		config,
 		session,
 		client: product.client(session ?? { product: product.id, key: '', source: 'env' }, config),
-		signal: deps.signal ?? new AbortController().signal,
+		signal,
 	};
 }

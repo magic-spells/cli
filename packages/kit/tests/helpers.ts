@@ -16,6 +16,9 @@ export function memoryStore(initial: Record<string, string> = {}): CredentialSto
 		async get(item) {
 			return items[item] ?? null;
 		},
+		async locate(item) {
+			return item in items ? 'file' : null;
+		},
 		async set(item, secret) {
 			items[item] = secret;
 		},

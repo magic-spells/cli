@@ -88,6 +88,7 @@ beforeEach(() => {
 const emptyStore: CredentialStore = {
 	backend: 'file',
 	get: async () => null,
+	locate: async () => null,
 	set: async () => {},
 	delete: async () => {},
 	list: async () => [],

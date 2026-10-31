@@ -1237,7 +1237,7 @@ describe('operation: delete_task (real registry)', () => {
 		const client = makeRefClient({ deleteTask });
 		const ctx = makeCtx(client, resolver, CONFIG_SAFE);
 
-		const r = await callTool('pyramid', op, ctx, { task: 'APO-42', yes: true });
+		const r = await callTool('pyramid', op, async () => ctx, { task: 'APO-42', yes: true });
 		expect(r.isError).toBe(true);
 		expect(JSON.parse(r.content[0]!.text).error.code).toBe('destructive_action_disabled');
 		expect(client.searchTasks).not.toHaveBeenCalled();

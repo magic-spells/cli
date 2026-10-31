@@ -29,7 +29,7 @@ describe('MCP tools', () => {
 		const server = createMcpServer({
 			name: 'magic',
 			version: '0.0.0',
-			products: [{ module: demoProduct, operations: demoOps, ctx: ctx(false) }],
+			products: [{ module: demoProduct, operations: demoOps, context: async () => ctx(false) }],
 		});
 		const tools = Object.keys(
 			(server as unknown as { _registeredTools: Record<string, unknown> })._registeredTools
@@ -50,24 +50,24 @@ describe('MCP tools', () => {
 			[true, false],
 			[false, false],
 		] as const) {
-			const r = await callTool('demo', del, ctx(allow), { widget: 'W-1', yes });
+			const r = await callTool('demo', del, async () => ctx(allow), { widget: 'W-1', yes });
 			expect(r.isError).toBe(true);
 			expect(JSON.parse(r.content[0]!.text).error.code).toBe('destructive_action_disabled');
 		}
-		const ok = await callTool('demo', del, ctx(true), { widget: 'W-1', yes: true });
+		const ok = await callTool('demo', del, async () => ctx(true), { widget: 'W-1', yes: true });
 		expect(ok.isError).toBeUndefined();
 		expect(JSON.parse(ok.content[0]!.text).input).toEqual({ widget: 'W-1' });
 	});
 
 	it('with MAGIC_ALLOW_DESTRUCTIVE=1 but no yes, the hint asks for yes: true', async () => {
-		const r = await callTool('demo', del, ctx(true), { widget: 'W-1' });
+		const r = await callTool('demo', del, async () => ctx(true), { widget: 'W-1' });
 		expect(JSON.parse(r.content[0]!.text).error.hint).toBe('Pass yes: true to confirm it.');
-		const off = await callTool('demo', del, ctx(false), { widget: 'W-1', yes: true });
+		const off = await callTool('demo', del, async () => ctx(false), { widget: 'W-1', yes: true });
 		expect(JSON.parse(off.content[0]!.text).error.hint).toContain('MAGIC_ALLOW_DESTRUCTIVE=1');
 	});
 
 	it('bad input is validation_failed naming the field, in the product envelope', async () => {
-		const r = await callTool('demo', move, ctx(false), {});
+		const r = await callTool('demo', move, async () => ctx(false), {});
 		expect(r.isError).toBe(true);
 		const error = JSON.parse(r.content[0]!.text).error;
 		expect(error).toMatchObject({

@@ -23,7 +23,7 @@ describe('pyramid MCP surface', () => {
 		const server = createMcpServer({
 			name: 'magic',
 			version: '9.8.7',
-			products: [{ module: pyramid, operations: await pyramid.load(), ctx }],
+			products: [{ module: pyramid, operations: await pyramid.load(), context: async () => ctx }],
 		});
 		const internals = server as unknown as {
 			_registeredTools: Record<string, unknown>;
