@@ -210,5 +210,7 @@ describe('magic doctor', () => {
 			env: { MAGIC_PYRAMID_KEY: KEY, MAGIC_PYRAMID_URL: closed.url },
 		});
 		expect(r.code).toBe(10);
+		const api = JSON.parse(r.stdout).checks.find((c: { name: string }) => c.name === 'pyramid api');
+		expect(api.detail).toContain('Check MAGIC_PYRAMID_URL');
 	});
 });

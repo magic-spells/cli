@@ -9,6 +9,7 @@ import {
 	jsonMode,
 	maskKey,
 	productConfig,
+	productEnvVar,
 	render,
 	resolveCredential,
 	runDoctorChecks,
@@ -21,7 +22,6 @@ import {
 import { version } from '../version.js';
 import { loadProducts, noMoreArgs, rejectWorkspace, wantsHelp, type Shell } from '../shell.js';
 
-const MIN_NODE = 24;
 const REACH_TIMEOUT_MS = 5_000;
 
 export async function doctor(shell: Shell, argv: string[]): Promise<number> {
@@ -45,8 +45,6 @@ export async function doctor(shell: Shell, argv: string[]): Promise<number> {
 }
 
 function shellChecks(shell: Shell): DoctorResult[] {
-	const node = process.versions.node;
-	const major = Number(node.split('.')[0]);
 	const fileChosen = shell.env.MAGIC_CREDENTIALS_FILE === '1';
 	return [
 		{
@@ -56,15 +54,8 @@ function shellChecks(shell: Shell): DoctorResult[] {
 			detail: `magic ${version()}`,
 			data: { version: version() },
 		},
-		major >= MIN_NODE
-			? { name: 'node', product: 'magic', ok: true, detail: `Node ${node}` }
-			: {
-					name: 'node',
-					product: 'magic',
-					ok: false,
-					code: 'usage',
-					detail: `Node ${node}; magic needs Node ${MIN_NODE} or newer.`,
-				},
+		// Information only: bin/magic.js exits before this runs on Node < 24.
+		{ name: 'node', product: 'magic', ok: true, detail: `Node ${process.versions.node}` },
 		shell.store.backend === 'keyring'
 			? { name: 'credential store', product: 'magic', ok: true, detail: 'OS keychain' }
 			: {
@@ -81,8 +72,9 @@ function shellChecks(shell: Shell): DoctorResult[] {
 
 async function productChecks(shell: Shell, product: ProductModule): Promise<DoctorResult[]> {
 	const id = product.id;
+	const networkHint = `Check ${productEnvVar(id, 'URL')} and your network connection.`;
 	const fail = (name: string, err: unknown): DoctorResult => {
-		const e = toMagicError(err, { product: id });
+		const e = toMagicError(err, { product: id, networkHint });
 		return {
 			name,
 			product: id,
