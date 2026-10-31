@@ -24,8 +24,6 @@ export interface CredentialStore {
 	set(item: string, secret: string): Promise<void>;
 	/** Idempotent. */
 	delete(item: string): Promise<void>;
-	/** Item names only, never values. */
-	list(): Promise<string[]>;
 	readonly backend: 'keyring' | 'file';
 }
 
@@ -108,9 +106,6 @@ export function createFileStore(path: string, warn: (line: string) => void): Cre
 			delete data.items[item];
 			write(data);
 		},
-		async list() {
-			return Object.keys(read().items);
-		},
 	};
 }
 
@@ -167,28 +162,5 @@ function createMacStore(exec: ExecFile, file: CredentialStore): CredentialStore 
 			}
 			await file.delete(item);
 		},
-		async list() {
-			let names: string[] = [];
-			try {
-				names = parseKeychainDump(exec(SECURITY, ['dump-keychain']));
-			} catch {
-				// Unavailable keychain: only the file's items.
-			}
-			return [...new Set([...names, ...(await file.list())])];
-		},
 	};
-}
-
-/**
- * Item names for our service out of `security dump-keychain` (attributes only, no
- * secrets). Each item block lists `"acct"<blob>="…"` and `"svce"<blob>="…"`.
- */
-export function parseKeychainDump(dump: string): string[] {
-	const names: string[] = [];
-	for (const block of dump.split(/^keychain: /m)) {
-		const svce = /"svce"<blob>="([^"]*)"/.exec(block)?.[1];
-		const acct = /"acct"<blob>="([^"]*)"/.exec(block)?.[1];
-		if (svce === KEYCHAIN_SERVICE && acct) names.push(acct);
-	}
-	return names;
 }

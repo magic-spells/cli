@@ -101,15 +101,6 @@ describe('magic logout', () => {
 		expect(JSON.parse(again.stdout)).toEqual({ removed: [] });
 		expect((await magic(['logout', '--product', 'nope'], { store })).code).toBe(2);
 	});
-
-	it('never lists the keychain (slow): only <product>:manual items are touched', async () => {
-		const store = memoryStore();
-		store.list = async () => {
-			throw new Error('list must not be called');
-		};
-		expect((await magic(['logout'], { store })).code).toBe(0);
-		expect((await magic(['whoami'], { store })).code).toBe(3);
-	});
 });
 
 describe('magic whoami', () => {

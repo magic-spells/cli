@@ -91,7 +91,6 @@ const emptyStore: CredentialStore = {
 	locate: async () => null,
 	set: async () => {},
 	delete: async () => {},
-	list: async () => [],
 };
 
 async function magicPyramid(argv: string[], env: NodeJS.ProcessEnv = {}, tty = false) {

@@ -25,9 +25,6 @@ export function memoryStore(initial: Record<string, string> = {}): CredentialSto
 		async delete(item) {
 			delete items[item];
 		},
-		async list() {
-			return Object.keys(items);
-		},
 	};
 }
 

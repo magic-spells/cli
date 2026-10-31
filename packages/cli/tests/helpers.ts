@@ -15,7 +15,6 @@ export function memoryStore(initial: Record<string, string> = {}): CredentialSto
 		locate: async (item) => (item in items ? 'keyring' : null),
 		set: async (item, secret) => void (items[item] = secret),
 		delete: async (item) => void delete items[item],
-		list: async () => Object.keys(items),
 	};
 }
 

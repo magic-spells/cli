@@ -1,5 +1,5 @@
 // The credential store: file fallback (0600), the macOS `security` backend through
-// an injected exec, and the dump parser (COMPONENT-KEYCHAIN).
+// an injected exec (COMPONENT-KEYCHAIN).
 
 import { mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,7 +11,6 @@ import {
 	KEYCHAIN_SERVICE,
 	createCredentialStore,
 	credentialsFilePath,
-	parseKeychainDump,
 	type ExecFile,
 } from '../src/keychain.js';
 
@@ -36,7 +35,7 @@ describe('file backend', () => {
 		expect(warn.mock.calls[0]![0]).not.toContain('k1');
 	});
 
-	it('get / list / delete, idempotently', async () => {
+	it('get / locate / delete, idempotently', async () => {
 		const store = createCredentialStore({
 			platform: 'linux',
 			env: {},
@@ -46,10 +45,10 @@ describe('file backend', () => {
 		expect(await store.get('demo:manual')).toBeNull();
 		await store.set('demo:manual', 's');
 		expect(await store.get('demo:manual')).toBe('s');
-		expect(await store.list()).toEqual(['demo:manual']);
+		expect(await store.locate('demo:manual')).toBe('file');
 		await store.delete('demo:manual');
 		await store.delete('demo:manual');
-		expect(await store.list()).toEqual([]);
+		expect(await store.locate('demo:manual')).toBeNull();
 	});
 
 	it('honours XDG_CONFIG_HOME and APPDATA', () => {
@@ -130,24 +129,5 @@ describe('macOS keychain backend', () => {
 		expect(await store.get('demo:manual')).toBe('v');
 		expect(await store.locate('demo:manual')).toBe('file');
 		expect(await store.locate('other:manual')).toBeNull();
-		expect(await store.list()).toEqual(['demo:manual']);
-	});
-});
-
-describe('parseKeychainDump', () => {
-	it('lists only our service’s account names', () => {
-		const dump = [
-			'keychain: "/Users/x/Library/Keychains/login.keychain-db"',
-			'class: "genp"',
-			'attributes:',
-			`    "acct"<blob>="demo:manual"`,
-			`    "svce"<blob>="${KEYCHAIN_SERVICE}"`,
-			'keychain: "/Users/x/Library/Keychains/login.keychain-db"',
-			'class: "genp"',
-			'attributes:',
-			'    "acct"<blob>="someone"',
-			'    "svce"<blob>="elsewhere"',
-		].join('\n');
-		expect(parseKeychainDump(dump)).toEqual(['demo:manual']);
 	});
 });

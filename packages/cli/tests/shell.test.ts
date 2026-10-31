@@ -61,7 +61,6 @@ describe('magic shell', () => {
 			locate: async () => null,
 			set: async () => {},
 			delete: async () => {},
-			list: async () => [],
 		};
 		expect(await run(['pyramid', 'task', 'next'], { io: sink, env: {}, store })).toBe(3);
 		expect(JSON.parse(cap.stderr).error).toMatchObject({
