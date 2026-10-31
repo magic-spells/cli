@@ -6,6 +6,9 @@
 // No key is not fatal: the product's tools are still listed and each call resolves
 // the key then, answering not_logged_in until one is stored (a key stored, replaced
 // or removed later takes effect without a restart). One stderr line says so at start.
+// Keys come from the same store as the CLI, including the account sessions `magic
+// login` mints, and an expired account session is re-minted once per call. A product
+// with no operations yet (sign-in only) is left out.
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -13,6 +16,7 @@ import {
 	buildContext,
 	createMcpServer,
 	productConfig,
+	remintFor,
 	resolveCredential,
 	toMagicError,
 	type ContextSource,
@@ -64,7 +68,13 @@ export async function buildMcp(
 		try {
 			const module = await entry.load();
 			const operations = await module.load();
-			products.push({ module, operations, context: contextSource(shell, module, signal) });
+			if (operations.length === 0 && !module.mcp && !ids?.includes(entry.id)) continue;
+			products.push({
+				module,
+				operations,
+				context: contextSource(shell, module, signal),
+				remint: remintFor(module, shell.store),
+			});
 		} catch (err) {
 			skip(entry.id, err);
 		}

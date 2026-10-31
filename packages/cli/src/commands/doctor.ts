@@ -1,11 +1,19 @@
-// `magic doctor [--json]` (FEATURE-WHOAMI-DOCTOR, R0): the shell's own checks (Node,
-// credential store, CLI version), then per product: API reachable, key present and
-// well-formed, and the product's own checks through the kit's runDoctorChecks.
+// `magic doctor [--json]` (FEATURE-WHOAMI-DOCTOR): the shell's own checks (Node,
+// credential store, CLI version), Account (reachable, a grant stored), then per
+// product: API reachable, key present and well-formed, and the product's own checks
+// through the kit's runDoctorChecks. A product without a key fails only when nothing
+// at all is signed in; otherwise it is a warning (no workspace there, or not used).
 // Exit 0 when every check passes, else the class of the first failure.
 
 import {
 	contextFor,
 	exitCodeFor,
+	grantExpired,
+	grantIdleExpiry,
+	loadCliConfig,
+	manualItem,
+	readGrant,
+	readIndex,
 	jsonMode,
 	maskKey,
 	productConfig,
@@ -32,9 +40,10 @@ export async function doctor(shell: Shell, argv: string[]): Promise<number> {
 	rejectWorkspace('doctor', shell.opts);
 	noMoreArgs('doctor', argv);
 
-	const checks: DoctorResult[] = [...shellChecks(shell)];
-	for (const product of await loadProducts(shell))
-		checks.push(...(await productChecks(shell, product)));
+	const products = await loadProducts(shell);
+	const checks: DoctorResult[] = [...shellChecks(shell), ...(await accountChecks(shell))];
+	const signedIn = await anyCredential(shell, products);
+	for (const product of products) checks.push(...(await productChecks(shell, product, signedIn)));
 
 	const ok = checks.every((c) => c.ok);
 	if (jsonMode(shell.opts, shell.io)) render({ ok, checks }, shell.opts, shell.io);
@@ -70,7 +79,89 @@ function shellChecks(shell: Shell): DoctorResult[] {
 	];
 }
 
-async function productChecks(shell: Shell, product: ProductModule): Promise<DoctorResult[]> {
+/** Account reachable (a failure only when a grant depends on it) and the stored grant. */
+async function accountChecks(shell: Shell): Promise<DoctorResult[]> {
+	const grant = await readGrant(shell.store);
+	let accountUrl: string;
+	try {
+		accountUrl = loadCliConfig({
+			products: [],
+			env: shell.env,
+			file: shell.readConfig(),
+		}).accountUrl;
+	} catch (err) {
+		const e = toMagicError(err);
+		return [{ name: 'account', product: 'account', ok: false, code: e.code, detail: e.message }];
+	}
+	const results: DoctorResult[] = [];
+	try {
+		const res = await fetch(accountUrl, {
+			method: 'HEAD',
+			signal: AbortSignal.timeout(REACH_TIMEOUT_MS),
+		});
+		results.push({
+			name: 'account',
+			product: 'account',
+			ok: true,
+			detail: `${accountUrl} answers (HTTP ${res.status})`,
+		});
+	} catch (err) {
+		const e = toMagicError(networkish(err), {
+			product: 'account',
+			networkHint: 'Check MAGIC_ACCOUNT_URL and your network connection.',
+		});
+		const detail = e.hint ? `${e.message} — ${e.hint}` : e.message;
+		results.push(
+			grant
+				? { name: 'account', product: 'account', ok: false, code: e.code, detail }
+				: { name: 'account', product: 'account', ok: true, warn: true, detail }
+		);
+	}
+	if (!grant) {
+		results.push({
+			name: 'account grant',
+			product: 'account',
+			ok: true,
+			warn: true,
+			detail: 'Not signed in (run `magic login`); product keys only.',
+		});
+	} else if (grantExpired(grant)) {
+		results.push({
+			name: 'account grant',
+			product: 'account',
+			ok: false,
+			code: 'not_logged_in',
+			detail: 'Your sign-in has ended — run `magic login`.',
+		});
+	} else {
+		const who = grant.user ? `${grant.user.display_name} <${grant.user.email}>` : 'signed in';
+		results.push({
+			name: 'account grant',
+			product: 'account',
+			ok: true,
+			detail: `${who} until ${grant.expires_at.slice(0, 10)} (idle sign-out after ${grantIdleExpiry(grant).slice(0, 10)})`,
+			data: { user: grant.user ?? null, expires_at: grant.expires_at },
+		});
+	}
+	return results;
+}
+
+/** Any sign-in or product key at all: then a product without one is a warning. */
+async function anyCredential(shell: Shell, products: ProductModule[]): Promise<boolean> {
+	if (await readGrant(shell.store)) return true;
+	if (Object.keys(await readIndex(shell.store)).length > 0) return true;
+	for (const p of products) {
+		if (shell.env[productEnvVar(p.id, 'KEY')]?.trim()) return true;
+		if ((await shell.store.locate(manualItem(p.id))) !== null) return true;
+	}
+	return false;
+}
+
+async function productChecks(
+	shell: Shell,
+	product: ProductModule,
+	signedIn: boolean
+): Promise<DoctorResult[]> {
 	const id = product.id;
 	const networkHint = `Check ${productEnvVar(id, 'URL')} and your network connection.`;
 	const fail = (name: string, err: unknown): DoctorResult => {
@@ -110,21 +201,38 @@ async function productChecks(shell: Shell, product: ProductModule): Promise<Doct
 
 	let session;
 	try {
-		session = await resolveCredential(product, { env: shell.env, store: shell.store });
+		const workspace = config.defaultWorkspace[id];
+		session = await resolveCredential(product, {
+			env: shell.env,
+			store: shell.store,
+			...(workspace ? { workspace } : {}),
+		});
 	} catch (err) {
-		results.push(fail(`${id} key`, err));
+		const failed = fail(`${id} key`, err);
+		// Several workspaces with no default, or no key while signed in elsewhere: worth
+		// knowing, not broken.
+		const soft = failed.code === 'usage' || (failed.code === 'not_logged_in' && signedIn);
+		results.push(soft ? { ...failed, ok: true, warn: true } : failed);
 		return results;
 	}
 	results.push({
 		name: `${id} key`,
 		product: id,
 		ok: true,
-		detail: `${maskKey(session.key, product.credential)} from ${session.source === 'env' ? 'the environment' : 'the store'}`,
+		detail: `${maskKey(session.key, product.credential)} from ${keySource(session.source)}${session.workspace ? ` (workspace ${session.workspace.handle})` : ''}`,
 	});
 	results.push(
 		...(await runDoctorChecks(product.doctor ?? [], contextFor(product, config, session), id))
 	);
 	return results;
+}
+
+function keySource(source: 'account' | 'manual' | 'env'): string {
+	return source === 'env'
+		? 'the environment'
+		: source === 'account'
+			? 'your sign-in'
+			: 'a pasted key';
 }
 
 /** fetch rejects with a bare "fetch failed"; the cause says why. */

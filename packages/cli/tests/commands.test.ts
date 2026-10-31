@@ -1,10 +1,11 @@
-// The shell's top-level commands against a fake Pyramid API: login --product-key,
-// logout, whoami and doctor (FEATURE-WHOAMI-DOCTOR). Never production.
+// The shell's top-level commands with pasted keys against a fake Pyramid API: login
+// --product-key, logout, whoami and doctor (FEATURE-WHOAMI-DOCTOR). Account sign-in
+// is in login.test.ts. Never production.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { KEY, SECRET, startFakeApi, type FakeApi } from './fake-api.js';
-import { magic, memoryStore } from './helpers.js';
+import { PYRAMID_ONLY, magic, memoryStore } from './helpers.js';
 
 let api: FakeApi;
 beforeAll(async () => {
@@ -64,11 +65,11 @@ describe('magic login --product-key', () => {
 	});
 
 	it('usage errors: no --product-key, empty key, unknown prefix, unknown product', async () => {
-		expect((await magic(['login'])).code).toBe(2);
 		expect((await magic(['login', '--product-key'], { readSecret: secret('') })).code).toBe(2);
 		const unknown = await magic(['login', '--product-key'], { readSecret: secret('zzz_1_2') });
 		expect(unknown.code).toBe(2);
 		expect(JSON.parse(unknown.stderr).error.hint).toContain('pyk_ (pyramid)');
+		expect(JSON.parse(unknown.stderr).error.hint).toContain('sites_ (sites)');
 		expect(
 			(await magic(['login', '--product-key', 'nope'], { readSecret: secret(KEY) })).code
 		).toBe(2);
@@ -95,10 +96,10 @@ describe('magic logout', () => {
 		const store = memoryStore({ 'pyramid:manual': JSON.stringify({ key: KEY }) });
 		const one = await magic(['logout', '--product', 'pyramid'], { store });
 		expect(one.code).toBe(0);
-		expect(JSON.parse(one.stdout)).toEqual({ removed: ['pyramid'] });
+		expect(JSON.parse(one.stdout)).toEqual({ removed: ['pyramid'], revoked: [], account: 'none' });
 		expect(store.items).toEqual({});
 		const again = await magic(['logout'], { store });
-		expect(JSON.parse(again.stdout)).toEqual({ removed: [] });
+		expect(JSON.parse(again.stdout)).toEqual({ removed: [], revoked: [], account: 'none' });
 		expect((await magic(['logout', '--product', 'nope'], { store })).code).toBe(2);
 	});
 });
@@ -126,7 +127,8 @@ describe('magic whoami', () => {
 		const store = memoryStore({ 'pyramid:manual': JSON.stringify({ key: KEY }) });
 		const r = await magic(['whoami'], { store, env: { MAGIC_PYRAMID_URL: api.url }, tty: true });
 		expect(r.code).toBe(0);
-		expect(r.stdout).toMatch(/^pyramid\n {2}source +keychain\n {2}key +pyk_ab23cd45_…cdef\n/);
+		expect(r.stdout).toMatch(/^Not signed in/);
+		expect(r.stdout).toMatch(/\npyramid\n {2}source +manual\n {2}key +pyk_ab23cd45_…cdef\n/);
 		expect(r.stdout).toMatch(/workspace +Acme/);
 	});
 
@@ -135,7 +137,10 @@ describe('magic whoami', () => {
 		expect(r.code).toBe(3);
 		expect(JSON.parse(r.stdout).products.pyramid).toEqual({
 			source: 'none',
+			stored_in: null,
 			key: null,
+			default: null,
+			workspaces: [],
 			identity: null,
 		});
 	});
@@ -155,6 +160,7 @@ describe('magic whoami', () => {
 describe('magic doctor', () => {
 	it('all checks pass against the fake API, product checks carry product: pyramid', async () => {
 		const r = await magic(['doctor', '--json'], {
+			products: PYRAMID_ONLY,
 			env: { MAGIC_PYRAMID_KEY: KEY, MAGIC_PYRAMID_URL: api.url },
 		});
 		expect(r.code).toBe(0);
@@ -164,18 +170,23 @@ describe('magic doctor', () => {
 			'cli',
 			'node',
 			'credential store',
+			'account',
+			'account grant',
 			'pyramid api',
 			'pyramid key',
 			'pyramid auth',
 			'pyramid workflow',
 		]);
-		for (const c of out.checks.slice(3)) expect(c.product).toBe('pyramid');
+		for (const c of out.checks.slice(5)) expect(c.product).toBe('pyramid');
+		// No sign-in and Account unreachable: warnings, not failures.
+		expect(out.checks.slice(3, 5).map((c: { warn?: boolean }) => c.warn)).toEqual([true, true]);
 	});
 
 	it('the file store is a warning, not a failure', async () => {
 		const store = { ...memoryStore(), backend: 'file' as const };
 		const r = await magic(['doctor'], {
 			store,
+			products: PYRAMID_ONLY,
 			env: { MAGIC_PYRAMID_KEY: KEY, MAGIC_PYRAMID_URL: api.url },
 			tty: true,
 		});
@@ -184,7 +195,10 @@ describe('magic doctor', () => {
 	});
 
 	it('no key: the key check fails with not_logged_in, exit 3, product checks skipped', async () => {
-		const r = await magic(['doctor'], { env: { MAGIC_PYRAMID_URL: api.url } });
+		const r = await magic(['doctor'], {
+			products: PYRAMID_ONLY,
+			env: { MAGIC_PYRAMID_URL: api.url },
+		});
 		expect(r.code).toBe(3);
 		const checks = JSON.parse(r.stdout).checks as { name: string; ok: boolean; code?: string }[];
 		expect(checks.find((c) => c.name === 'pyramid key')).toMatchObject({
@@ -198,6 +212,7 @@ describe('magic doctor', () => {
 		const closed = await startFakeApi();
 		await closed.close();
 		const r = await magic(['doctor'], {
+			products: PYRAMID_ONLY,
 			env: { MAGIC_PYRAMID_KEY: KEY, MAGIC_PYRAMID_URL: closed.url },
 		});
 		expect(r.code).toBe(10);
