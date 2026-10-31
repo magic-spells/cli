@@ -1,6 +1,6 @@
 ---
 name: 'Keyring by default: one service io.magicspells.cli in the OS credential store; 0600 file fallback with a warning'
-status: planned
+status: built
 connections:
   - DECISION-ACCOUNT-IDENTITY-PRODUCT-AUTHORITY
   - COMPONENT-KEYCHAIN

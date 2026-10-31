@@ -29,6 +29,12 @@ notes:
       build` re-emits tsc output (tsbuildinfo was removed with dist). The esbuild postinstall is
       blocked by npm's install-scripts gate locally; the platform binary still works.
     sha: '2952966'
+  - kind: state
+    text: >-
+      Correction to the "no repo yet" note: origin is github.com/magic-spells/cli and PR #1
+      (feat/r0-scaffold → release/0.1.0) is open, so ci.yml runs on pushes to the branch.
+      release.yml has not run (no tag), and nothing is published. The release job now runs
+      format:check too.
 ---
 
 # Release pipeline

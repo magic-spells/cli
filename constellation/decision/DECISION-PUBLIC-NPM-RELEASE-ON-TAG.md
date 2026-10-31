@@ -1,6 +1,6 @@
 ---
 name: 'Public npm, released on a tag: Cory tags, GitHub Actions publishes one version for the CLI and its engine packages'
-status: planned
+status: built
 connections:
   - DECISION-ONE-CLI-FOR-HOSTED-SERVICES
   - DECISION-SITES-VIA-BINARY-ADAPTER

@@ -49,7 +49,8 @@ notes:
 
 ## Responsibilities
 
-- **Global flags**, parsed anywhere in argv (pyramid-cli's `parseGlobals`): `--json`, `--yes/-y`, `--no-color` (and `NO_COLOR`), `--quiet/-q`, `--no-cache`, `--workspace <handle>`, `--product-key` (reads the key from a prompt or stdin, never from the argv value — see [[DOC-SECURITY]]), `--version`, `--help`.
+
+- **Global flags**, parsed anywhere in argv (pyramid-cli's `parseGlobals`): `--json`, `--yes/-y`, `--no-color` (and `NO_COLOR`), `--quiet/-q`, `--workspace <handle>`, `--product-key` (reads the key from a prompt or stdin, never from the argv value — see [[DOC-SECURITY]]), `--version`, `--help`.
 - **Top-level commands:** `login`, `logout`, `whoami`, `doctor`, `mcp`, `upgrade`, `telemetry on|off|status`, `version`.
 - **Product dispatch:** the first token that names a product loads that product's registry ([[COMPONENT-OPERATION-REGISTRY]]) lazily, so `magic pyramid …` never spawns the Sites engine.
 - **Help:** `magic --help` lists top-level commands and products; `magic <product> --help` lists nouns and verbs derived from the registry.

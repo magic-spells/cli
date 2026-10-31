@@ -27,6 +27,19 @@ notes:
       before products load; SIGINT/SIGTERM/stdin end abort OpContext.signal, close the server, exit
       0; family preamble then each product's instructions under `## <title>`.
     sha: ad8cfdd
+  - kind: gotcha
+    text: >-
+      When stdin closes, OpContext.signal is aborted and the process exits 0 at once, so any
+      in-flight tool call is dropped rather than finished (accepted for R0: the host has already
+      gone).
+  - kind: state
+    text: >-
+      Supersedes "kept once a key resolves" in the decision note: the context is now built on every
+      call (env and store read each time), so `magic logout` or a replaced key applies to a running
+      server; tested. A product whose load() or mcp.register throws is left out with one stderr line
+      (`magic mcp: <id>: left out (<message>)`): buildMcp guards load(), and createMcpServer
+      dry-runs each product's registration on a scratch server and reports through onSkip, so the
+      broken product's tools and instructions never reach the real server.
 ---
 
 # MCP aggregator
