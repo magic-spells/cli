@@ -58,6 +58,7 @@ describe('magic shell', () => {
 		const store = {
 			backend: 'file' as const,
 			get: async () => null,
+			locate: async () => null,
 			set: async () => {},
 			delete: async () => {},
 			list: async () => [],
