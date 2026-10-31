@@ -47,10 +47,11 @@ describe('magic shell', () => {
 			'task list-mine (next)',
 			'task update <task>',
 			'task comment <task> <content>',
-			'login',
 		]) {
 			expect(cap.stderr).toContain(c);
 		}
+		// `magic pyramid login` is gone: `magic login` signs in to every product.
+		expect(cap.stderr).not.toMatch(/^\s+login\b/m);
 	});
 
 	it('magic pyramid task next without a key is not_logged_in (exit 3)', async () => {
