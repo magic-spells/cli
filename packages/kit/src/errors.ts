@@ -152,7 +152,7 @@ export interface HttpErrorOptions {
 	 * code or message names one gets `details.kind`; otherwise no kind.
 	 */
 	notFoundKinds?: readonly string[];
-	/** Display name for the fallback message ("Pyramid request failed (HTTP 500)"). */
+	/** Display name for the fallback message ("Acme request failed (HTTP 500)"). */
 	title?: string;
 }
 
