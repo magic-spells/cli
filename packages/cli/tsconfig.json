@@ -6,5 +6,10 @@
 		"tsBuildInfoFile": "dist/.tsbuildinfo"
 	},
 	"include": ["src/**/*.ts"],
-	"references": [{ "path": "../kit" }, { "path": "../pyramid" }]
+	"references": [
+		{ "path": "../kit" },
+		{ "path": "../pyramid" },
+		{ "path": "../sites" },
+		{ "path": "../marketing" }
+	]
 }

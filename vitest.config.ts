@@ -12,6 +12,8 @@ export default defineConfig({
 		alias: {
 			'@magic-spells/kit': src('kit'),
 			'@magic-spells/pyramid': src('pyramid'),
+			'@magic-spells/sites': src('sites'),
+			'@magic-spells/marketing': src('marketing'),
 		},
 	},
 	test: {

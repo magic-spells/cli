@@ -16,4 +16,14 @@ export const PRODUCTS: ProductEntry[] = [
 		title: 'Pyramid — projects and tasks',
 		load: async () => (await import('@magic-spells/pyramid')).default,
 	},
+	{
+		id: 'sites',
+		title: 'Sites — sign-in only until its commands arrive',
+		load: async () => (await import('@magic-spells/sites')).default,
+	},
+	{
+		id: 'marketing',
+		title: 'Marketing — sign-in only until its commands arrive',
+		load: async () => (await import('@magic-spells/marketing')).default,
+	},
 ];
