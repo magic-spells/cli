@@ -12,13 +12,23 @@
 	},
 	"files": [
 		"bin",
-		"dist"
+		"dist",
+		"!dist/.tsbuildinfo"
 	],
 	"publishConfig": {
 		"access": "public"
 	},
 	"dependencies": {
-		"@magic-spells/kit": "*",
-		"@magic-spells/pyramid": "*"
+		"@modelcontextprotocol/sdk": "^1.12.0",
+		"undici": "^6.19.0",
+		"zod": "^3.23.8"
+	},
+	"scripts": {
+		"bundle": "node scripts/bundle.mjs",
+		"prepack": "node scripts/bundle.mjs"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/magic-spells/cli.git"
 	}
 }

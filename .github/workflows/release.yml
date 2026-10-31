@@ -1,0 +1,66 @@
+# Release (FEATURE-RELEASE-PIPELINE, DECISION-PUBLIC-NPM-RELEASE-ON-TAG): on a `v*` tag
+# that Cory pushes, check the tag matches packages/cli, build, test, and publish
+# @magic-spells/cli to public npm with provenance. `prepack` bundles the private
+# workspace packages into packages/cli/dist, so the tarball is self-contained.
+# Then install the published version on each OS. Agents never tag or publish.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: The tag matches packages/cli/package.json
+        run: |
+          version=$(node -p "require('./packages/cli/package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match packages/cli version $version"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run smoke:pack
+      - run: npm publish -w packages/cli --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  smoke:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install the published version and run it
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # The registry can take a moment to serve a new version.
+          for attempt in 1 2 3 4 5 6; do
+            if out=$(npx -y "@magic-spells/cli@$version" --version 2>&1); then break; fi
+            echo "attempt $attempt: $out"; sleep 20
+          done
+          echo "$out"
+          [ "$out" = "magic $version" ]
+          npx -y "@magic-spells/cli@$version" --help
