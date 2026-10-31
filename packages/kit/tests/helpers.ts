@@ -72,7 +72,7 @@ export const demoOps: Operation<any, unknown, DemoClient>[] = [
 	{
 		name: 'demo.widget.list-mine',
 		summary: 'My widgets',
-		input: z.object({ limit: z.number().int().optional() }),
+		input: z.object({ limit: z.number().int().optional(), workspace: z.string().optional() }),
 		meta: { cli: { verbAliases: ['next'] } },
 		run: record('mine'),
 	},

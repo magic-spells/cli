@@ -77,6 +77,17 @@ describe('help and dispatch', () => {
 		expect(demoCalls()[0]).toEqual({ op: 'mine', input: { limit: 2 } });
 	});
 
+	it('--workspace reaches an input named workspace and is a usage error elsewhere', async () => {
+		await run(['--workspace', 'acme', 'widget', 'next']);
+		expect(demoCalls()[0]?.input).toMatchObject({ workspace: 'acme' });
+		const bad = await run(['--workspace', 'acme', 'widget', 'list']);
+		expect(bad.code).toBe(2);
+		expect(JSON.parse(bad.stderr).error.message).toBe(
+			'--workspace is not supported by widget list'
+		);
+		expect(demoCalls()).toHaveLength(1);
+	});
+
 	it('preset switches set input values', async () => {
 		await run(['widget', 'archive', 'W-1']);
 		await run(['widget', 'archive', 'W-1', '--unarchive']);

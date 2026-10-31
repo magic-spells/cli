@@ -46,7 +46,10 @@ export async function runProductCli(
 		const { rest, productFlags } = parsed;
 
 		const extra = rest[0] ? product.commands?.[rest[0]] : undefined;
-		if (extra) return await extra.run(rest.slice(1));
+		if (extra) {
+			if (opts.workspace) throw usage(`--workspace is not supported by ${rest[0]}`);
+			return await extra.run(rest.slice(1));
+		}
 
 		const ops = await product.load();
 		assertRegistry(product.id, ops);
@@ -131,8 +134,12 @@ function buildInput(
 	for (const [key, value] of Object.entries(productFlags)) {
 		if (has(key) && raw[key] === undefined) raw[key] = value;
 	}
-	if (opts.workspace && has('workspace') && raw.workspace === undefined)
-		raw.workspace = opts.workspace;
+	if (opts.workspace) {
+		if (!has('workspace')) {
+			throw usage(`--workspace is not supported by ${cmd.words.join(' ')}`);
+		}
+		if (raw.workspace === undefined) raw.workspace = opts.workspace;
+	}
 	if (opts.noCache && has('noCache')) raw.noCache = true;
 
 	const result = cmd.op.input.safeParse(coerce(raw, fields));
