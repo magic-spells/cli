@@ -51,15 +51,18 @@ interface LoginOptions {
 	name: string;
 }
 
-function parseLoginOptions(argv: string[], env: NodeJS.ProcessEnv): LoginOptions | string {
+const LOGIN_USAGE = 'usage: magic pyramid login [--web-url <url>] [--name <key name>]';
+
+function parseLoginOptions(argv: string[], env: NodeJS.ProcessEnv): LoginOptions | 'help' | string {
 	let webUrl = env.MAGIC_PYRAMID_WEB_URL?.trim() || DEFAULT_WEB_URL;
 	let name = 'Magic CLI';
 	const args = argv;
 	for (let i = 0; i < args.length; i += 1) {
-		const arg = args[i];
+		const arg = args[i]!;
+		if (arg === '--help' || arg === '-h') return 'help';
 		if (arg === '--web-url') {
 			const next = args[++i];
-			if (!next) return 'usage: magic pyramid login [--web-url <url>] [--name <key name>]';
+			if (!next) return LOGIN_USAGE;
 			webUrl = next;
 			continue;
 		}
@@ -69,7 +72,7 @@ function parseLoginOptions(argv: string[], env: NodeJS.ProcessEnv): LoginOptions
 		}
 		if (arg === '--name') {
 			const next = args[++i];
-			if (!next) return 'usage: magic pyramid login [--web-url <url>] [--name <key name>]';
+			if (!next) return LOGIN_USAGE;
 			name = next;
 			continue;
 		}
@@ -104,6 +107,11 @@ function closeServer(server: Server): Promise<void> {
 /** `magic pyramid login` — browser handoff that stores a minted API key locally. */
 export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<number> {
 	const opts = parseLoginOptions(argv, io.env);
+	if (opts === 'help') {
+		io.out(LOGIN_USAGE);
+		io.out('Opens Pyramid in the browser and stores the workspace key it mints.');
+		return 0;
+	}
 	if (typeof opts === 'string') {
 		io.out(opts);
 		return 2;

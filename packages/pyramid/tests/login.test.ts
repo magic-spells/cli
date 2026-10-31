@@ -128,6 +128,16 @@ describe('runLogin', () => {
 		expect(f.lines.join(' ')).toContain(seenURL);
 	});
 
+	it('--help prints usage and exits 0 without opening the browser', async () => {
+		const f = fakeIO(null, {
+			openBrowser: () => {
+				throw new Error('must not open');
+			},
+		});
+		expect(await runLogin(['--help'], f.io)).toBe(0);
+		expect(f.lines[0]).toMatch(/^usage: magic pyramid login/);
+	});
+
 	it('times out if no callback arrives', async () => {
 		const f = fakeIO(null, {
 			openBrowser: () => true,
