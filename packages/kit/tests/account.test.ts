@@ -11,6 +11,7 @@ import {
 	authorizeUrl,
 	createPkce,
 	randomState,
+	requireClientId,
 	waitForDevice,
 } from '../src/account.js';
 import { ACCOUNT_CLIENT_ID_PLACEHOLDER } from '../src/config.js';
@@ -72,10 +73,14 @@ describe('PKCE and the authorize URL', () => {
 		});
 	});
 
-	it('refuses the placeholder client id with a usage error', () => {
-		expect(
-			() => new AccountClient({ accountUrl: account.url, clientId: ACCOUNT_CLIENT_ID_PLACEHOLDER })
-		).toThrow(/no Account client id/);
+	it('refuses the placeholder client id with a usage error before any request', async () => {
+		const c = new AccountClient({
+			accountUrl: account.url,
+			clientId: ACCOUNT_CLIENT_ID_PLACEHOLDER,
+		});
+		await expect(c.startDevice()).rejects.toMatchObject({ code: 'usage' });
+		expect(() => requireClientId(undefined)).toThrow(/no Account client id/);
+		expect(account.requests).toHaveLength(0);
 	});
 });
 

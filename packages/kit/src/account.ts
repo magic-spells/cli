@@ -85,25 +85,35 @@ export type DevicePoll =
 
 export interface AccountClientOptions {
 	accountUrl: string;
-	clientId: string;
+	/** Needed for sign-in; revoke works without it. */
+	clientId?: string;
 	fetch?: Fetch;
+}
+
+/** The client id, or a usage error when this build still carries the placeholder. */
+export function requireClientId(clientId: string | undefined): string {
+	if (!clientId || clientId === ACCOUNT_CLIENT_ID_PLACEHOLDER) {
+		throw new MagicError('usage', 'This build of magic has no Account client id.', {
+			product: ACCOUNT_PRODUCT,
+			hint: 'Set MAGIC_ACCOUNT_CLIENT_ID to the magic application’s client id.',
+		});
+	}
+	return clientId;
 }
 
 export class AccountClient {
 	readonly accountUrl: string;
-	readonly clientId: string;
+	private readonly id: string | undefined;
 	private readonly fetch: Fetch;
 
 	constructor(opts: AccountClientOptions) {
-		if (!opts.clientId || opts.clientId === ACCOUNT_CLIENT_ID_PLACEHOLDER) {
-			throw new MagicError('usage', 'This build of magic has no Account client id.', {
-				product: ACCOUNT_PRODUCT,
-				hint: 'Set MAGIC_ACCOUNT_CLIENT_ID to the magic application’s client id.',
-			});
-		}
 		this.accountUrl = opts.accountUrl;
-		this.clientId = opts.clientId;
+		this.id = opts.clientId;
 		this.fetch = opts.fetch ?? fetch;
+	}
+
+	get clientId(): string {
+		return requireClientId(this.id);
 	}
 
 	/** Exchange a loopback `code` for the grant (`grant_type=authorization_code`). */
