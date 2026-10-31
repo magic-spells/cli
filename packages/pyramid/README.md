@@ -5,7 +5,7 @@ tools. Private; ships inside `magic-spells`, never on its own. Moved here from
 `magic-spells/pyramid-cli` with its history (git subtree).
 
 ```sh
-magic login                          # once: signs in and mints a pyk_ key per workspace
+magic login                          # once: signs in and mints a pyramid_ key per workspace
 magic pyramid task next
 magic pyramid task move WEB-42 --status "In Review"
 magic pyramid task comment WEB-42 "Looks good"
@@ -19,7 +19,7 @@ With more than one Pyramid workspace, pick one with `--workspace <handle>` (or s
 
 | Variable | Meaning |
 |---|---|
-| `MAGIC_PYRAMID_KEY` | `pyk_` key (was `PYRAMID_API_KEY`) |
+| `MAGIC_PYRAMID_KEY` | `pyramid_` key (was `PYRAMID_API_KEY`) |
 | `MAGIC_PYRAMID_URL` | API base URL, default `https://api.pyramid.magicspells.io` (was `PYRAMID_BASE_URL`) |
 | `MAGIC_ALLOW_DESTRUCTIVE=1` | with `--yes`, allows `task delete` (was `PYRAMID_ALLOW_DESTRUCTIVE`) |
 

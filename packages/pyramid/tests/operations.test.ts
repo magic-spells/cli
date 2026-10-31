@@ -147,7 +147,11 @@ function makeCtx(
 ): OpContext {
 	return {
 		config,
-		session: { product: 'pyramid', key: 'pyk_test_secret', source: 'env' },
+		session: {
+			product: 'pyramid',
+			key: 'pyramid_ab23cd45_0123456789abcdef0123456789abcdef',
+			source: 'env',
+		},
 		client: { api: client as never, resolver: resolver as never },
 		signal: new AbortController().signal,
 	};

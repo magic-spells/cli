@@ -33,7 +33,7 @@ and one `<product>:<workspace>` item per key.
 
 ```sh
 echo "$KEY" | magic login --product-key pyramid   # or paste at the hidden prompt
-export MAGIC_PYRAMID_KEY=pyk_…                    # or just set the variable
+export MAGIC_PYRAMID_KEY=pyramid_…                    # or just set the variable
 ```
 
 Keys are read from the prompt or stdin, never from arguments. A key in the environment
@@ -70,7 +70,7 @@ stored, without restarting the server. With several workspaces in a product, set
 
 | Variable | Meaning |
 |---|---|
-| `MAGIC_<PRODUCT>_KEY` | the product's key, e.g. `MAGIC_PYRAMID_KEY=pyk_…`; never stored, wins over the sign-in |
+| `MAGIC_<PRODUCT>_KEY` | the product's key, e.g. `MAGIC_PYRAMID_KEY=pyramid_…`; never stored, wins over the sign-in |
 | `MAGIC_<PRODUCT>_URL` | the product's API base URL, e.g. `MAGIC_PYRAMID_URL`, `MAGIC_SITES_URL`, `MAGIC_MARKETING_URL` |
 | `MAGIC_ACCOUNT_URL` | the Account to sign in with, default `https://account.magicspells.io` |
 | `MAGIC_ACCOUNT_CLIENT_ID` | the `magic` application's client id at that Account |

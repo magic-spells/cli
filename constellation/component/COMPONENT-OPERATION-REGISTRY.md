@@ -36,7 +36,7 @@ Each product package default-exports a `ProductModule`:
 interface ProductModule {
   id: 'pyramid' | 'sites' | 'app' | 'marketing';
   title: string;                          // "Pyramid"
-  credential: 'pyk_' | 'pk_' | 'pmk_' | 'ak_';
+  credential: 'pyramid_' | 'pk_' | 'pmk_' | 'ak_';
   load(ctx: KitContext): Promise<Operation[]>;   // binary-backed products build the list here
   client(session: ProductSession, cfg: CliConfig): unknown;
   doctor?: DoctorCheck[];

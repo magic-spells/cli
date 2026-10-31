@@ -97,7 +97,9 @@ describe('magic mcp (in-process harness)', () => {
 		store.items['pyramid:manual'] = JSON.stringify({ key: KEY });
 		expect(await call()).toBe('ok');
 		// A replaced key is used on the next call (the fake API rejects this one).
-		store.items['pyramid:manual'] = JSON.stringify({ key: 'pyk_ab23cd45_replaced' });
+		store.items['pyramid:manual'] = JSON.stringify({
+			key: 'pyramid_ab23cd45_ffffffffffffffffffffffffffffffff',
+		});
 		expect(await call()).toBe('auth_invalid');
 		// After logout the server is logged out too.
 		delete store.items['pyramid:manual'];

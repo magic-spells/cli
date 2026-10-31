@@ -99,7 +99,7 @@ describe('kit stays product-neutral', () => {
 		for (const f of files) {
 			// Provenance notes may cite the CLI the kit was extracted from.
 			const text = readFileSync(join(src, f), 'utf8').replaceAll('pyramid-cli', '');
-			expect(text, f).not.toMatch(/pyramid|sites|marketing|pyk_|pmk_/i);
+			expect(text, f).not.toMatch(/pyramid|sites|marketing|pmk_/i);
 		}
 	});
 
