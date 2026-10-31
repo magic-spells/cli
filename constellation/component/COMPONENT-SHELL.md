@@ -31,6 +31,16 @@ notes:
       (FEATURE-WHOAMI-DOCTOR), mcp (FEATURE-MCP-AGGREGATOR), --product-key, upgrade, telemetry,
       SIGINT -> OpContext.signal.
     sha: 0304bf4
+  - kind: state
+    text: >-
+      Now built: top-level `login --product-key`, `logout`, `whoami`, `doctor`, `mcp`
+      (packages/cli/src/commands/*, a Shell context in src/shell.ts), every top-level error through
+      the kit's renderError (JSON envelope when piped). `--no-cache` was removed (it did nothing);
+      `--workspace` is a usage error wherever no operation input takes it, including top-level
+      commands. Still not built: upgrade, telemetry, SIGINT → OpContext.signal for CLI runs (it is
+      wired for `magic mcp`). The published bin runs the esbuild bundle that `prepack` writes into
+      dist/.
+    sha: '2952966'
 ---
 
 # Shell

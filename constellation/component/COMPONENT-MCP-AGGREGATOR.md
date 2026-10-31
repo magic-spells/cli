@@ -1,7 +1,7 @@
 ---
 name: 'MCP aggregator: magic mcp — one stdio server, product-prefixed tools, --products filter, per-product auth isolation'
 kind: server
-status: planned
+status: built
 framework: typescript
 connections:
   - DECISION-ONE-MCP-SERVER

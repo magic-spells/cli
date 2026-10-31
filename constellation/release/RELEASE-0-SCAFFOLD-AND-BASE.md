@@ -7,6 +7,20 @@ connections:
   - DECISION-OPERATIONS-ARE-THE-CONTRACT
   - DECISION-PUBLIC-NPM-RELEASE-ON-TAG
   - RELEASE-1-LOGIN
+notes:
+  - kind: state
+    text: >-
+      All R0 code is on feat/r0-scaffold (2952966): scaffold, kit, Pyramid move, login
+      --product-key/logout, whoami/doctor, magic mcp, CI + publish-on-tag, test type-check. Gates
+      green locally against fake servers only: kit 110, pyramid 111 + 2 inherited skips, cli 27;
+      build, typecheck, format:check, smoke:pack. What remains is Cory's: (1) create the GitHub repo
+      magic-spells/cli and push; (2) add the NPM_TOKEN secret (automation token) and confirm the npm
+      scope allows provenance from that repo; (3) merge feat/r0-scaffold into release/0.1.0, watch
+      CI on three OSes; (4) the live gate — `magic pyramid task next` with a real pyk_ key and
+      `claude mcp add magic -- npx -y @magic-spells/cli mcp` — never run by agents; (5) push the
+      v0.1.0 tag; (6) after the gate, `npm deprecate @magic-spells/pyramid` and archive
+      magic-spells/pyramid-cli (FEATURE-DEPRECATE-PYRAMID-CLI).
+    sha: '2952966'
 ---
 
 # R0: Scaffold and base
