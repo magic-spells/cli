@@ -83,6 +83,50 @@ describe('runLogin', () => {
 		expect(output).not.toContain(SECRET);
 	});
 
+	it('stores the key from the exact POST Pyramid web sends, after refusing a GET', async () => {
+		// Mirrors CliAuth.pzl's _notifyCli: fetch() to the redirect_uri as given, a
+		// URLSearchParams body (so the urlencoded content type with a charset suffix).
+		let getStatus = 0;
+		let postStatus = 0;
+		const f = fakeIO(null, {
+			openBrowser: async (url) => {
+				const login = new URL(url);
+				const redirectURI = login.searchParams.get('redirect_uri') ?? '';
+				const leaked = new URL(redirectURI);
+				leaked.searchParams.set('state', login.searchParams.get('state') ?? '');
+				leaked.searchParams.set('key', KEY);
+				getStatus = await send(leaked, 'GET');
+				const res = await fetch(redirectURI, {
+					method: 'POST',
+					body: new URLSearchParams({
+						state: login.searchParams.get('state') ?? '',
+						key: KEY,
+						name: 'Pyramid CLI',
+					}),
+				});
+				postStatus = res.status;
+				return true;
+			},
+		});
+
+		expect(await runLogin([], f.io)).toBe(0);
+		expect(getStatus).toBe(405);
+		expect(postStatus).toBe(200);
+		expect(f.stored).toBe(KEY);
+	});
+
+	it('rejects a POST whose state is empty', async () => {
+		const f = fakeIO(null, {
+			openBrowser: async (url) => {
+				await callbackFromLoginURL(url, { key: KEY }, '');
+				return true;
+			},
+		});
+
+		expect(await runLogin([], f.io)).toBe(1);
+		expect(f.stored).toBeNull();
+	});
+
 	it('refuses a GET with the key in the query string and never reads it', async () => {
 		let status = 0;
 		const f = fakeIO(null, {
