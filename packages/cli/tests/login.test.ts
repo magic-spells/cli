@@ -35,7 +35,7 @@ beforeAll(async () => {
 	const me = { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' };
 	pyramid = await startFakeProduct({
 		id: 'pyramid',
-		prefix: 'pyk_',
+		prefix: 'pyramid_',
 		path: '/v1/cli/sessions',
 		account,
 		workspaces: [ACME, BETA],
@@ -73,6 +73,7 @@ beforeEach(() => {
 	sites.workspaces = [SHOP];
 	marketing.workspaces = [];
 	sites.down = false;
+	sites.user = undefined;
 	for (const s of [account, pyramid, sites, marketing]) s.requests.length = 0;
 });
 
@@ -193,6 +194,17 @@ describe('magic login (loopback)', () => {
 		expect(r.stderr).toMatch(/sites +1 workspace: shop \(default\)/);
 		expect(r.stderr).toMatch(/marketing +skipped: You have no Marketing workspaces\./);
 		for (const secret of secretsIn(store)) expect(r.stdout + r.stderr).not.toContain(secret);
+	});
+
+	it('a user in a sessions answer fills the grant, ahead of the Pyramid whoami', async () => {
+		sites.user = { id: 'u-bob', display_name: 'Bob Jones', email: 'bob@example.com' };
+		const store = memoryStore();
+		const r = await magic(['login'], desktop({ store }));
+		expect(r.code).toBe(0);
+		expect(JSON.parse(store.items['account:grant']!).user).toEqual(sites.user);
+		expect(r.stderr).toContain('Logged in as Bob Jones (bob@example.com).');
+		// No whoami call was needed.
+		expect(pyramid.requests.some((q) => q.path === '/v1/me')).toBe(false);
 	});
 
 	it('a product that is down is skipped; login still succeeds', async () => {
@@ -401,7 +413,7 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 					handle: 'acme',
 					name: 'Acme',
 					role: 'owner',
-					key: expect.stringMatching(/^pyk_[0-9a-f]{8}_…/),
+					key: expect.stringMatching(/^pyramid_[0-9a-f]{8}_…/),
 				},
 				{ handle: 'beta', name: 'Beta', role: 'member' },
 			],
@@ -494,7 +506,7 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 		for (const k of keys) expect(live).not.toContain(k);
 		expect(account.isActive(grant.access_token)).toBe(false);
 		const del = pyramid.requests.find((q) => q.method === 'DELETE')!;
-		expect(del.authorization).toMatch(/^Bearer pyk_/);
+		expect(del.authorization).toMatch(/^Bearer pyramid_/);
 		expect(account.requests.at(-1)).toMatchObject({
 			path: '/auth/revoke',
 			body: { token: grant.access_token },

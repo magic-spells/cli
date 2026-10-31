@@ -257,6 +257,8 @@ export interface FakeProduct extends Listening {
 	expireNext: boolean;
 	/** The sessions route answers 503 (product down). */
 	down: boolean;
+	/** Optional top-level `user` in the sessions answer. */
+	user?: { id: string; display_name: string; email: string };
 	liveKeys(): string[];
 }
 
@@ -264,7 +266,7 @@ export async function startFakeProduct(opts: FakeProductOptions): Promise<FakePr
 	let fake!: FakeProduct;
 	const bearer = (r: Recorded): string => r.authorization.replace(/^Bearer /, '');
 	const mint = (grant: string, w: FakeWorkspace): Record<string, unknown> => {
-		const key = `${opts.prefix}${randomBytes(4).toString('hex')}_${randomBytes(12).toString('hex')}`;
+		const key = `${opts.prefix}${randomBytes(4).toString('hex')}_${randomBytes(16).toString('hex')}`;
 		fake.keys.set(key, { grant, handle: w.handle, revoked: false });
 		return {
 			product: opts.id,
@@ -301,6 +303,7 @@ export async function startFakeProduct(opts: FakeProductOptions): Promise<FakePr
 			return send(res, 200, {
 				sessions: chosen.map((w) => mint(grant, w)),
 				workspaces: fake.workspaces,
+				...(fake.user ? { user: fake.user } : {}),
 			});
 		}
 
