@@ -7,7 +7,7 @@ tools. Private; ships inside `@magic-spells/cli`, never on its own. Moved here f
 ```sh
 export MAGIC_PYRAMID_KEY=pyk_…        # Pyramid → Settings → API Keys
 magic pyramid task next
-magic pyramid task update WEB-42 --status "In Review"
+magic pyramid task move WEB-42 --status "In Review"
 magic pyramid task comment WEB-42 "Looks good"
 magic pyramid project list
 magic pyramid whoami
