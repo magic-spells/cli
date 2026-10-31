@@ -26,7 +26,8 @@ describe('file backend', () => {
 		await store.set('other:manual', '{"key":"k2"}');
 		const path = credentialsFilePath({ platform: 'linux', env: {}, home: h });
 		expect(path).toBe(join(h, '.config', 'magic', 'credentials.json'));
-		expect(statSync(path).mode & 0o777).toBe(0o600);
+		// Windows has no POSIX mode bits; stat reports 0o666 whatever chmod asked for.
+		if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
 		expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
 			items: { 'demo:manual': '{"key":"k1"}', 'other:manual': '{"key":"k2"}' },
 		});
