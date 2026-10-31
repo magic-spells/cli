@@ -30,6 +30,16 @@ notes:
       the same code products use for an expired key; only runWithRemint (product operations) acts on
       it, so login is not affected.
     sha: 9d2583d
+  - kind: state
+    text: >-
+      Review fixes (2026-10-31): the loopback compares `state` in constant time and stops its
+      2-minute timer once a code arrives (it could end the login mid-exchange and orphan the grant
+      Account was issuing; the exchange keeps its own 30 s limit). Session labels `magic on <host>`
+      are capped at 80 characters (Marketing refuses longer labels). `magic doctor` re-mints an
+      expired account key before the product checks, as commands do. On Windows the browser opens
+      through `rundll32 url.dll,FileProtocolHandler`: `cmd /c start` split the authorize URL at
+      every `&`.
+    sha: 9a25cf7
 ---
 
 # Login
