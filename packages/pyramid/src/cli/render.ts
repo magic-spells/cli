@@ -10,8 +10,9 @@
 //   - JSON when `opts.json` OR stdout is not a TTY (auto-JSON for pipes/agents);
 //     a TTY without --json gets a compact human table/lines. `--json` wins.
 
-import type { McpError } from '../errors.js';
-import type { McpErrorCode } from '../types.js';
+import { exitCodeFor, type MagicError } from '@magic-spells/kit';
+
+export { exitCodeFor };
 
 /** Global CLI options parsed before the subcommand (DATATYPE-CLI-OPTIONS). */
 export interface CliGlobalOptions {
@@ -182,59 +183,12 @@ function cell(v: unknown): string {
 // ============ Error rendering + exit codes ============
 
 /**
- * Map an McpError code to a stable, non-zero exit code (DOC-CLI-OUTPUT).
- * The table is by error CLASS so scripts can branch on exit status alone.
- */
-export function exitCodeFor(code: McpErrorCode): number {
-	switch (code) {
-		case 'auth_invalid':
-		case 'auth_expired':
-			return 3;
-		case 'permission_denied':
-			return 4;
-		case 'project_not_found':
-		case 'task_not_found':
-		case 'status_not_found':
-		case 'stage_not_found':
-		case 'user_not_found':
-		case 'label_not_found':
-		case 'field_not_found':
-			return 5;
-		case 'ambiguous_project_name':
-		case 'ambiguous_user_name':
-		case 'ambiguous_label_name':
-			return 6;
-		case 'validation_failed':
-		case 'invalid_field_value':
-		case 'status_not_in_stage':
-		case 'reply_depth_exceeded':
-		case 'task_archived':
-		case 'conflict':
-			return 7;
-		case 'destructive_action_disabled':
-			return 8;
-		case 'rate_limited':
-			return 9;
-		case 'network':
-			return 10;
-		case 'unknown':
-			return 1;
-		default: {
-			// Exhaustiveness guard: a new code added to the union forces a decision here.
-			const _never: never = code;
-			void _never;
-			return 1;
-		}
-	}
-}
-
-/**
- * Render an McpError to stderr and exit with its mapped code. JSON mode emits the
+ * Render an MagicError to stderr and exit with its mapped code. JSON mode emits the
  * canonical `{ error: { code, message, hint?, candidates? } }` envelope to stderr;
  * human mode emits a compact `error: <code>: <message>` line plus hint/candidates.
  * Never returns (calls `process.exit`).
  */
-export function renderError(e: McpError, opts: CliGlobalOptions): never {
+export function renderError(e: MagicError, opts: CliGlobalOptions): never {
 	const shape = e.toJSON();
 	if (jsonMode(opts)) {
 		diag(JSON.stringify({ error: shape }, null, 2));
@@ -249,7 +203,7 @@ export function renderError(e: McpError, opts: CliGlobalOptions): never {
 }
 
 /**
- * Render a CLI usage/parse error (NOT an McpError) to stderr and exit 2
+ * Render a CLI usage/parse error (NOT an MagicError) to stderr and exit 2
  * (DOC-CLI-OUTPUT: "CLI usage/parse error" → exit 2). Never returns.
  */
 export function renderUsageError(message: string, usage?: string): never {

@@ -2,8 +2,8 @@
 //
 // Responsibilities, and ONLY these:
 //   - bearer auth (`Authorization: Bearer <apiKey>`) + JSON content negotiation;
-//   - one shared `request<T>()` that maps non-2xx -> McpError via mapHttpError and
-//     undici/transport throws -> McpError('network', ...) via toMcpError;
+//   - one shared `request<T>()` that maps non-2xx -> MagicError via mapPyramidHttpError and
+//     undici/transport throws -> MagicError('network', ...) via toPyramidError;
 //   - the Phase-1 read-only methods that return RAW server JSON. The hydration /
 //     name-resolution layers live elsewhere — this class never reshapes rows.
 //
@@ -29,7 +29,9 @@
 
 import { request as undiciRequest } from 'undici';
 
-import { McpError, mapHttpError, toMcpError } from '../errors.js';
+import { MagicError } from '@magic-spells/kit';
+
+import { mapPyramidHttpError, pyramidError, toPyramidError } from '../errors.js';
 import type { PyramidConfig } from '../types.js';
 
 /** HTTP verbs this client issues. Phase 1 is read-only, but the seam is general. */
@@ -475,9 +477,9 @@ export class PyramidClient {
 	 * - Sets Bearer auth + `Accept: application/json` (and `Content-Type` for a body).
 	 * - 2xx: returns the parsed JSON (an empty/204 body parses to `undefined`).
 	 * - non-2xx: parses the `{ error: { code, message } }` envelope (best effort)
-	 *   and throws `mapHttpError(status, body)`.
+	 *   and throws `mapPyramidHttpError(status, body)`.
 	 * - undici/transport failure (DNS, connect, reset, timeout): throws
-	 *   `McpError('network', ...)` via `toMcpError`.
+	 *   `MagicError('network', ...)` via `toPyramidError`.
 	 *
 	 * The API key is on the header only — never logged, never in the URL.
 	 */
@@ -529,12 +531,12 @@ export class PyramidClient {
 			raw = await res.body.text();
 		} catch (err) {
 			// Transport-level throw (DNS / connect / reset / timeout / undici TypeError).
-			// Coerce to McpError; any non-McpError cause is forced to code 'network'.
-			const mapped = toMcpError(err);
+			// Coerce to MagicError; any non-MagicError cause is forced to code 'network'.
+			const mapped = toPyramidError(err);
 			throw mapped.code === 'network'
 				? mapped
-				: new McpError('network', mapped.message, {
-						hint: 'Check PYRAMID_BASE_URL and your network connection.',
+				: pyramidError('network', mapped.message, {
+						hint: 'Check MAGIC_PYRAMID_URL and your network connection.',
 					});
 		}
 
@@ -542,9 +544,9 @@ export class PyramidClient {
 
 		if (status < 200 || status >= 300) {
 			// `parsed` is the canonical `{ error: { code, message, details } }` envelope
-			// on a well-behaved error; mapHttpError reads it defensively and falls back
+			// on a well-behaved error; mapPyramidHttpError reads it defensively and falls back
 			// to a status-derived code/message when the body is empty or non-JSON.
-			throw mapHttpError(status, parsed);
+			throw mapPyramidHttpError(status, parsed);
 		}
 
 		// A 2xx with an empty/204 body yields `undefined` — fine for void callers.
@@ -581,7 +583,7 @@ export class PyramidClient {
 		try {
 			return await fn(etag);
 		} catch (err) {
-			if (err instanceof McpError && err.code === 'conflict') {
+			if (err instanceof MagicError && err.code === 'conflict') {
 				// A genuine concurrent edit — refetch the ETag and retry exactly once.
 				const fresh = await this.getTaskETag(taskId);
 				return fn(fresh);
@@ -646,7 +648,7 @@ function normalizeCursorEnvelope(envelope: CursorEnvelope): {
 /**
  * Parse a JSON string. An empty body (e.g. 204) -> `undefined`; a non-JSON body
  * -> `undefined` (rather than throwing) so a malformed error page still maps to a
- * clean status-derived McpError instead of crashing the parse.
+ * clean status-derived MagicError instead of crashing the parse.
  */
 function safeJsonParse(text: string): unknown {
 	if (text.trim() === '') return undefined;

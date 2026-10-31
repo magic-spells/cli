@@ -18,7 +18,9 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 import { loadConfig } from '../config.js';
-import { isMcpError, McpError, toMcpError } from '../errors.js';
+import { isMagicError, type MagicError } from '@magic-spells/kit';
+
+import { toPyramidError } from '../errors.js';
 import { operations } from '../operations/index.js';
 import type { Operation, OpContext } from '../operations/index.js';
 import { PyramidClient } from '../client/pyramid-client.js';
@@ -470,9 +472,9 @@ function buildContext(opts: CliGlobalOptions): OpContext {
 /**
  * Run the CLI: parse globals, match a command from the registry, derive + parse
  * the op's args, load config, construct the context, run the op, and render the
- * result (or McpError) with the proper exit code.
+ * result (or MagicError) with the proper exit code.
  *
- * @returns a process exit code (0 on success). On an McpError, `renderError`
+ * @returns a process exit code (0 on success). On an MagicError, `renderError`
  *   calls `process.exit` directly; the returned value is for the success path and
  *   for usage errors that don't terminate before returning.
  */
@@ -570,13 +572,13 @@ export async function runCli(argv: string[]): Promise<number> {
 		return 1;
 	}
 
-	// Run the operation; render the result or the McpError with its exit code.
+	// Run the operation; render the result or the MagicError with its exit code.
 	try {
 		const out = await cmd.op.run(result.data, ctx);
 		render(out, opts);
 		return 0;
 	} catch (err) {
-		const mapped: McpError = isMcpError(err) ? err : toMcpError(err);
+		const mapped: MagicError = isMagicError(err) ? err : toPyramidError(err);
 		renderError(mapped, opts); // never returns
 	}
 }

@@ -15,7 +15,9 @@
 
 import { z } from 'zod';
 
-import { McpError } from '../errors.js';
+import { MagicError } from '@magic-spells/kit';
+
+import { pyramidError } from '../errors.js';
 import type { PyramidClient } from '../client/pyramid-client.js';
 import type { Resolver } from '../cache/resolver.js';
 import {
@@ -294,10 +296,10 @@ async function resolveTaskRef(ctx: OpContext, ref: string): Promise<TaskRef> {
 				key: readStr(hit.key) ?? trimmed,
 			};
 		}
-		throw new McpError('task_not_found', `No task matches "${ref}".`);
+		throw pyramidError('task_not_found', `No task matches "${ref}".`);
 	}
 
-	throw new McpError('task_not_found', `"${ref}" is neither a task key (e.g. WEB-42) nor a UUID.`);
+	throw pyramidError('task_not_found', `"${ref}" is neither a task key (e.g. WEB-42) nor a UUID.`);
 }
 
 /**
@@ -341,7 +343,7 @@ async function resolveStatusWithStage(
 		if (stage !== undefined) {
 			const resolvedStage = await ctx.resolver.resolveStage(projectId, stage);
 			if (resolved.stage_id !== resolvedStage.id) {
-				throw new McpError('status_not_in_stage', `Status "${status}" is not in stage "${stage}".`);
+				throw pyramidError('status_not_in_stage', `Status "${status}" is not in stage "${stage}".`);
 			}
 		}
 		return { id: resolved.id, stage_id: resolved.stage_id };
@@ -465,7 +467,7 @@ async function resolveFieldValues(
 			if (def) break;
 		}
 		if (def === undefined) {
-			throw new McpError('field_not_found', `No custom field matches "${cf.field}".`);
+			throw pyramidError('field_not_found', `No custom field matches "${cf.field}".`);
 		}
 		// r7: validate the value against the field's type BEFORE sending. A `user`
 		// field resolves its value (a name/email) to a user UUID.
@@ -495,7 +497,7 @@ interface CustomFieldDef {
  */
 function validateFieldValue(def: CustomFieldDef, value: unknown): void {
 	const fail = (why: string): never => {
-		throw new McpError('invalid_field_value', `Custom field "${def.name}" ${why}.`);
+		throw pyramidError('invalid_field_value', `Custom field "${def.name}" ${why}.`);
 	};
 	switch (def.field_type) {
 		case 'number':
@@ -729,7 +731,7 @@ const taskBulkCreate: Operation<TaskBulkCreateInput, TaskDetail[]> = {
 		// name/key against the project's task-schema. No template named -> a clear
 		// validation_failed (a template is required).
 		if (input.template === undefined) {
-			throw new McpError(
+			throw pyramidError(
 				'validation_failed',
 				'Bulk create requires a `template` (the task-schema template to instantiate).'
 			);
@@ -777,7 +779,7 @@ async function resolveTemplateId(
 	const needle = template.trim().toLowerCase();
 	const match = wf.templates.find((t) => t.id === template || t.name.toLowerCase() === needle);
 	if (match) return match.id;
-	throw new McpError('validation_failed', `No task template matches "${template}".`, {
+	throw pyramidError('validation_failed', `No task template matches "${template}".`, {
 		candidates: wf.templates.map((t) => t.name),
 	});
 }
@@ -871,17 +873,19 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 
 /**
  * Run one sub-update of the update_task fan-out, surfacing WHICH part failed. A
- * thrown McpError is re-wrapped (preserving its code) with a `(<which>)` prefix so
+ * thrown MagicError is re-wrapped (preserving its code) with a `(<which>)` prefix so
  * the caller can see which dedicated endpoint rejected.
  */
 async function failingSubUpdate<T>(which: string, fn: () => Promise<T>): Promise<T> {
 	try {
 		return await fn();
 	} catch (err) {
-		if (err instanceof McpError) {
-			throw new McpError(err.code, `update_task ${which} failed: ${err.message}`, {
+		if (err instanceof MagicError) {
+			throw new MagicError(err.code, `update_task ${which} failed: ${err.message}`, {
+				product: err.product,
 				...(err.hint !== undefined ? { hint: err.hint } : {}),
 				...(err.candidates !== undefined ? { candidates: err.candidates } : {}),
+				...(err.details !== undefined ? { details: err.details } : {}),
 			});
 		}
 		throw err;
@@ -908,7 +912,7 @@ const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 		// Positions are server-generated — pass neighbor ids, never a fractional key.
 		// after + before are mutually exclusive.
 		if (input.after_task !== undefined && input.before_task !== undefined) {
-			throw new McpError('validation_failed', 'Pass at most one of after_task / before_task.');
+			throw pyramidError('validation_failed', 'Pass at most one of after_task / before_task.');
 		}
 
 		const ref = await resolveTaskRef(ctx, input.task);
@@ -968,7 +972,7 @@ const taskDelete: Operation<TaskDeleteInput, { id: string; key: string; deleted:
 	},
 	async run(input, ctx): Promise<{ id: string; key: string; deleted: true }> {
 		if (!ctx.config.allowDestructive) {
-			throw new McpError(
+			throw pyramidError(
 				'destructive_action_disabled',
 				'Deleting a task is destructive and disabled.',
 				{ hint: 'Set PYRAMID_ALLOW_DESTRUCTIVE=1 to enable destructive operations.' }
@@ -1069,7 +1073,7 @@ const commentReply: Operation<CommentReplyInput, TaskComment> = {
 		// A reply has a non-empty parent_id, or a thread_root_id pointing at another
 		// comment. A root has neither (or thread_root_id === its own id).
 		if (parentId !== undefined || (threadRootId !== undefined && threadRootId !== selfId)) {
-			throw new McpError(
+			throw pyramidError(
 				'reply_depth_exceeded',
 				'Replies are one level deep — reply to the root comment instead.'
 			);

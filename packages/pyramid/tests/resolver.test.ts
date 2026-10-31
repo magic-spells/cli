@@ -22,7 +22,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Resolver, type ResolverClient } from '../src/cache/resolver.js';
-import { McpError } from '../src/errors.js';
+import { MagicError as McpError } from '@magic-spells/kit';
 
 // ============================================================================
 // Fixtures — raw server JSON shapes (the Resolver normalizes these defensively)
@@ -314,7 +314,8 @@ describe('Resolver — ambiguity throws ambiguous_*_name with candidates', () =>
 	it('project: "web" fuzzy-matches two projects → ambiguous_project_name', async () => {
 		const r = new Resolver(makeFakeClient());
 		const err = await rejection(r.resolveProject('web'));
-		expect(err.code).toBe('ambiguous_project_name');
+		expect(err.code).toBe('ambiguous_name');
+		expect(err.details).toEqual({ kind: 'project' });
 		expect(err.candidates).toBeDefined();
 		expect((err.candidates ?? []).length).toBeGreaterThan(1);
 		expect(err.candidates).toEqual(expect.arrayContaining(['website-redesign', 'webhooks']));
@@ -323,7 +324,8 @@ describe('Resolver — ambiguity throws ambiguous_*_name with candidates', () =>
 	it('user: "sam" fuzzy-matches two members → ambiguous_user_name', async () => {
 		const r = new Resolver(makeFakeClient());
 		const err = await rejection(r.resolveUser('p-apollo', 'sam'));
-		expect(err.code).toBe('ambiguous_user_name');
+		expect(err.code).toBe('ambiguous_name');
+		expect(err.details).toEqual({ kind: 'user' });
 		expect((err.candidates ?? []).length).toBeGreaterThan(1);
 		expect(err.candidates).toEqual(expect.arrayContaining(['Sam Jones', 'Samira Okoye']));
 	});
@@ -331,18 +333,20 @@ describe('Resolver — ambiguity throws ambiguous_*_name with candidates', () =>
 	it('label: "front" fuzzy-matches two labels → ambiguous_label_name', async () => {
 		const r = new Resolver(makeFakeClient());
 		const err = await rejection(r.resolveLabel('p-apollo', 'front'));
-		expect(err.code).toBe('ambiguous_label_name');
+		expect(err.code).toBe('ambiguous_name');
+		expect(err.details).toEqual({ kind: 'label' });
 		expect(err.candidates).toEqual(expect.arrayContaining(['frontend', 'frontoffice']));
 	});
 
-	it('status/stage ambiguity → validation_failed with candidates (no ambiguous_* code in the union)', async () => {
+	it('status/stage ambiguity → ambiguous_name (kind status) with candidates', async () => {
 		const r = new Resolver(makeFakeClient());
 		// "re" fuzzy-contains multiple statuses (Code Review, In Review, Ready) and
 		// matches no key/name/category/stage exactly → ambiguous fuzzy tier. The
-		// McpErrorCode union has no ambiguous_status_name, so it surfaces as
-		// validation_failed but still carries candidates (DOC-NAME-RESOLUTION).
+		// collapsed ambiguous_name code covers statuses and stages too (pyramid-cli
+		// surfaced these as validation_failed for want of a code).
 		const err = await rejection(r.resolveStatus('p-apollo', 're'));
-		expect(err.code).toBe('validation_failed');
+		expect(err.code).toBe('ambiguous_name');
+		expect(err.details).toEqual({ kind: 'status' });
 		expect((err.candidates ?? []).length).toBeGreaterThan(1);
 	});
 });
@@ -355,7 +359,8 @@ describe('Resolver — miss throws *_not_found with candidate hints', () => {
 	it('project_not_found carries a close-match shortlist', async () => {
 		const r = new Resolver(makeFakeClient());
 		const err = await rejection(r.resolveProject('nonexistent-zzz'));
-		expect(err.code).toBe('project_not_found');
+		expect(err.code).toBe('not_found');
+		expect(err.details).toEqual({ kind: 'project' });
 		expect(err.candidates).toBeDefined();
 		expect(Array.isArray(err.candidates)).toBe(true);
 	});
@@ -363,28 +368,32 @@ describe('Resolver — miss throws *_not_found with candidate hints', () => {
 	it('status_not_found on a token matching nothing', async () => {
 		const r = new Resolver(makeFakeClient());
 		const err = await rejection(r.resolveStatus('p-apollo', 'no-such-status-xyz'));
-		expect(err.code).toBe('status_not_found');
+		expect(err.code).toBe('not_found');
+		expect(err.details).toEqual({ kind: 'status' });
 		expect(err.candidates).toBeDefined();
 	});
 
 	it('stage_not_found carries candidates', async () => {
 		const r = new Resolver(makeFakeClient());
 		const err = await rejection(r.resolveStage('p-apollo', 'qqq-not-a-stage'));
-		expect(err.code).toBe('stage_not_found');
+		expect(err.code).toBe('not_found');
+		expect(err.details).toEqual({ kind: 'stage' });
 		expect(err.candidates).toBeDefined();
 	});
 
 	it('user_not_found carries candidates', async () => {
 		const r = new Resolver(makeFakeClient());
 		const err = await rejection(r.resolveUser('p-apollo', 'zzz-nobody'));
-		expect(err.code).toBe('user_not_found');
+		expect(err.code).toBe('not_found');
+		expect(err.details).toEqual({ kind: 'user' });
 		expect(err.candidates).toBeDefined();
 	});
 
 	it('label_not_found carries candidates', async () => {
 		const r = new Resolver(makeFakeClient());
 		const err = await rejection(r.resolveLabel('p-apollo', 'zzz-nolabel'));
-		expect(err.code).toBe('label_not_found');
+		expect(err.code).toBe('not_found');
+		expect(err.details).toEqual({ kind: 'label' });
 		expect(err.candidates).toBeDefined();
 	});
 });

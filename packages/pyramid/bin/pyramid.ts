@@ -28,9 +28,10 @@ import { Resolver } from '../src/cache/resolver.js';
 import { AUTH_COMMANDS } from '../src/auth-commands.js';
 import { getVersion } from '../src/version.js';
 import { loadConfig } from '../src/config.js';
-import { toMcpError } from '../src/errors.js';
-import type { McpError } from '../src/errors.js';
-import type { McpErrorCode, PyramidConfig } from '../src/types.js';
+import { toPyramidError } from '../src/errors.js';
+import { exitCodeFor, type MagicError } from '@magic-spells/kit';
+
+import type { PyramidConfig } from '../src/types.js';
 
 // The MCP skin (createMcpServer) and the operation registry are imported LAZILY
 // (dynamic import inside runMcp), NOT at module top. The `doctor`, CLI-handoff,
@@ -41,34 +42,13 @@ import type { McpErrorCode, PyramidConfig } from '../src/types.js';
 main().catch((err: unknown) => {
 	// Last-resort guard: nothing below should reject unhandled, but if it does,
 	// surface a clean line to stderr (never a raw stack to stdout) and fail.
-	err2line(toMcpError(err).message);
+	err2line(toPyramidError(err).message);
 	process.exit(1);
 });
 
 /** Write one diagnostic line to STDERR (never stdout). */
 function err2line(line: string): void {
 	process.stderr.write(`${line}\n`);
-}
-
-/**
- * Map an McpError code to a process exit code (DOC-CLI-OUTPUT exit table). The
- * bin only hits the auth/permission/transport classes during startup + doctor;
- * everything else collapses to a generic non-zero.
- */
-function exitCodeFor(code: McpErrorCode): number {
-	switch (code) {
-		case 'auth_invalid':
-		case 'auth_expired':
-			return 3;
-		case 'permission_denied':
-			return 4;
-		case 'rate_limited':
-			return 9;
-		case 'network':
-			return 10;
-		default:
-			return 1;
-	}
 }
 
 async function main(): Promise<void> {
@@ -166,7 +146,7 @@ async function runMcp(config: PyramidConfig): Promise<void> {
 		try {
 			await server.close();
 		} catch (err) {
-			err2line(`pyramid mcp: error during shutdown: ${toMcpError(err).message}`);
+			err2line(`pyramid mcp: error during shutdown: ${toPyramidError(err).message}`);
 		}
 		process.exit(0);
 	};
@@ -188,7 +168,7 @@ async function runMcp(config: PyramidConfig): Promise<void> {
  * payload is also emitted as JSON to stdout when scriptable (--json or a non-TTY
  * stdout) so the check is pipeable. Exit 0 on success.
  *
- * A 401 surfaces as a mapped McpError (auth_invalid / auth_expired): we print the
+ * A 401 surfaces as a mapped MagicError (auth_invalid / auth_expired): we print the
  * code + regenerate-key hint to stderr and exit `exitCodeFor(code)` (3).
  */
 async function runDoctor(config: PyramidConfig, argv: string[]): Promise<void> {
@@ -196,7 +176,7 @@ async function runDoctor(config: PyramidConfig, argv: string[]): Promise<void> {
 	const wantJson = argv.includes('--json') || !process.stdout.isTTY;
 
 	try {
-		// getMe + listProjects in parallel; either can throw a mapped McpError (e.g.
+		// getMe + listProjects in parallel; either can throw a mapped MagicError (e.g.
 		// 401 -> auth_invalid/auth_expired). listWorkspaces gives the key's pinned
 		// workspace when getMe doesn't embed one; tolerate its absence.
 		const [me, projects, workspaces] = await Promise.all([
@@ -229,7 +209,7 @@ async function runDoctor(config: PyramidConfig, argv: string[]): Promise<void> {
 				workflowOk = true;
 			} catch (err) {
 				workflowOk = false;
-				workflowNote = toMcpError(err).message;
+				workflowNote = toPyramidError(err).message;
 			}
 		}
 
@@ -258,7 +238,7 @@ async function runDoctor(config: PyramidConfig, argv: string[]): Promise<void> {
 
 		process.exit(0);
 	} catch (err) {
-		const mapped: McpError = toMcpError(err);
+		const mapped: MagicError = toPyramidError(err);
 		err2line(`error: ${mapped.code}: ${mapped.message}`);
 		if (mapped.code === 'auth_invalid' || mapped.code === 'auth_expired') {
 			err2line('Regenerate your key in Pyramid → Settings → API Keys, then set PYRAMID_API_KEY.');

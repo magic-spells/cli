@@ -14,7 +14,7 @@
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-import { toMcpError } from '../errors.js';
+import { toPyramidError } from '../errors.js';
 import { operations } from '../operations/index.js';
 import type { Operation, OpContext } from '../operations/index.js';
 
@@ -38,7 +38,7 @@ async function renderOp(op: Operation, ctx: OpContext): Promise<string> {
 		const result = await op.run(input, ctx);
 		return JSON.stringify(result, null, 2);
 	} catch (err) {
-		return JSON.stringify({ error: toMcpError(err).toJSON() }, null, 2);
+		return JSON.stringify({ error: toPyramidError(err).toJSON() }, null, 2);
 	}
 }
 
@@ -102,7 +102,7 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 					const result = await op.run(op.input.parse({ project: handle }), ctx);
 					text = JSON.stringify(result, null, 2);
 				} catch (err) {
-					text = JSON.stringify({ error: toMcpError(err).toJSON() }, null, 2);
+					text = JSON.stringify({ error: toPyramidError(err).toJSON() }, null, 2);
 				}
 			} else {
 				text = JSON.stringify(

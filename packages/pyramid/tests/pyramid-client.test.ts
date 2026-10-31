@@ -16,7 +16,7 @@ const undiciRequest = vi.fn();
 vi.mock('undici', () => ({ request: (...args: unknown[]) => undiciRequest(...args) }));
 
 import { PyramidClient } from '../src/client/pyramid-client.js';
-import { McpError } from '../src/errors.js';
+import { MagicError as McpError } from '@magic-spells/kit';
 import type { PyramidConfig } from '../src/types.js';
 
 const CONFIG: PyramidConfig = {

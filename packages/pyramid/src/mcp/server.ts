@@ -12,7 +12,7 @@
 //   - inputSchema = op.input.shape (the zod raw shape the SDK turns into JSON Schema)
 //   - handler     = parse args with op.input, op.run(input, ctx), and return the
 //                   result as pretty-printed JSON text. A thrown value is coerced
-//                   via toMcpError and returned as an `isError` text result whose
+//                   via toPyramidError and returned as an `isError` text result whose
 //                   body is `{ error: { code, message, hint?, candidates? } }`.
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -21,7 +21,7 @@ import type { ZodRawShape } from 'zod';
 import { registerPrompts } from './prompts.js';
 import { registerResources } from './resources.js';
 import { getVersion } from '../version.js';
-import { toMcpError } from '../errors.js';
+import { toPyramidError } from '../errors.js';
 import { operations } from '../operations/index.js';
 import type { Operation, OpContext } from '../operations/index.js';
 
@@ -97,7 +97,7 @@ function registerOperationTool(server: McpServer, op: Operation, ctx: OpContext)
 					content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
 				};
 			} catch (err) {
-				const mapped = toMcpError(err);
+				const mapped = toPyramidError(err);
 				return {
 					content: [
 						{

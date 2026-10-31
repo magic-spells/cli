@@ -15,6 +15,7 @@
 		}
 	},
 	"dependencies": {
+		"@magic-spells/kit": "*",
 		"@modelcontextprotocol/sdk": "^1.12.0",
 		"undici": "^6.19.0",
 		"zod": "^3.23.8"

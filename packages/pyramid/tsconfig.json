@@ -5,5 +5,6 @@
 		"outDir": "dist",
 		"tsBuildInfoFile": "dist/.tsbuildinfo"
 	},
-	"include": ["src/**/*.ts", "bin/**/*.ts"]
+	"include": ["src/**/*.ts", "bin/**/*.ts"],
+	"references": [{ "path": "../kit" }]
 }

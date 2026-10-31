@@ -24,7 +24,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { McpError } from '../src/errors.js';
+import { pyramidError } from '../src/errors.js';
 import { exitCodeFor, render, renderError, type CliGlobalOptions } from '../src/cli/render.js';
 import { runCli } from '../src/cli/index.js';
 
@@ -93,29 +93,35 @@ const BASE_OPTS: CliGlobalOptions = { json: false, yes: false, quiet: false };
 // ============ exitCodeFor — the DOC-CLI-OUTPUT exit table ============
 
 describe('exitCodeFor — error-class -> exit code (DOC-CLI-OUTPUT)', () => {
-	it('maps each error class to its documented exit code', () => {
-		expect(exitCodeFor('auth_invalid')).toBe(3);
-		expect(exitCodeFor('auth_expired')).toBe(3);
-		expect(exitCodeFor('permission_denied')).toBe(4);
-		expect(exitCodeFor('project_not_found')).toBe(5);
-		expect(exitCodeFor('task_not_found')).toBe(5);
-		expect(exitCodeFor('status_not_found')).toBe(5);
-		expect(exitCodeFor('stage_not_found')).toBe(5);
-		expect(exitCodeFor('user_not_found')).toBe(5);
-		expect(exitCodeFor('label_not_found')).toBe(5);
-		expect(exitCodeFor('field_not_found')).toBe(5);
-		expect(exitCodeFor('ambiguous_project_name')).toBe(6);
-		expect(exitCodeFor('ambiguous_user_name')).toBe(6);
-		expect(exitCodeFor('ambiguous_label_name')).toBe(6);
-		expect(exitCodeFor('validation_failed')).toBe(7);
-		expect(exitCodeFor('invalid_field_value')).toBe(7);
-		expect(exitCodeFor('status_not_in_stage')).toBe(7);
-		expect(exitCodeFor('reply_depth_exceeded')).toBe(7);
-		expect(exitCodeFor('task_archived')).toBe(7);
-		expect(exitCodeFor('destructive_action_disabled')).toBe(8);
-		expect(exitCodeFor('rate_limited')).toBe(9);
-		expect(exitCodeFor('network')).toBe(10);
-		expect(exitCodeFor('unknown')).toBe(1);
+	it('maps each Pyramid failure word to its documented exit class', () => {
+		const exit = (c: Parameters<typeof pyramidError>[0]): number =>
+			exitCodeFor(pyramidError(c, 'x').code);
+		expect(exit('auth_invalid')).toBe(3);
+		expect(exit('auth_expired')).toBe(3);
+		expect(exit('permission_denied')).toBe(4);
+		for (const c of [
+			'project_not_found',
+			'task_not_found',
+			'status_not_found',
+			'stage_not_found',
+			'user_not_found',
+			'label_not_found',
+			'field_not_found',
+		] as const) {
+			expect(exit(c)).toBe(5);
+		}
+		expect(exit('ambiguous_project_name')).toBe(6);
+		expect(exit('ambiguous_user_name')).toBe(6);
+		expect(exit('ambiguous_label_name')).toBe(6);
+		expect(exit('validation_failed')).toBe(7);
+		expect(exit('invalid_field_value')).toBe(7);
+		expect(exit('status_not_in_stage')).toBe(7);
+		expect(exit('reply_depth_exceeded')).toBe(7);
+		expect(exit('task_archived')).toBe(7);
+		expect(exit('destructive_action_disabled')).toBe(8);
+		expect(exit('rate_limited')).toBe(9);
+		expect(exit('network')).toBe(10);
+		expect(exit('unknown')).toBe(1);
 	});
 });
 
@@ -215,7 +221,7 @@ describe('renderError — McpError to stderr with the mapped exit code', () => {
 
 	it('an ambiguous_project_name prints candidates to stderr and exits 6', () => {
 		cap = capture({ isTTY: true });
-		const err = new McpError('ambiguous_project_name', 'pick one', {
+		const err = pyramidError('ambiguous_project_name', 'pick one', {
 			candidates: ['website-redesign', 'webhooks'],
 		});
 		runUntilExit(() => renderError(err, { ...BASE_OPTS, json: false }));
@@ -223,14 +229,14 @@ describe('renderError — McpError to stderr with the mapped exit code', () => {
 
 		expect(cap.exitCode).toBe(6);
 		expect(cap.out).toBe(''); // errors NEVER pollute the data channel
-		expect(cap.err).toContain('ambiguous_project_name');
+		expect(cap.err).toContain('ambiguous_name');
 		expect(cap.err).toContain('website-redesign');
 		expect(cap.err).toContain('webhooks');
 	});
 
 	it('emits the canonical { error: {...} } envelope to stderr under --json', () => {
 		cap = capture({ isTTY: false });
-		const err = new McpError('task_not_found', 'no such task', { hint: 'check the key' });
+		const err = pyramidError('task_not_found', 'no such task', { hint: 'check the key' });
 		runUntilExit(() => renderError(err, { ...BASE_OPTS, json: true }));
 		cap.restore();
 
@@ -239,7 +245,7 @@ describe('renderError — McpError to stderr with the mapped exit code', () => {
 		const parsed = JSON.parse(cap.err) as {
 			error: { code: string; message: string; hint?: string };
 		};
-		expect(parsed.error.code).toBe('task_not_found');
+		expect(parsed.error.code).toBe('not_found');
 		expect(parsed.error.message).toBe('no such task');
 		expect(parsed.error.hint).toBe('check the key');
 	});
@@ -247,7 +253,7 @@ describe('renderError — McpError to stderr with the mapped exit code', () => {
 	it('a destructive_action_disabled error exits 8', () => {
 		cap = capture({ isTTY: false });
 		runUntilExit(() =>
-			renderError(new McpError('destructive_action_disabled', 'gate is off'), {
+			renderError(pyramidError('destructive_action_disabled', 'gate is off'), {
 				...BASE_OPTS,
 				json: true,
 			})

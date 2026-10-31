@@ -25,7 +25,9 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { z } from 'zod';
 
-import { McpError } from '../src/errors.js';
+import { MagicError as McpError } from '@magic-spells/kit';
+
+import { pyramidError } from '../src/errors.js';
 import { hydrateTaskDetail, hydrateTaskSummary } from '../src/hydrate.js';
 import { operationsByName, type Operation, type OpContext } from '../src/operations/index.js';
 import type { PyramidConfig, TaskDetail, Workflow, WhoAmI } from '../src/types.js';
@@ -98,7 +100,7 @@ function makeResolver() {
 						.sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0))[0];
 				}
 			}
-			if (!s) throw new McpError('status_not_found', `No status "${q}".`);
+			if (!s) throw pyramidError('status_not_found', `No status "${q}".`);
 			const stage = APOLLO_WORKFLOW.stages.find((g) => g.id === s.stage_id)!;
 			return { ...s, stage_name: stage.name };
 		}),
@@ -106,19 +108,19 @@ function makeResolver() {
 			const g = APOLLO_WORKFLOW.stages.find(
 				(x) => x.name.toLowerCase() === q.toLowerCase() || x.key === q
 			);
-			if (!g) throw new McpError('stage_not_found', `No stage "${q}".`);
+			if (!g) throw pyramidError('stage_not_found', `No stage "${q}".`);
 			return g;
 		}),
 		resolveUser: vi.fn(async (_pid: string, q: string) => {
 			const m = APOLLO_WORKFLOW.members.find(
 				(x) => x.email === q || x.display_name.toLowerCase() === q.toLowerCase()
 			);
-			if (!m) throw new McpError('user_not_found', `No user "${q}".`);
+			if (!m) throw pyramidError('user_not_found', `No user "${q}".`);
 			return m;
 		}),
 		resolveLabel: vi.fn(async (_pid: string, q: string) => {
 			const l = APOLLO_WORKFLOW.labels.find((x) => x.name === q);
-			if (!l) throw new McpError('label_not_found', `No label "${q}".`);
+			if (!l) throw pyramidError('label_not_found', `No label "${q}".`);
 			return { id: l.id, name: l.name };
 		}),
 		resolveTask: vi.fn(async (key: string) => ({
@@ -355,7 +357,7 @@ const taskCreate: Operation<CreateTaskInput, TaskDetail> = {
 			if (input.stage) {
 				const stage = await ctx.resolver.resolveStage(project.id, input.stage);
 				if (status.stage_id !== stage.id) {
-					throw new McpError(
+					throw pyramidError(
 						'status_not_in_stage',
 						`Status "${status.name}" is not in stage "${stage.name}".`
 					);
@@ -483,7 +485,10 @@ describe('operation contract: task.create', () => {
 		await expect(
 			// "In Review" lives in stage In Progress, not To Do -> mismatch.
 			taskCreate.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({ code: 'status_not_in_stage' });
+		).rejects.toMatchObject({
+			code: 'validation_failed',
+			details: { reason: 'status_not_in_stage' },
+		});
 
 		expect(createTask).not.toHaveBeenCalled();
 	});
@@ -513,7 +518,7 @@ const taskMove: Operation<MoveTaskInput, TaskDetail> = {
 	}) as never,
 	async run(input, ctx): Promise<TaskDetail> {
 		if (input.after_task && input.before_task) {
-			throw new McpError('validation_failed', 'after_task and before_task are mutually exclusive.');
+			throw pyramidError('validation_failed', 'after_task and before_task are mutually exclusive.');
 		}
 		const task = await ext(ctx).resolveTask(input.task);
 		const status = await ctx.resolver.resolveStatus(task.projectId, input.status);
@@ -605,7 +610,7 @@ const taskDelete: Operation<DeleteTaskInput, { id: string; key: string; deleted:
 	async run(input, ctx) {
 		const task = await ext(ctx).resolveTask(input.task);
 		if (!ctx.config.allowDestructive) {
-			throw new McpError(
+			throw pyramidError(
 				'destructive_action_disabled',
 				'Deleting a task is destructive. Set PYRAMID_ALLOW_DESTRUCTIVE=1 to enable it.',
 				{ hint: 'Set PYRAMID_ALLOW_DESTRUCTIVE=1.' }
@@ -680,7 +685,7 @@ const commentReply: Operation<ReplyCommentInput, { id: string }> = {
 			}
 		).getComment(input.comment_id);
 		if (c.parent_id != null || c.thread_root_id != null) {
-			throw new McpError(
+			throw pyramidError(
 				'reply_depth_exceeded',
 				'Replies are one level deep; reply to the root comment instead.'
 			);
@@ -703,7 +708,10 @@ describe('operation contract: comment.reply (one-level depth)', () => {
 
 		await expect(
 			commentReply.run({ comment_id: 'c-reply', content: 'me too' }, ctx)
-		).rejects.toMatchObject({ code: 'reply_depth_exceeded' });
+		).rejects.toMatchObject({
+			code: 'validation_failed',
+			details: { reason: 'reply_depth_exceeded' },
+		});
 
 		expect(replyComment).not.toHaveBeenCalled();
 	});
@@ -918,7 +926,10 @@ describe('operation: create_task (real registry)', () => {
 		await expect(
 			// "In Review" lives in stage "In Progress", not "To Do" -> mismatch.
 			op.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({ code: 'status_not_in_stage' });
+		).rejects.toMatchObject({
+			code: 'validation_failed',
+			details: { reason: 'status_not_in_stage' },
+		});
 
 		expect(createTask).not.toHaveBeenCalled();
 	});
@@ -1133,7 +1144,10 @@ describe('operation: move_task (real registry)', () => {
 
 		await expect(
 			op.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({ code: 'status_not_in_stage' });
+		).rejects.toMatchObject({
+			code: 'validation_failed',
+			details: { reason: 'status_not_in_stage' },
+		});
 		expect(createTask).not.toHaveBeenCalled();
 	});
 });
@@ -1160,7 +1174,8 @@ describe('operation: reply_to_comment (real registry)', () => {
 		const ctx = makeCtx({ getComment, replyComment }, resolver);
 
 		await expect(op.run({ comment_id: 'c-reply', content: 'me too' }, ctx)).rejects.toMatchObject({
-			code: 'reply_depth_exceeded',
+			code: 'validation_failed',
+			details: { reason: 'reply_depth_exceeded' },
 		});
 
 		// validated before the call — no write attempted (r5).
@@ -1349,7 +1364,7 @@ describe('operation: update_task (real registry)', () => {
 			status_id: 'st-review',
 		}));
 		const addTaskLabel = vi.fn(async () => {
-			throw new McpError('permission_denied', 'nope');
+			throw pyramidError('permission_denied', 'nope');
 		});
 		const client = { getTask, addTaskLabel };
 		const ctx = makeCtx(client, resolver);
@@ -1485,7 +1500,10 @@ describe('create_task: field validation + ownership', () => {
 				},
 				ctx
 			)
-		).rejects.toMatchObject({ code: 'invalid_field_value' });
+		).rejects.toMatchObject({
+			code: 'validation_failed',
+			details: { reason: 'invalid_field_value' },
+		});
 		expect(createTask).not.toHaveBeenCalled();
 	});
 

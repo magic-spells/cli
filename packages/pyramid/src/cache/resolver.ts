@@ -11,14 +11,16 @@
 //   - user:    email (ci exact) -> display_name (ci exact) -> unique fuzzy
 //   - label:   name (ci exact) -> unique fuzzy contains
 //
-// A tier with >1 match throws McpError('ambiguous_*_name', …, { candidates }).
-// Every tier empty throws McpError('*_not_found', …, { candidates: closeMatches }).
+// A tier with >1 match throws ambiguous_name (details.kind), with candidates.
+// Every tier empty throws not_found (details.kind), with close-match candidates.
 //
 // The workflow is the join source for hydration (src/hydrate.ts) and is cached
 // per projectId for 60s via a simple Map + timestamp. The project list (for
 // project-name resolution) is cached the same way.
 
-import { McpError } from '../errors.js';
+import { TtlCache } from '@magic-spells/kit';
+
+import { pyramidError } from '../errors.js';
 import type {
 	ProjectSummary,
 	Workflow,
@@ -51,11 +53,7 @@ export interface ResolverClient {
 // ============ Cache primitives ============
 
 const TTL_MS = 60_000;
-
-interface Cached<T> {
-	value: T;
-	expiresAt: number;
-}
+const PROJECTS_KEY = 'projects';
 
 /** A workflow cache kind, used by `invalidate`. */
 export type ResolveKind = 'project' | 'workflow' | 'status' | 'stage' | 'user' | 'label';
@@ -64,9 +62,9 @@ export type ResolveKind = 'project' | 'workflow' | 'status' | 'stage' | 'user' |
 
 export class Resolver {
 	/** Per-project workflow cache (also the hydration join source). */
-	private readonly workflows = new Map<string, Cached<Workflow>>();
+	private readonly workflows = new TtlCache<Workflow>(TTL_MS);
 	/** Workspace-wide project list cache (backs project-name resolution). */
-	private projects?: Cached<ProjectSummary[]>;
+	private readonly projects = new TtlCache<ProjectSummary[]>(TTL_MS);
 
 	constructor(private readonly client: ResolverClient) {}
 
@@ -78,7 +76,7 @@ export class Resolver {
 	 */
 	async getWorkflow(projectId: string): Promise<Workflow> {
 		const hit = this.workflows.get(projectId);
-		if (hit && hit.expiresAt > Date.now()) return hit.value;
+		if (hit) return hit;
 
 		// The real GET /workflow returns ONLY stages+statuses; labels, members, and
 		// custom-field templates live on separate endpoints. Fan out in parallel and
@@ -94,7 +92,7 @@ export class Resolver {
 		wf.labels = (Array.isArray(rawLabels) ? rawLabels : []).map(normalizeLabel);
 		wf.members = (Array.isArray(rawMembers) ? rawMembers : []).map(normalizeMember);
 		wf.templates = normalizeTaskSchema(rawSchema);
-		this.workflows.set(projectId, { value: wf, expiresAt: Date.now() + TTL_MS });
+		this.workflows.set(projectId, wf);
 		return wf;
 	}
 
@@ -118,7 +116,7 @@ export class Resolver {
 		);
 		if (match) return match;
 
-		throw new McpError('project_not_found', `No project matches "${nameOrHandle}".`, {
+		throw pyramidError('project_not_found', `No project matches "${nameOrHandle}".`, {
 			candidates: shortlist(
 				nameOrHandle,
 				projects.map((p) => p.handle)
@@ -168,7 +166,7 @@ export class Resolver {
 
 		if (match) return match;
 
-		throw new McpError('status_not_found', `No status matches "${q}".`, {
+		throw pyramidError('status_not_found', `No status matches "${q}".`, {
 			candidates: shortlist(
 				q,
 				wf.statuses.map((s) => s.name)
@@ -199,7 +197,7 @@ export class Resolver {
 		);
 		if (match) return match;
 
-		throw new McpError('stage_not_found', `No stage matches "${q}".`, {
+		throw pyramidError('stage_not_found', `No stage matches "${q}".`, {
 			candidates: shortlist(
 				q,
 				wf.stages.map((s) => s.name)
@@ -229,7 +227,7 @@ export class Resolver {
 		);
 		if (match) return match;
 
-		throw new McpError('user_not_found', `No user matches "${q}".`, {
+		throw pyramidError('user_not_found', `No user matches "${q}".`, {
 			candidates: shortlist(
 				q,
 				wf.members.map((m) => m.display_name)
@@ -250,7 +248,7 @@ export class Resolver {
 		const match = pick('label', 'ambiguous_label_name', q, [byName, fuzzy], (l) => l.name);
 		if (match) return { id: match.id, name: match.name };
 
-		throw new McpError('label_not_found', `No label matches "${q}".`, {
+		throw pyramidError('label_not_found', `No label matches "${q}".`, {
 			candidates: shortlist(
 				q,
 				wf.labels.map((l) => l.name)
@@ -268,25 +266,21 @@ export class Resolver {
 	 */
 	invalidate(projectId: string, kind?: ResolveKind): void {
 		if (kind === 'project') {
-			this.projects = undefined;
+			this.projects.clear();
 			return;
 		}
 		this.workflows.delete(projectId);
 		if (kind === undefined && (projectId === '' || projectId === '*')) {
-			this.projects = undefined;
+			this.projects.clear();
 		}
 	}
 
 	// ---------- Internal: project-list cache ----------
 
 	private async getProjects(): Promise<ProjectSummary[]> {
-		if (this.projects && this.projects.expiresAt > Date.now()) {
-			return this.projects.value;
-		}
-		const raw = await this.client.listProjects();
-		const projects = extractArray(raw).map(normalizeProject);
-		this.projects = { value: projects, expiresAt: Date.now() + TTL_MS };
-		return projects;
+		return this.projects.getOrLoad(PROJECTS_KEY, async () =>
+			extractArray(await this.client.listProjects()).map(normalizeProject)
+		);
 	}
 }
 
@@ -313,27 +307,12 @@ function pick<T>(
 	for (const tier of tiers) {
 		if (tier.length === 1) return tier[0];
 		if (tier.length > 1) {
-			// `ambiguous_status_name` / `ambiguous_stage_name` aren't in the
-			// McpErrorCode union; fall back to validation_failed for those so the
-			// surfaced code is always a valid contract code.
-			const code = isMcpAmbiguousCode(ambiguousCode) ? ambiguousCode : 'validation_failed';
-			throw new McpError(code, `"${query}" is ambiguous — ${tier.length} matches.`, {
+			throw pyramidError(ambiguousCode, `"${query}" is ambiguous — ${tier.length} matches.`, {
 				candidates: dedupeStrings(tier.map(label)),
 			});
 		}
 	}
 	return undefined;
-}
-
-/** True for the ambiguity codes that exist in the McpErrorCode union. */
-function isMcpAmbiguousCode(
-	code: string
-): code is 'ambiguous_project_name' | 'ambiguous_user_name' | 'ambiguous_label_name' {
-	return (
-		code === 'ambiguous_project_name' ||
-		code === 'ambiguous_user_name' ||
-		code === 'ambiguous_label_name'
-	);
 }
 
 // ============ Defensive normalization (raw server JSON -> strict types) ============
