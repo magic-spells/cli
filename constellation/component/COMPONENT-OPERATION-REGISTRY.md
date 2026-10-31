@@ -14,6 +14,18 @@ connections:
   - DOC-OPERATION-AUTHORING
   - FLOW-RUN-OPERATION
   - FLOW-MCP-TOOL-CALL
+notes:
+  - kind: deviation
+    text: >-
+      ProductModule as built (packages/kit/src/operation.ts): `id`, `title`, `credential` are
+      strings (no product unions in the kit); added `apiUrl` (default base URL, overridden by
+      MAGIC_<ID>_URL or the config file), `keyHelp` (for not_logged_in hints), `globalFlags` (value
+      flags read anywhere in argv and used as input defaults; Pyramid's `--project`), and `commands`
+      (non-operation product commands such as `magic pyramid login`). `mcp.register(server, ctx)`
+      replaces resources/prompts arrays. Uniqueness is checked by assertRegistry at load and in each
+      product's registry test. The shell's cross-product merged map is not built yet: `magic mcp`
+      aggregation is FEATURE-MCP-AGGREGATOR's.
+    sha: 5f84173
 ---
 
 # Operation registry

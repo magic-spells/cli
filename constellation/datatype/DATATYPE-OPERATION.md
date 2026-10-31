@@ -7,6 +7,16 @@ connections:
   - COMPONENT-OPERATION-REGISTRY
   - COMPONENT-KIT
   - DOC-OPERATION-AUTHORING
+notes:
+  - kind: deviation
+    text: >-
+      packages/kit/src/operation.ts: `name` also allows a two-part `product.verb` for product-level
+      commands (`pyramid.whoami`); MCP tool names replace both dots and dashes with `_`
+      (`pyramid.task.list-mine` -> `pyramid_task_list_mine`). meta.cli gains `presets` (presence
+      flag -> input values), `routes` (presence flag -> another operation) and `fileInput` (`--file`
+      JSON into one input key), generalising pyramid-cli's hard-coded --unarchive/--mine/--file.
+      OpContext is generic over the client (`OpContext<C>`), and `cache` is a TtlCache<unknown>.
+    sha: 5f84173
 ---
 
 pyramid-cli's `Operation` (`src/operations/index.ts`) generalised. Sites' Go `ops.Operation` (`Name`, `Summary`, `Detail`, `Surfaces`, `Input`, `Run`) maps onto the same fields in the adapter.

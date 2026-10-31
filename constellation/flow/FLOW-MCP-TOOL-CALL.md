@@ -16,7 +16,7 @@ connections:
 
 # MCP tool call
 
-1. **client**: started `npx -y @magic-spells/cli mcp [--products …]`; `initialize` returns the family preamble plus each product's instructions.
+1. **client**: started `npx -y magic-spells mcp [--products …]`; `initialize` returns the family preamble plus each product's instructions.
 2. **client**: `tools/list` → every loaded product's operations with `surfaces` including `mcp`, named `<product>_<noun>_<verb>`, input schema from zod (or passed through from Sites).
 3. **client**: `tools/call pyramid_task_next {…}`.
 4. **aggregator**: find the operation; parse arguments with its schema (failure → `isError` with `validation_failed`).

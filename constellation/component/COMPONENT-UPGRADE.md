@@ -17,4 +17,4 @@ Copied, not imported, from Puzzle's DECISION-D76-CLI-UPGRADE (puzzle plan): a pa
 
 - Cache: `~/.cache/magic/update.json` `{ checked_at, latest }` from the npm registry's dist-tags.
 - Notice: one stderr line after a command finishes, never under `--json`, `--quiet`, `magic mcp` or a non-TTY stderr.
-- `magic upgrade`: detects how `magic` was installed (global npm, pnpm, bun, or `npx` — for `npx` it prints the `-y @latest` form instead) and runs that manager's global install of `@magic-spells/cli@latest`.
+- `magic upgrade`: detects how `magic` was installed (global npm, pnpm, bun, or `npx` — for `npx` it prints the `-y @latest` form instead) and runs that manager's global install of `magic-spells@latest`.

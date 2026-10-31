@@ -16,7 +16,7 @@ connections:
 
 ## Scope
 
-- Final pyramid-cli commit: README pointing to `@magic-spells/cli` and the command mapping (`pyramid task next` → `magic pyramid task next`, `pyramid mcp` → `magic mcp --products pyramid`), plan.md current state "archived, moved to magic-spells/cli".
+- Final pyramid-cli commit: README pointing to `magic-spells` and the command mapping (`pyramid task next` → `magic pyramid task next`, `pyramid mcp` → `magic mcp --products pyramid`), plan.md current state "archived, moved to magic-spells/cli".
 - Pyramid's web `/auth/cli` page (used by `pyramid login`) stays until R1 removes `magic pyramid login`, then can go.
 - Cory: `npm deprecate @magic-spells/pyramid "<message>"` and GitHub archive. No migration period (Cory 2026-10-18).
 

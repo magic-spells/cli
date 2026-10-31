@@ -22,7 +22,7 @@ The second quote could read as "everything goes in `magic`". The first draws the
 ## Decision
 
 - `magic` carries only commands for hosted Magic Spells services and products: Sites, Pyramid, Marketing, the Sites App SDK, Account, and later hosted products (Reviews, Wishlist).
-- Puzzle, puzzle-pieces and the Open Sourcery components are never namespaces in `magic` (`magic puzzle …` does not exist) and never depend on `@magic-spells/cli`.
+- Puzzle, puzzle-pieces and the Open Sourcery components are never namespaces in `magic` (`magic puzzle …` does not exist) and never depend on `magic-spells`.
 - `magic` may **copy** patterns from Puzzle's CLI (the platform-binary shim, the cached update notice and `upgrade`) but does not import its code.
 - A command that touches both (for example a Sites theme built with Puzzle components) belongs to the hosted product: `magic sites dev` runs the Sites engine; it does not wrap `puzzle dev`.
 

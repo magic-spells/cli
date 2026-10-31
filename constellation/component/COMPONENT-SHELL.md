@@ -1,7 +1,7 @@
 ---
 name: 'Shell (packages/cli): the `magic` bin, global flags, product dispatch, login/logout/whoami/doctor/mcp/upgrade/telemetry'
 kind: cli
-status: planned
+status: building
 framework: typescript
 connections:
   - COMPONENT-KIT
@@ -20,6 +20,27 @@ connections:
   - FLOW-RUN-OPERATION
   - FEATURE-MONOREPO-SCAFFOLD
   - FEATURE-WHOAMI-DOCTOR
+notes:
+  - kind: state
+    text: >-
+      Built so far (packages/cli): bin/magic.js (plain JS Node >=24 check, then dist/main.js),
+      `magic version|--version`, `magic --help` (top level + products), lazy product dispatch
+      through src/products.ts (pyramid only) into the kit's runProductCli, exit codes via
+      process.exitCode. Global flags are parsed by the kit (--json --yes/-y --no-color/NO_COLOR
+      --quiet/-q --no-cache --workspace). Not built: login/logout/whoami/doctor
+      (FEATURE-WHOAMI-DOCTOR), mcp (FEATURE-MCP-AGGREGATOR), --product-key, upgrade, telemetry,
+      SIGINT -> OpContext.signal.
+    sha: 0304bf4
+  - kind: state
+    text: >-
+      Now built: top-level `login --product-key`, `logout`, `whoami`, `doctor`, `mcp`
+      (packages/cli/src/commands/*, a Shell context in src/shell.ts), every top-level error through
+      the kit's renderError (JSON envelope when piped). `--no-cache` was removed (it did nothing);
+      `--workspace` is a usage error wherever no operation input takes it, including top-level
+      commands. Still not built: upgrade, telemetry, SIGINT → OpContext.signal for CLI runs (it is
+      wired for `magic mcp`). The published bin runs the esbuild bundle that `prepack` writes into
+      dist/.
+    sha: '2952966'
 ---
 
 # Shell
@@ -28,7 +49,8 @@ connections:
 
 ## Responsibilities
 
-- **Global flags**, parsed anywhere in argv (pyramid-cli's `parseGlobals`): `--json`, `--yes/-y`, `--no-color` (and `NO_COLOR`), `--quiet/-q`, `--no-cache`, `--workspace <handle>`, `--product-key` (reads the key from a prompt or stdin, never from the argv value — see [[DOC-SECURITY]]), `--version`, `--help`.
+
+- **Global flags**, parsed anywhere in argv (pyramid-cli's `parseGlobals`): `--json`, `--yes/-y`, `--no-color` (and `NO_COLOR`), `--quiet/-q`, `--workspace <handle>`, `--product-key` (reads the key from a prompt or stdin, never from the argv value — see [[DOC-SECURITY]]), `--version`, `--help`.
 - **Top-level commands:** `login`, `logout`, `whoami`, `doctor`, `mcp`, `upgrade`, `telemetry on|off|status`, `version`.
 - **Product dispatch:** the first token that names a product loads that product's registry ([[COMPONENT-OPERATION-REGISTRY]]) lazily, so `magic pyramid …` never spawns the Sites engine.
 - **Help:** `magic --help` lists top-level commands and products; `magic <product> --help` lists nouns and verbs derived from the registry.

@@ -1,5 +1,5 @@
 ---
-name: 'npm registry: where @magic-spells/cli and the engine packages are published'
+name: 'npm registry: where magic-spells and the engine packages are published'
 kind: saas-vendor
 status: planned
 vendor: npm
@@ -21,6 +21,6 @@ connections:
 # npm registry
 
 - Scope `@magic-spells`, public access, provenance from GitHub Actions.
-- Published: `@magic-spells/cli`, `@magic-spells/sites-engine-{darwin-arm64,darwin-x64,linux-x64,linux-arm64,win32-x64}`.
+- Published: `magic-spells` (unscoped), `@magic-spells/sites-engine-{darwin-arm64,darwin-x64,linux-x64,linux-arm64,win32-x64}`.
 - Deprecated: `@magic-spells/pyramid` (0.1.1) after R0.
 - `NPM_TOKEN` lives in the repo's GitHub Actions secrets; only Cory creates it.

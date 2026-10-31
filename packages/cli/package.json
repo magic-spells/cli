@@ -1,0 +1,34 @@
+{
+	"name": "magic-spells",
+	"version": "0.1.0",
+	"description": "Magic CLI — one command line and MCP server for Magic Spells' hosted services.",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=24"
+	},
+	"bin": {
+		"magic": "bin/magic.js"
+	},
+	"files": [
+		"bin",
+		"dist",
+		"!dist/.tsbuildinfo"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.12.0",
+		"undici": "^6.19.0",
+		"zod": "^3.23.8"
+	},
+	"scripts": {
+		"bundle": "node scripts/bundle.mjs",
+		"prepack": "node scripts/bundle.mjs"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/magic-spells/cli.git"
+	}
+}

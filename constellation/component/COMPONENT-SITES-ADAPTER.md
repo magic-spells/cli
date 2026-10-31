@@ -14,6 +14,17 @@ connections:
   - FLOW-SITES-ADAPTER-BOOT
   - FEATURE-SITES-ADAPTER
   - EXTERNAL-SITES
+notes:
+  - kind: gotcha
+    text: >-
+      For R2, from the R0 part-1 review: the kit's argv derivation (packages/kit/src/argv.ts
+      describeFields) reads zod `_def` and requires `Operation.input` to be a ZodObject, and the MCP
+      builder hands that zod shape to the SDK as the tool input schema. Sites' engine tools/list
+      returns JSON Schema, so the adapter needs either a JSON-Schema→zod step when it builds
+      Operations from the catalogue, or a field-spec seam in the kit that both zod and JSON Schema
+      can feed. Also `assertRegistry` (kit/src/operation.ts) allows at most 3 name parts
+      (`sites.<noun>.<verb>`); deeper engine names must be flattened. MCP context is per call
+      (ContextSource), so an engine-backed product can start its child lazily on first call.
 ---
 
 # Sites adapter

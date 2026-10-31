@@ -27,7 +27,7 @@ The base, pyramid-cli, is already TypeScript ESM (`"type": "module"`, `tsc` buil
 
 ## Alternatives
 
-- **Go**, like the Sites engine and Puzzle. Rejected: Pyramid and Marketing are already TypeScript, npm is the zero-install path (`npx -y @magic-spells/cli`), and MCP clients register stdio servers through `npx` easily.
+- **Go**, like the Sites engine and Puzzle. Rejected: Pyramid and Marketing are already TypeScript, npm is the zero-install path (`npx -y magic-spells`), and MCP clients register stdio servers through `npx` easily.
 - **Keep Node 22.** Rejected by Cory's "Node 24 on everything".
 - **Adopt a CLI framework** (as one of the reference CLIs does). Rejected: the registry already derives the command tree; a framework would add a second command model to keep in sync.
 

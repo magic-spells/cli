@@ -1,7 +1,7 @@
 ---
 name: 'Pyramid package (packages/pyramid): pyramid-cli''s operations, client, resolver, hydration and MCP text'
 kind: product-package
-status: planned
+status: built
 framework: typescript
 connections:
   - DECISION-PYRAMID-CLI-IS-THE-BASE
@@ -11,6 +11,16 @@ connections:
   - FLOW-MOVE-PYRAMID-CLI
   - API-PYRAMID-CLI-SESSIONS
   - EXTERNAL-PYRAMID
+notes:
+  - kind: state
+    text: >-
+      Built: src/index.ts default-exports the ProductModule (lazy operations import, client = { api:
+      PyramidClient, resolver: Resolver }, globalFlags ['project'], commands.login, doctor checks,
+      mcp instructions + register). 17 operations, not 16. The client keeps its own undici transport
+      (no kit http module yet). Resolver caches run on the kit's TtlCache (60 s). src/doctor.ts
+      exports the auth and workflow checks for `magic doctor`. src/login.ts is `magic pyramid login`
+      (loopback, stores `pyramid:manual`).
+    sha: 0304bf4
 ---
 
 # Pyramid package
