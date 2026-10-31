@@ -1,6 +1,6 @@
 {
 	"name": "magic-spells",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Magic CLI — one command line and MCP server for Magic Spells' hosted services.",
 	"license": "MIT",
 	"type": "module",
@@ -21,7 +21,7 @@
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.12.0",
 		"undici": "^6.19.0",
-		"zod": "^3.23.8"
+		"zod": "^4.6.7"
 	},
 	"scripts": {
 		"bundle": "node scripts/bundle.mjs",
