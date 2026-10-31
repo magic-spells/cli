@@ -12,6 +12,21 @@ connections:
   - DECISION-ACCOUNT-IDENTITY-PRODUCT-AUTHORITY
   - EXTERNAL-SITES
   - EXTERNAL-PYRAMID
+notes:
+  - kind: state
+    text: >-
+      Client side built on feat/r1-login; server sides (sites, pyramid, marketing) are separate work
+      and this card stays planned until they land. What the CLI sends: `POST <api><path>` with
+      `Authorization: Bearer magic_…`, `content-type: application/json`, body `{"label":"magic on
+      <hostname>"}` at login and `{"label":…,"workspace":"<handle>"}` on re-mint; `DELETE
+      <api><path>` with `Authorization: Bearer <product key>` at logout and when a login is replaced
+      (expects 204; a 401 tries the next stored key). Paths/hosts: pyramid
+      https://api.pyramid.magicspells.io/v1/cli/sessions (pyk_), sites
+      https://api.sites.magicspells.io/v1/cli/sessions (sites_), marketing
+      https://marketing.magicspells.io/api/v1/cli/sessions (marketing_, so marketing_live_ and
+      marketing_test_ both pass). The CLI needs an expired product key to answer 401 with "expired"
+      in the envelope code or message (e.g. `key_expired`) to trigger the re-mint.
+    sha: 9d2583d
 ---
 
 # Product sessions

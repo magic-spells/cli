@@ -21,6 +21,15 @@ notes:
       exports the auth and workflow checks for `magic doctor`. src/login.ts is `magic pyramid login`
       (loopback, stores `pyramid:manual`).
     sha: 0304bf4
+  - kind: state
+    text: >-
+      R1 (feat/r1-login, 2c25e3a): `magic pyramid login` and src/login.ts (+ tests) are removed,
+      with MAGIC_PYRAMID_WEB_URL; the browser handoff to Pyramid's /auth/cli is no longer used by
+      the CLI. The ProductModule declares `sessions: { path: '/v1/cli/sessions' }`, so `magic login`
+      mints its pyk_ keys from the Account grant and the kit re-mints them on auth_expired.
+      `pyramid.whoami` is also what fills the grant's `user` after login (the sessions answer
+      carries no person). No `commands` map remains.
+    sha: 2c25e3a
 ---
 
 # Pyramid package
