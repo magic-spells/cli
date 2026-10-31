@@ -61,7 +61,7 @@ describe('TtlCache', () => {
 });
 
 describe('runDoctorChecks', () => {
-	it('reports each check and turns a throw into a failed result with its code', async () => {
+	it('reports each check, tagged with the product, and turns a throw into a failed result', async () => {
 		const results = await runDoctorChecks(
 			[
 				{ name: 'ok', run: async () => ({ ok: true, detail: 'fine' }) },
@@ -72,11 +72,18 @@ describe('runDoctorChecks', () => {
 					},
 				},
 			],
-			{} as never
+			{} as never,
+			'demo'
 		);
 		expect(results).toEqual([
-			{ name: 'ok', ok: true, detail: 'fine' },
-			{ name: 'auth', ok: false, detail: 'bad key — new key', code: 'auth_invalid' },
+			{ name: 'ok', product: 'demo', ok: true, detail: 'fine' },
+			{
+				name: 'auth',
+				product: 'demo',
+				ok: false,
+				detail: 'bad key — new key',
+				code: 'auth_invalid',
+			},
 		]);
 	});
 });

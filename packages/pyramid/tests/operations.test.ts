@@ -34,6 +34,14 @@ import type { TaskDetail, Workflow, WhoAmI } from '../src/types.js';
 
 // ============ Shared fixtures ============
 
+/**
+ * Argument `i` of a mock's first call. The mocks are typed by their (argless)
+ * implementations, so `mock.calls[0][1]` does not type-check; this reads it untyped.
+ */
+function callArg(fn: { mock: { calls: unknown[][] } }, i: number): any {
+	return fn.mock.calls[0]?.[i];
+}
+
 const CONFIG_SAFE: CliConfig = loadCliConfig({
 	products: [{ id: 'pyramid', apiUrl: 'https://api.pyramid.magicspells.io' }],
 	env: {},
@@ -843,7 +851,7 @@ describe('operation: create_task (real registry)', () => {
 			owner_id: 'u-ann',
 			label_ids: ['lb-bug'],
 		});
-		const body = createTask.mock.calls[0]![1] as Record<string, unknown>;
+		const body = callArg(createTask, 1) as Record<string, unknown>;
 		expect(body).not.toHaveProperty('stage_responsibilities');
 		expect(body).not.toHaveProperty('custom_fields');
 
@@ -890,7 +898,7 @@ describe('operation: create_task (real registry)', () => {
 			ctx
 		);
 
-		const body = createTask.mock.calls[0]![1] as Record<string, unknown>;
+		const body = callArg(createTask, 1) as Record<string, unknown>;
 		expect(body.field_values).toEqual({ 'fld-sev': 'high' });
 		expect(body).not.toHaveProperty('custom_fields');
 	});
@@ -950,7 +958,7 @@ describe('operation: create_task (real registry)', () => {
 
 		// No status/stage named -> the backend picks the default status itself, and
 		// ownership needs no stage to hang on, so the op resolves NOTHING extra.
-		const body = createTask.mock.calls[0]![1] as Record<string, unknown>;
+		const body = callArg(createTask, 1) as Record<string, unknown>;
 		expect(body.owner_id).toBe('u-bob');
 		expect(body).not.toHaveProperty('stage_responsibilities');
 		expect(body).not.toHaveProperty('status_id');
@@ -980,7 +988,7 @@ describe('operation: create_task (real registry)', () => {
 			ctx
 		);
 
-		const body = createTask.mock.calls[0]![1] as Record<string, unknown>;
+		const body = callArg(createTask, 1) as Record<string, unknown>;
 		expect(body).toMatchObject({
 			priority: 'high',
 			due_date: '2026-07-01',
@@ -1085,7 +1093,7 @@ describe('operation: move_task (real registry)', () => {
 			status_id: 'st-review',
 			after_id: 'id-APO-10',
 		});
-		const body = moveTask.mock.calls[0]![1] as Record<string, unknown>;
+		const body = callArg(moveTask, 1) as Record<string, unknown>;
 		expect(body).not.toHaveProperty('position');
 		expect(body).not.toHaveProperty('after_task_id');
 
@@ -1331,7 +1339,7 @@ describe('operation: update_task (real registry)', () => {
 			priority: 'high',
 			owner_id: 'u-ann',
 		});
-		const patch = updateTask.mock.calls[0]![1] as Record<string, unknown>;
+		const patch = callArg(updateTask, 1) as Record<string, unknown>;
 		expect(patch).not.toHaveProperty('add_label_ids');
 		expect(patch).not.toHaveProperty('field_values');
 		expect(patch).not.toHaveProperty('stage_id');
@@ -1367,8 +1375,8 @@ describe('operation: update_task (real registry)', () => {
 			.then(() => undefined)
 			.catch((e) => e as McpError);
 		expect(err).toBeInstanceOf(McpError);
-		expect(err.code).toBe('permission_denied');
-		expect(err.message).toMatch(/add_label/);
+		expect(err?.code).toBe('permission_denied');
+		expect(err?.message).toMatch(/add_label/);
 	});
 
 	it('clears an owner with an explicit null (the null must SURVIVE onto the patch)', async () => {
@@ -1431,7 +1439,7 @@ describe('operation: create_tasks_bulk (real registry)', () => {
 			ctx
 		)) as TaskDetail[];
 
-		const body = bulkCreate.mock.calls[0]![0] as {
+		const body = callArg(bulkCreate, 0) as {
 			project_id: string;
 			template_id: string;
 			tasks: Record<string, unknown>[];
@@ -1523,7 +1531,7 @@ describe('create_task: field validation + ownership', () => {
 			ctx
 		);
 
-		const body = createTask.mock.calls[0]![1] as Record<string, unknown>;
+		const body = callArg(createTask, 1) as Record<string, unknown>;
 		expect(body.owner_id).toBe('u-ann');
 		expect(body.reviewer_id).toBe('u-bob');
 		expect(body).not.toHaveProperty('stage_responsibilities');
@@ -1544,7 +1552,7 @@ describe('list_tasks: owner/reviewer filters', () => {
 
 		await op.run({ project: 'apollo', owner: 'ann@example.com', reviewer: 'Bob Jones' }, ctx);
 
-		expect(listTasks.mock.calls[0]![1]).toMatchObject({
+		expect(callArg(listTasks, 1)).toMatchObject({
 			owner_id: 'u-ann',
 			reviewer_id: 'u-bob',
 		});
@@ -1683,7 +1691,7 @@ describe('operation: get_task_timeline (real registry)', () => {
 			makeCtx({ getTask, getTaskTimeline }, resolver)
 		)) as { items: Record<string, unknown>[]; has_more: boolean };
 
-		expect(getTaskTimeline.mock.calls[0]![1]).toMatchObject({ limit: 50 });
+		expect(callArg(getTaskTimeline, 1)).toMatchObject({ limit: 50 });
 		expect(page.items[0]).toMatchObject({ id: 'ev-2', actor: null, task_id: TASK_UUID });
 		expect(page.has_more).toBe(false);
 	});
@@ -1747,7 +1755,7 @@ describe('list_comments: stage scoping', () => {
 		const listComments = vi.fn(async () => ({ data: [], cursor: null }));
 		await op.run({ task: TASK_UUID }, makeCtx({ getTask, listComments }, resolver));
 		// st-review lives in stg-doing -> default stage_id = stg-doing.
-		expect(listComments.mock.calls[0]![1].stage_id).toBe('stg-doing');
+		expect(callArg(listComments, 1).stage_id).toBe('stg-doing');
 	});
 
 	it('lists ALL stages when stage: "all"', async () => {
@@ -1756,6 +1764,6 @@ describe('list_comments: stage scoping', () => {
 		const getTask = vi.fn(async () => taskRow);
 		const listComments = vi.fn(async () => ({ data: [], cursor: null }));
 		await op.run({ task: TASK_UUID, stage: 'all' }, makeCtx({ getTask, listComments }, resolver));
-		expect(listComments.mock.calls[0]![1].stage_id).toBeUndefined();
+		expect(callArg(listComments, 1).stage_id).toBeUndefined();
 	});
 });

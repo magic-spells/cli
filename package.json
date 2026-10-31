@@ -1,7 +1,7 @@
 {
 	"name": "magic-cli-monorepo",
 	"private": true,
-	"description": "Magic CLI — one command line and MCP server for Magic Spells' hosted services.",
+	"description": "Magic CLI \u2014 one command line and MCP server for Magic Spells' hosted services.",
 	"license": "MIT",
 	"type": "module",
 	"engines": {
@@ -13,7 +13,7 @@
 	"scripts": {
 		"build": "tsc -b packages/cli",
 		"clean": "tsc -b packages/cli --clean",
-		"typecheck": "tsc -b packages/cli",
+		"typecheck": "tsc -b packages/cli && tsc -p tsconfig.test.json",
 		"test": "vitest run",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
