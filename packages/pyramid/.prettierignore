@@ -1,0 +1,7 @@
+**/*.min.js
+**/*.md
+dist/
+demo/
+assets/
+node_modules/
+package-lock.json
