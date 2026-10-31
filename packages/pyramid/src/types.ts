@@ -116,12 +116,7 @@ export interface TaskSummary {
 export interface TaskReference {
 	id: string;
 	reference_type:
-		| 'github_pr'
-		| 'github_commit'
-		| 'github_branch'
-		| 'github_issue'
-		| 'figma'
-		| 'url';
+		'github_pr' | 'github_commit' | 'github_branch' | 'github_issue' | 'figma' | 'url';
 	title: string;
 	url: string;
 	external_status: string | null;

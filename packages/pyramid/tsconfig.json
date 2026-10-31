@@ -1,21 +1,9 @@
 {
+	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"target": "ES2022",
-		"module": "NodeNext",
-		"moduleResolution": "NodeNext",
-		"lib": ["ES2023"],
-		"outDir": "dist",
 		"rootDir": ".",
-		"strict": true,
-		"declaration": true,
-		"declarationMap": true,
-		"sourceMap": true,
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"skipLibCheck": true,
-		"resolveJsonModule": true,
-		"verbatimModuleSyntax": true
+		"outDir": "dist",
+		"tsBuildInfoFile": "dist/.tsbuildinfo"
 	},
-	"include": ["src/**/*.ts", "bin/**/*.ts"],
-	"exclude": ["dist", "node_modules", "tests"]
+	"include": ["src/**/*.ts", "bin/**/*.ts"]
 }
