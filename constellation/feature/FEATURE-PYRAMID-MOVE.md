@@ -45,6 +45,18 @@ notes:
       login --product-key`, `magic whoami`, `magic logout --product pyramid`) are
       FEATURE-WHOAMI-DOCTOR's.
     sha: 0304bf4
+  - kind: deviation
+    text: >-
+      Behaviour changes from pyramid-cli that had no note (from the part-1 review): (1) the human
+      error line is `error [code]: message` with no noun prefix; (2) usage errors print the JSON
+      envelope on stderr when stderr's sibling stdout is not a TTY, like every other error (and now
+      top-level `magic bogus` does too); (3) the pagination hint reads `more: --cursor X`; (4) a
+      malformed MAGIC_PYRAMID_URL is a usage error, exit 2 (pyramid-cli exited 1); (5) usage
+      messages name the canonical verb (`task list-mine`), not the alias typed (`next`); (6) `magic
+      pyramid login --help` now prints usage and exits 0 (it was exit 2 "unknown option"); (7)
+      `--workspace` on a command with no workspace input is a usage error, exit 2, not silently
+      ignored. Pyramid's MCP instructions now carry the CLI's version (pyramid/src/version.ts
+      deleted; ProductMcp.instructions is a function of the version).
 ---
 
 # Pyramid move
