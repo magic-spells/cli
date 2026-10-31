@@ -160,7 +160,7 @@ export async function readSession(
 
 /**
  * `magic on <hostname>`: how the key is labelled in the product's key list. Capped at
- * 80 characters, the shortest label limit among the products (Marketing refuses longer).
+ * 80 characters, the shortest label limit any product sets (a longer one is refused).
  */
 export function sessionLabel(host: string = hostname()): string {
 	return `magic on ${host}`.slice(0, 80);
