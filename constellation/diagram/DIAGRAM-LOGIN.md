@@ -37,7 +37,7 @@ sequenceDiagram
   and
     CLI->>Pyramid: POST /v1/cli/sessions (Bearer grant)
     Pyramid->>Account: introspect (internal) → user only
-    Pyramid-->>CLI: pyk_ per workspace
+    Pyramid-->>CLI: pyramid_ per workspace
   end
   CLI->>CLI: store grant + keys in io.magicspells.cli
 ```

@@ -15,10 +15,16 @@ connections:
 notes:
   - kind: gotcha
     text: >-
-      pyramid-cli already has a browser login (`pyramid login`, src/auth-commands.ts): a loopback server on
-      127.0.0.1 and Pyramid web's `/auth/cli` page, which mints a workspace-scoped `pyk_` through the web session
-      (FLOW-CLI-BROWSER-LOGIN, pyramid-cli plan). The research survey lists only set-key/show-key/logout/doctor.
-      It moves in as the R0 way to get a Pyramid key and is the precedent for the product session mint.
+      pyramid-cli already has a browser login (`pyramid login`, src/auth-commands.ts): a loopback
+      server on 127.0.0.1 and Pyramid web's `/auth/cli` page, which mints a workspace-scoped `pyk_`
+      through the web session (FLOW-CLI-BROWSER-LOGIN, pyramid-cli plan). The research survey lists
+      only set-key/show-key/logout/doctor. It moves in as the R0 way to get a Pyramid key and is the
+      precedent for the product session mint.
+  - kind: state
+    text: >-
+      2026-10-31: the `pyk_` in the gotcha above is history. Pyramid now mints `pyramid_<8>_<32>`
+      keys and `/auth/cli` POSTs the key in a urlencoded body to the loopback listener (`magic
+      pyramid login`), never in the URL; `pyk_` is not accepted.
 ---
 
 # The Pyramid CLI is the base

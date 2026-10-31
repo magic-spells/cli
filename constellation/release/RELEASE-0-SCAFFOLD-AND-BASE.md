@@ -39,7 +39,8 @@ Theme: make `magic` real with one product. Everything lands in this repo except 
 
 ## Gate
 
-- `npx magic-spells pyramid task next` works with a `pyk_` key from `MAGIC_PYRAMID_KEY` or `magic login --product-key`.
+
+- `npx magic-spells pyramid task next` works with a `pyramid_` key from `MAGIC_PYRAMID_KEY` or `magic login --product-key`.
 - `claude mcp add magic -- npx -y magic-spells mcp` lists the Pyramid tools as `pyramid_*`.
 - pyramid-cli's test suite passes inside `packages/pyramid`.
 

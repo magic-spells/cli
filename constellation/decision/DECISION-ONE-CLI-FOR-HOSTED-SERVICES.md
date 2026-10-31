@@ -25,6 +25,7 @@ notes:
 
 ## Context
 
+
 Cory, 2026-10-18 (verbatim):
 
 - "we might also want to start thinking about and planning a 'magic' CLI to go with this."
@@ -33,7 +34,7 @@ Cory, 2026-10-18 (verbatim):
 - "I think it's better to have one CLI that does everything than have 4 CLIs for each project."
 - Repo: GitHub `magic-spells/cli`, folder `cli`, npm `magic-spells`, binary `magic`, product name "Magic CLI".
 
-Today the family has a CLI per product, each built by copying the last (research §1): `sites` (Go, `pk_` keys, keychain service `dev.sites.cli`), `pyramid` (TypeScript, npm `@magic-spells/pyramid` 0.1.1, `pyk_`, service `pyramid`), `marketing` (TypeScript, unpublished, `pmk_`, service `magic-spells-marketing`), with `reviews` and `wishlist` planned the same way. None authenticates through Account. A person using three products installs three tools and pastes three keys.
+Today the family has a CLI per product, each built by copying the last (research §1): `sites` (Go, `pk_` keys, keychain service `dev.sites.cli`), `pyramid` (TypeScript, npm `@magic-spells/pyramid` 0.1.1, Pyramid keys (now `pyramid_`), service `pyramid`), `marketing` (TypeScript, unpublished, `pmk_`, service `magic-spells-marketing`), with `reviews` and `wishlist` planned the same way. None authenticates through Account. A person using three products installs three tools and pastes three keys.
 
 ## Decision
 
