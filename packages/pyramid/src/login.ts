@@ -13,7 +13,7 @@ import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { createCredentialStore, maskKey as kitMaskKey, saveProductKey } from '@magic-spells/kit';
+import { createCredentialStore, maskKey, saveProductKey } from '@magic-spells/kit';
 
 import { PYRAMID_CREDENTIAL } from './credential.js';
 
@@ -40,11 +40,6 @@ const realIO: AuthIO = {
 	randomState: () => randomBytes(24).toString('base64url'),
 	loginTimeoutMs: DEFAULT_LOGIN_TIMEOUT_MS,
 };
-
-/** Mask a `pyk_<prefix>_<secret>` key: the prefix and the secret's last 4. */
-export function maskKey(key: string): string {
-	return kitMaskKey(key, 'pyk_');
-}
 
 interface LoginOptions {
 	webUrl: string;
@@ -180,7 +175,9 @@ export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<num
 		}
 		res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
 		res.end('Pyramid CLI connected. You can close this tab.\n');
-		io.out(`Saved ${maskKey(key)} — magic and magic mcp will use it automatically.`);
+		io.out(
+			`Saved ${maskKey(key, PYRAMID_CREDENTIAL.credential)} — magic and magic mcp will use it automatically.`
+		);
 		void closeServer(server).then(() => finish(0));
 	});
 

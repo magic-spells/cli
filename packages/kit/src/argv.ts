@@ -67,9 +67,6 @@ export function parseGlobals(
 			case '--no-color':
 				opts.color = false;
 				continue;
-			case '--no-cache':
-				opts.noCache = true;
-				continue;
 			case '--workspace':
 				i = valueFlag('workspace', (v) => (opts.workspace = v), i);
 				continue;

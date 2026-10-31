@@ -1,6 +1,5 @@
 // Building an OpContext for a product: config, credential, client.
 
-import { TtlCache } from './cache.js';
 import { loadCliConfig, readConfigFile, type CliConfig, type CliOutput } from './config.js';
 import { resolveCredential, type ProductSession } from './credentials.js';
 import type { CredentialStore } from './keychain.js';
@@ -42,7 +41,6 @@ export async function buildContext<C>(
 		config,
 		session,
 		client: product.client(session ?? { product: product.id, key: '', source: 'env' }, config),
-		cache: new TtlCache<unknown>(60_000),
 		signal: deps.signal ?? new AbortController().signal,
 	};
 }

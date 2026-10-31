@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadCliConfig } from '../src/config.js';
 import { callTool, createMcpServer, toolInputShape } from '../src/mcp.js';
-import { TtlCache } from '../src/cache.js';
 import type { OpContext } from '../src/operation.js';
 import { DEMO_KEY, demoOps, demoProduct, type DemoClient } from './helpers.js';
 
@@ -18,7 +17,6 @@ function ctx(allowDestructive: boolean): OpContext<DemoClient> {
 		config,
 		session,
 		client: demoProduct.client(session, config),
-		cache: new TtlCache(1000),
 		signal: new AbortController().signal,
 	};
 }

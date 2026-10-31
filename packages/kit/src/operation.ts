@@ -5,7 +5,6 @@
 
 import type { z } from 'zod';
 
-import type { TtlCache } from './cache.js';
 import type { CliConfig } from './config.js';
 import type { ProductSession } from './credentials.js';
 import type { DoctorCheck } from './doctor.js';
@@ -17,7 +16,6 @@ export interface OpContext<C = unknown> {
 	session: ProductSession | null;
 	/** The product's client, built by ProductModule.client. */
 	client: C;
-	cache: TtlCache<unknown>;
 	/** Cancelled on SIGINT. */
 	signal: AbortSignal;
 }

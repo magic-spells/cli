@@ -5,7 +5,7 @@
 import { get } from 'node:http';
 import { describe, it, expect } from 'vitest';
 
-import { maskKey, runLogin, type AuthIO } from '../src/login.js';
+import { runLogin, type AuthIO } from '../src/login.js';
 
 const KEY = 'pyk_ab23cd45_0123456789abcdef0123456789abcdef';
 const SECRET = '0123456789abcdef0123456789abcdef';
@@ -50,18 +50,6 @@ function callbackFromLoginURL(
 		req.on('error', reject);
 	});
 }
-
-describe('maskKey', () => {
-	it('keeps the prefix, hides the secret, shows the last 4', () => {
-		expect(maskKey(KEY)).toBe('pyk_ab23cd45_…cdef');
-	});
-	it('never reveals the full secret', () => {
-		expect(maskKey(KEY)).not.toContain(SECRET);
-	});
-	it('degrades gracefully on a malformed key', () => {
-		expect(maskKey('garbage')).toBe('pyk_…');
-	});
-});
 
 describe('runLogin', () => {
 	it('stores the callback key and never prints the full secret', async () => {

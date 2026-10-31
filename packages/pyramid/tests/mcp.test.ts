@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { TtlCache, createMcpServer, loadCliConfig } from '@magic-spells/kit';
+import { createMcpServer, loadCliConfig } from '@magic-spells/kit';
 
 import pyramid from '../src/index.js';
 
@@ -18,7 +18,6 @@ describe('pyramid MCP surface', () => {
 			config,
 			session,
 			client: pyramid.client(session, config),
-			cache: new TtlCache(1000),
 			signal: new AbortController().signal,
 		};
 		const server = createMcpServer({

@@ -17,8 +17,6 @@ export interface CliGlobalOptions {
 	quiet: boolean;
 	/** --no-color / NO_COLOR. */
 	color?: boolean;
-	/** --no-cache: bypass product caches. */
-	noCache?: boolean;
 	/** --workspace <handle>. */
 	workspace?: string;
 }
@@ -36,9 +34,6 @@ export const processIO: RenderIO = {
 	isTTY: () => process.stdout.isTTY === true,
 };
 
-/** A product's own human rendering for one operation's result; return false to fall back. */
-export type HumanRenderer = (result: unknown, line: (text: string) => void) => boolean;
-
 function line(write: (t: string) => void, text: string): void {
 	write(text.endsWith('\n') ? text : `${text}\n`);
 }
@@ -48,18 +43,11 @@ export function jsonMode(opts: CliGlobalOptions, io: RenderIO = processIO): bool
 }
 
 /** Render a successful result. */
-export function render(
-	result: unknown,
-	opts: CliGlobalOptions,
-	io: RenderIO = processIO,
-	human?: HumanRenderer
-): void {
-	const out = (t: string): void => line(io.out, t);
+export function render(result: unknown, opts: CliGlobalOptions, io: RenderIO = processIO): void {
 	if (jsonMode(opts, io)) {
-		out(JSON.stringify(result, null, 2));
+		line(io.out, JSON.stringify(result, null, 2));
 		return;
 	}
-	if (human?.(result, out)) return;
 	renderHuman(result, opts, io);
 }
 

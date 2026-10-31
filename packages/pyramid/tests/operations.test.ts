@@ -25,7 +25,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { z } from 'zod';
 
-import { MagicError as McpError, TtlCache, loadCliConfig, type CliConfig } from '@magic-spells/kit';
+import { MagicError as McpError, callTool, loadCliConfig, type CliConfig } from '@magic-spells/kit';
 
 import { pyramidError } from '../src/errors.js';
 import { hydrateTaskDetail, hydrateTaskSummary } from '../src/hydrate.js';
@@ -141,7 +141,6 @@ function makeCtx(
 		config,
 		session: { product: 'pyramid', key: 'pyk_test_secret', source: 'env' },
 		client: { api: client as never, resolver: resolver as never },
-		cache: new TtlCache(60_000),
 		signal: new AbortController().signal,
 	};
 }
@@ -1228,7 +1227,7 @@ describe('operation: reply_to_comment (real registry)', () => {
 // --- task.delete (real op, destructive gate) ------------------------------
 
 describe('operation: delete_task (real registry)', () => {
-	it('throws destructive_action_disabled and never touches the client when allowDestructive is false', async () => {
+	it('is gated by meta.destructive in the front-ends, never touching the client', async () => {
 		const op = operationsByName.get('pyramid.task.delete')!;
 		expect(op).toBeDefined();
 		expect(op.meta?.destructive).toBe(true);
@@ -1238,16 +1237,9 @@ describe('operation: delete_task (real registry)', () => {
 		const client = makeRefClient({ deleteTask });
 		const ctx = makeCtx(client, resolver, CONFIG_SAFE);
 
-		let thrown: unknown;
-		try {
-			await op.run({ task: 'APO-42' }, ctx);
-		} catch (e) {
-			thrown = e;
-		}
-
-		expect(thrown).toBeInstanceOf(McpError);
-		expect((thrown as McpError).code).toBe('destructive_action_disabled');
-		// the gate fires before resolution — neither the ref lookup nor delete ran.
+		const r = await callTool('pyramid', op, ctx, { task: 'APO-42', yes: true });
+		expect(r.isError).toBe(true);
+		expect(JSON.parse(r.content[0]!.text).error.code).toBe('destructive_action_disabled');
 		expect(client.searchTasks).not.toHaveBeenCalled();
 		expect(deleteTask).not.toHaveBeenCalled();
 	});

@@ -19,7 +19,7 @@ describe('loadCliConfig', () => {
 		expect(c.allowDestructive).toBe(false);
 		expect(c.telemetry).toBe('unset');
 		expect(c.updateCheck).toBe(true);
-		expect(c.output).toEqual({ json: false, color: true, quiet: false, cache: true });
+		expect(c.output).toEqual({ json: false, color: true, quiet: false });
 	});
 
 	it('env beats file beats default for product URLs, trimming one trailing slash', () => {

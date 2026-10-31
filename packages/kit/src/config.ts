@@ -14,7 +14,6 @@ export interface CliOutput {
 	json: boolean;
 	color: boolean;
 	quiet: boolean;
-	cache: boolean;
 }
 
 export interface CliConfig {
@@ -105,7 +104,6 @@ export function loadCliConfig(opts: LoadConfigOptions): CliConfig {
 			json: opts.output?.json ?? false,
 			color: opts.output?.color ?? !env.NO_COLOR,
 			quiet: opts.output?.quiet ?? false,
-			cache: opts.output?.cache ?? true,
 		},
 	};
 }

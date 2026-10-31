@@ -932,14 +932,8 @@ const taskDelete: Operation<TaskDeleteInput, { id: string; key: string; deleted:
 		destructive: true,
 		cli: { positionals: ['task'] },
 	},
+	// meta.destructive is the gate: the kit's CLI runner and MCP callTool enforce it.
 	async run(input, ctx): Promise<{ id: string; key: string; deleted: true }> {
-		if (!ctx.config.allowDestructive) {
-			throw pyramidError(
-				'destructive_action_disabled',
-				'Deleting a task is destructive and disabled.',
-				{ hint: 'Set MAGIC_ALLOW_DESTRUCTIVE=1 to enable destructive operations.' }
-			);
-		}
 		const ref = await resolveTaskRef(ctx, input.task);
 		await ctx.client.api.deleteTask(ref.id, true);
 		return { id: ref.id, key: ref.key, deleted: true };

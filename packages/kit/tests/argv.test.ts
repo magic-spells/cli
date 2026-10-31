@@ -17,17 +17,12 @@ const cmd = (name: string) => cmds.find((c) => c.op.name === name)!;
 
 describe('parseGlobals', () => {
 	it('pulls global flags from anywhere in argv', () => {
-		const g = parseGlobals(
-			['widget', '--json', 'list', '-y', '-q', '--no-cache', '--no-color'],
-			[],
-			{}
-		);
+		const g = parseGlobals(['widget', '--json', 'list', '-y', '-q', '--no-color'], [], {});
 		expect(g.rest).toEqual(['widget', 'list']);
 		expect(g.opts).toMatchObject({
 			json: true,
 			yes: true,
 			quiet: true,
-			noCache: true,
 			color: false,
 		});
 	});

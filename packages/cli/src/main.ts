@@ -39,7 +39,7 @@ function help(products: ProductEntry[]): string {
 		'Products:',
 		...products.map((p) => `  ${p.id.padEnd(21)}${p.title}`),
 		'',
-		'Global flags: --json --yes/-y --no-color --quiet/-q --no-cache --workspace <handle> --version --help',
+		'Global flags: --json --yes/-y --no-color --quiet/-q --workspace <handle> --version --help',
 		'Run `magic <product> --help` for a product’s commands.',
 		'',
 	];

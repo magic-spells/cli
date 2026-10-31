@@ -18,19 +18,10 @@ import {
 import { buildContext, productConfig, type ContextDeps } from './context.js';
 import { MagicError, toMagicError } from './errors.js';
 import { assertRegistry, onSurface, type Operation, type ProductModule } from './operation.js';
-import {
-	processIO,
-	render,
-	renderError,
-	type CliGlobalOptions,
-	type HumanRenderer,
-	type RenderIO,
-} from './render.js';
+import { processIO, render, renderError, type CliGlobalOptions, type RenderIO } from './render.js';
 
 export interface RunProductDeps extends ContextDeps {
 	io?: RenderIO;
-	/** Product renderers by operation name. */
-	renderers?: Record<string, HumanRenderer>;
 }
 
 export async function runProductCli(
@@ -88,7 +79,6 @@ export async function runProductCli(
 			output: {
 				json: opts.json,
 				quiet: opts.quiet,
-				cache: !opts.noCache,
 				...(opts.color === false ? { color: false } : {}),
 			},
 			...(opts.workspace ? { workspace: opts.workspace } : {}),
@@ -103,7 +93,7 @@ export async function runProductCli(
 
 		const ctx = await buildContext(product, config, deps, op.meta?.requiresSession !== false);
 		const out = await op.run(input, ctx);
-		render(out, opts, io, deps.renderers?.[op.name]);
+		render(out, opts, io);
 		return 0;
 	} catch (err) {
 		return renderError(toMagicError(err, { product: product.id }), opts, io);
@@ -140,7 +130,6 @@ function buildInput(
 		}
 		if (raw.workspace === undefined) raw.workspace = opts.workspace;
 	}
-	if (opts.noCache && has('noCache')) raw.noCache = true;
 
 	const result = cmd.op.input.safeParse(coerce(raw, fields));
 	if (!result.success) {
@@ -195,7 +184,7 @@ export function helpText(product: ProductModule, cmds: Command[]): string {
 	for (const [name, summary] of rows) lines.push(`  ${name.padEnd(width)}${summary}`);
 	lines.push('');
 	const pf = (product.globalFlags ?? []).map((f) => ` --${f} <${f}>`).join('');
-	lines.push(`Flags: --json --yes/-y --no-color --quiet/-q --no-cache --workspace <handle>${pf}`);
+	lines.push(`Flags: --json --yes/-y --no-color --quiet/-q --workspace <handle>${pf}`);
 	return `${lines.join('\n')}\n`;
 }
 
