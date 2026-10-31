@@ -80,7 +80,11 @@ export function remintFor<C>(product: ProductModule<C>, store: CredentialStore):
 	};
 }
 
-/** Run an operation; on auth_expired, re-mint once and retry once. */
+/**
+ * Run an operation; on auth_expired, re-mint once and retry once. Products signal an
+ * expired key with 401 and an error code containing `expired` (e.g. `key_expired`);
+ * any other 401 is auth_invalid and is never re-minted.
+ */
 export async function runWithRemint<C, O>(
 	op: Operation<any, O, C>,
 	input: unknown,

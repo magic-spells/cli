@@ -68,6 +68,8 @@ export type SessionIndex = Record<string, ProductSessionIndex>;
 export interface CliSessionsResponse {
 	sessions: ProductSession[];
 	workspaces: Workspace[];
+	/** Optional: who the grant belongs to, when the product says. Fills the grant's `user`. */
+	user?: GrantUser;
 }
 
 /** What minting needs from a product module. */
@@ -312,7 +314,12 @@ function readSessions(spec: SessionSpec, body: unknown): CliSessionsResponse {
 			];
 		}
 	);
-	return { sessions, workspaces };
+	const u = rec(b.user);
+	const email = readStr(u.email);
+	const user: GrantUser | undefined = email
+		? { id: readStr(u.id) ?? '', display_name: readStr(u.display_name) ?? email, email }
+		: undefined;
+	return { sessions, workspaces, ...(user ? { user } : {}) };
 }
 
 /**
@@ -390,6 +397,10 @@ export async function touchGrant(store: CredentialStore, grant: StoredGrant): Pr
  * Re-mint one expired account session (FLOW-PRODUCT-SESSION-MINT "Re-mint"): the same
  * product and workspace, from the stored grant. No grant, or a dead one, is
  * not_logged_in with "run magic login".
+ *
+ * Contract with the products: an expired product key is answered with 401 and an
+ * error code containing `expired` (e.g. `{ "error": { "code": "key_expired" } }`).
+ * mapHttpError turns that into auth_expired, and only auth_expired triggers this.
  */
 export async function remintSession(
 	spec: SessionSpec,

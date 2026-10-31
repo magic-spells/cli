@@ -270,6 +270,7 @@ interface Minted {
 	product: ProductModule;
 	entry?: ProductSessionIndex;
 	sessions?: ProductSession[];
+	user?: GrantUser;
 	error?: MagicError;
 }
 
@@ -309,16 +310,21 @@ async function mintAll(
 			});
 		} else {
 			const entry = await storeSessions(shell.store, a.product.id, a.res);
-			out.push({ product: a.product, entry, sessions: a.res.sessions });
+			out.push({
+				product: a.product,
+				entry,
+				sessions: a.res.sessions,
+				...(a.res.user ? { user: a.res.user } : {}),
+			});
 		}
 	}
 	return out;
 }
 
 /**
- * The session answer carries no person, so the first minted product with a
- * `<id>.whoami` operation says who this is; the grant keeps it for whoami. The grant
- * is also marked used: the mint restarted Account's idle clock.
+ * Who this is, for whoami: the `user` a product's sessions answer carries (optional
+ * in the contract), else the first minted product's `<id>.whoami` operation. The
+ * grant is also marked used: the mint restarted Account's idle clock.
  */
 async function rememberUser(
 	shell: Shell,
@@ -326,7 +332,7 @@ async function rememberUser(
 	minted: Minted[],
 	grant: StoredGrant
 ): Promise<StoredGrant> {
-	let user = grant.user;
+	let user = minted.find((m) => m.user)?.user ?? grant.user;
 	for (const m of minted) {
 		if (user || !m.sessions) continue;
 		try {
