@@ -40,6 +40,17 @@ notes:
       (`magic mcp: <id>: left out (<message>)`): buildMcp guards load(), and createMcpServer
       dry-runs each product's registration on a scratch server and reports through onSkip, so the
       broken product's tools and instructions never reach the real server.
+  - kind: state
+    text: >-
+      zod is 4.x (^4.6.7) across kit, pyramid and cli as of 0.2.1. Why: GHSA-mrhx-c7xc-m3w5 (zod <
+      4.6.6 can exhaust memory validating oversized constrained collections) was the one high in npm
+      audit, and magic-spells 0.2.0 bundled zod 3.25.76. @modelcontextprotocol/sdk 1.32.2 accepts
+      zod ^3.25 || ^4, so no SDK change. Tool-input validation is unchanged: callTool still
+      safeParses and turns the first issue into validation_failed with details.field = issue path
+      joined by '.'. Only code change was argv.ts describeFields: zod 4 introspection reads
+      schema.def.type (lowercase:
+      optional/nullable/default/boolean/number/array/enum/object/record), def.innerType, def.element
+      and def.entries instead of zod 3's _def.typeName. Flag derivation output is identical.
 ---
 
 # MCP aggregator

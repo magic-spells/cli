@@ -138,16 +138,25 @@ export interface FieldSpec {
 	required: boolean;
 }
 
-function baseType(schema: z.ZodTypeAny): { type: z.ZodTypeAny; optional: boolean } {
-	let cur: z.ZodTypeAny = schema;
+/** The slice of a zod 4 schema definition the introspection reads. */
+interface Def {
+	type?: string;
+	innerType?: z.ZodType;
+	element?: z.ZodType;
+	entries?: Record<string, string | number>;
+}
+
+function defOf(schema: z.ZodType | undefined): Def | undefined {
+	return (schema as unknown as { def?: Def } | undefined)?.def;
+}
+
+function baseType(schema: z.ZodType): { type: z.ZodType; optional: boolean } {
+	let cur: z.ZodType = schema;
 	let optional = false;
 	for (let guard = 0; guard < 12; guard++) {
-		const def = (cur as { _def?: { typeName?: string; innerType?: z.ZodTypeAny } })._def;
-		const name = def?.typeName;
-		if (
-			(name === 'ZodOptional' || name === 'ZodNullable' || name === 'ZodDefault') &&
-			def?.innerType
-		) {
+		const def = defOf(cur);
+		const name = def?.type;
+		if ((name === 'optional' || name === 'nullable' || name === 'default') && def?.innerType) {
 			optional = true;
 			cur = def.innerType;
 			continue;
@@ -158,38 +167,33 @@ function baseType(schema: z.ZodTypeAny): { type: z.ZodTypeAny; optional: boolean
 }
 
 /** The fields of an operation's input, for flag and positional derivation. */
-export function describeFields(input: z.ZodTypeAny): FieldSpec[] {
-	const shape = (input as unknown as { shape?: Record<string, z.ZodTypeAny> }).shape;
+export function describeFields(input: z.ZodType): FieldSpec[] {
+	const shape = (input as unknown as { shape?: Record<string, z.ZodType> }).shape;
 	if (!shape) return [];
 	return Object.entries(shape).map(([key, raw]) => {
 		const { type, optional } = baseType(raw);
-		const def = (type as { _def?: { typeName?: string; values?: unknown; type?: z.ZodTypeAny } })
-			._def;
+		const def = defOf(type);
 		let kind: FieldKind = 'string';
 		let values: string[] | undefined;
-		switch (def?.typeName) {
-			case 'ZodBoolean':
+		switch (def?.type) {
+			case 'boolean':
 				kind = 'boolean';
 				break;
-			case 'ZodNumber':
+			case 'number':
 				kind = 'number';
 				break;
-			case 'ZodArray': {
+			case 'array': {
 				// Arrays of scalars are repeatable flags; arrays of objects only come from --file.
-				const el = def.type ? baseType(def.type).type : undefined;
-				const elName = (el as { _def?: { typeName?: string } } | undefined)?._def?.typeName;
-				kind = elName === 'ZodObject' ? 'json' : 'string[]';
+				const el = def.element ? baseType(def.element).type : undefined;
+				kind = defOf(el)?.type === 'object' ? 'json' : 'string[]';
 				break;
 			}
-			case 'ZodEnum':
+			case 'enum':
 				kind = 'enum';
-				if (Array.isArray(def.values)) values = def.values as string[];
+				if (def.entries) values = Object.values(def.entries).map(String);
 				break;
-			case 'ZodNativeEnum':
-				kind = 'enum';
-				break;
-			case 'ZodObject':
-			case 'ZodRecord':
+			case 'object':
+			case 'record':
 				kind = 'json';
 				break;
 		}
