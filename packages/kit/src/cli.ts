@@ -15,7 +15,13 @@ import {
 	usage,
 	type Command,
 } from './argv.js';
-import { buildContext, productConfig, type ContextDeps } from './context.js';
+import {
+	buildContext,
+	productConfig,
+	remintFor,
+	runWithRemint,
+	type ContextDeps,
+} from './context.js';
 import { MagicError, toMagicError } from './errors.js';
 import { assertRegistry, onSurface, type Operation, type ProductModule } from './operation.js';
 import { processIO, render, renderError, type CliGlobalOptions, type RenderIO } from './render.js';
@@ -92,7 +98,7 @@ export async function runProductCli(
 		}
 
 		const ctx = await buildContext(product, config, deps, op.meta?.requiresSession !== false);
-		const out = await op.run(input, ctx);
+		const out = await runWithRemint(op, input, ctx, remintFor(product, deps.store));
 		render(out, opts, io);
 		return 0;
 	} catch (err) {
@@ -124,11 +130,10 @@ function buildInput(
 	for (const [key, value] of Object.entries(productFlags)) {
 		if (has(key) && raw[key] === undefined) raw[key] = value;
 	}
-	if (opts.workspace) {
-		if (!has('workspace')) {
-			throw usage(`--workspace is not supported by ${cmd.words.join(' ')}`);
-		}
-		if (raw.workspace === undefined) raw.workspace = opts.workspace;
+	// --workspace always picks the session (buildContext); it also fills a
+	// `workspace` input when the operation has one.
+	if (opts.workspace && has('workspace') && raw.workspace === undefined) {
+		raw.workspace = opts.workspace;
 	}
 
 	const result = cmd.op.input.safeParse(coerce(raw, fields));
