@@ -1,8 +1,8 @@
-# Release (FEATURE-RELEASE-PIPELINE, DECISION-PUBLIC-NPM-RELEASE-ON-TAG): on a `v*` tag
-# that Cory pushes, check the tag matches packages/cli, build, test, and publish
-# magic-spells to public npm with provenance. `prepack` bundles the private
-# workspace packages into packages/cli/dist, so the tarball is self-contained.
-# Then install the published version on each OS. Agents never tag or publish.
+# Release (FEATURE-RELEASE-PIPELINE, DECISION-PUBLIC-NPM-RELEASE-ON-TAG): Cory publishes
+# magic-spells to public npm from his machine (`npm publish -w packages/cli --access public`),
+# then pushes the matching `v*` tag. On the tag this workflow checks the tag matches
+# packages/cli, builds and tests, and installs the published version on each OS to prove
+# the release is live. No publish step, no npm token in CI. Agents never tag or publish.
 name: Release
 
 on:
@@ -13,17 +13,13 @@ permissions:
   contents: read
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write # npm provenance
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          registry-url: https://registry.npmjs.org
           cache: npm
       - name: The tag matches packages/cli/package.json
         run: |
@@ -38,12 +34,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run smoke:pack
-      - run: npm publish -w packages/cli --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   smoke:
-    needs: publish
+    needs: verify
     strategy:
       fail-fast: false
       matrix:
