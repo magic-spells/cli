@@ -2,12 +2,12 @@
 // a fake AuthIO, so NO real keychain / `security` call happens. pyramid-cli's
 // set-key / show-key / logout tests moved to the kit's credentials tests.
 
-import { get } from 'node:http';
+import { request } from 'node:http';
 import { describe, it, expect } from 'vitest';
 
 import { runLogin, type AuthIO } from '../src/login.js';
 
-const KEY = 'pyk_ab23cd45_0123456789abcdef0123456789abcdef';
+const KEY = 'pyramid_ab23cd45_0123456789abcdef0123456789abcdef';
 const SECRET = '0123456789abcdef0123456789abcdef';
 
 function fakeIO(stored: string | null = null, overrides: Partial<AuthIO> = {}) {
@@ -32,23 +32,39 @@ function fakeIO(stored: string | null = null, overrides: Partial<AuthIO> = {}) {
 	};
 }
 
+function callbackURL(loginURL: string): URL {
+	return new URL(new URL(loginURL).searchParams.get('redirect_uri') ?? '');
+}
+
+/** Send a request to the loopback listener; resolves with the status code. */
+function send(url: URL, method: string, body?: string): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const req = request(
+			url,
+			{
+				method,
+				headers: body == null ? {} : { 'content-type': 'application/x-www-form-urlencoded' },
+			},
+			(res) => {
+				res.resume();
+				res.on('end', () => resolve(res.statusCode ?? 0));
+			}
+		);
+		req.on('error', reject);
+		req.end(body);
+	});
+}
+
+/** POST the urlencoded form Pyramid web's /auth/cli sends. */
 function callbackFromLoginURL(
 	loginURL: string,
 	params: Record<string, string>,
 	useState: string | null = new URL(loginURL).searchParams.get('state')
-): Promise<void> {
-	const login = new URL(loginURL);
-	const callback = new URL(login.searchParams.get('redirect_uri') ?? '');
-	if (useState != null) callback.searchParams.set('state', useState);
-	for (const [k, v] of Object.entries(params)) callback.searchParams.set(k, v);
-
-	return new Promise((resolve, reject) => {
-		const req = get(callback, (res) => {
-			res.resume();
-			res.on('end', resolve);
-		});
-		req.on('error', reject);
-	});
+): Promise<number> {
+	const form = new URLSearchParams();
+	if (useState != null) form.set('state', useState);
+	for (const [k, v] of Object.entries(params)) form.set(k, v);
+	return send(callbackURL(loginURL), 'POST', form.toString());
 }
 
 describe('runLogin', () => {
@@ -63,21 +79,99 @@ describe('runLogin', () => {
 		expect(await runLogin([], f.io)).toBe(0);
 		expect(f.stored).toBe(KEY);
 		const output = f.lines.join(' ');
-		expect(output).toContain('pyk_ab23cd45_…cdef');
+		expect(output).toContain('pyramid_ab23cd45_…cdef');
 		expect(output).not.toContain(SECRET);
 	});
 
-	it('rejects a callback with a mismatched state', async () => {
+	it('stores the key from the exact POST Pyramid web sends, after refusing a GET', async () => {
+		// Mirrors CliAuth.pzl's _notifyCli: fetch() to the redirect_uri as given, a
+		// URLSearchParams body (so the urlencoded content type with a charset suffix).
+		let getStatus = 0;
+		let postStatus = 0;
 		const f = fakeIO(null, {
 			openBrowser: async (url) => {
-				await callbackFromLoginURL(url, { key: KEY }, 'wrong-state');
+				const login = new URL(url);
+				const redirectURI = login.searchParams.get('redirect_uri') ?? '';
+				const leaked = new URL(redirectURI);
+				leaked.searchParams.set('state', login.searchParams.get('state') ?? '');
+				leaked.searchParams.set('key', KEY);
+				getStatus = await send(leaked, 'GET');
+				const res = await fetch(redirectURI, {
+					method: 'POST',
+					body: new URLSearchParams({
+						state: login.searchParams.get('state') ?? '',
+						key: KEY,
+						name: 'Pyramid CLI',
+					}),
+				});
+				postStatus = res.status;
+				return true;
+			},
+		});
+
+		expect(await runLogin([], f.io)).toBe(0);
+		expect(getStatus).toBe(405);
+		expect(postStatus).toBe(200);
+		expect(f.stored).toBe(KEY);
+	});
+
+	it('rejects a POST whose state is empty', async () => {
+		const f = fakeIO(null, {
+			openBrowser: async (url) => {
+				await callbackFromLoginURL(url, { key: KEY }, '');
 				return true;
 			},
 		});
 
 		expect(await runLogin([], f.io)).toBe(1);
 		expect(f.stored).toBeNull();
+	});
+
+	it('refuses a GET with the key in the query string and never reads it', async () => {
+		let status = 0;
+		const f = fakeIO(null, {
+			openBrowser: async (url) => {
+				const callback = callbackURL(url);
+				callback.searchParams.set('state', 'test-state');
+				callback.searchParams.set('key', KEY);
+				status = await send(callback, 'GET');
+				return true;
+			},
+		});
+
+		expect(await runLogin([], f.io)).toBe(1);
+		expect(status).toBe(405);
+		expect(f.stored).toBeNull();
+		expect(f.lines.join(' ')).not.toContain(SECRET);
+	});
+
+	it('rejects a POST with the wrong state', async () => {
+		let status = 0;
+		const f = fakeIO(null, {
+			openBrowser: async (url) => {
+				status = await callbackFromLoginURL(url, { key: KEY }, 'wrong-state');
+				return true;
+			},
+		});
+
+		expect(await runLogin([], f.io)).toBe(1);
+		expect(status).toBe(400);
+		expect(f.stored).toBeNull();
 		expect(f.lines.join(' ')).toContain('invalid state');
+	});
+
+	it('rejects an oversized callback body', async () => {
+		let status = 0;
+		const f = fakeIO(null, {
+			openBrowser: async (url) => {
+				status = await callbackFromLoginURL(url, { key: KEY, name: 'x'.repeat(16 * 1024) });
+				return true;
+			},
+		});
+
+		expect(await runLogin([], f.io)).toBe(1);
+		expect(status).toBe(413);
+		expect(f.stored).toBeNull();
 	});
 
 	it('handles browser cancellation without storing a key', async () => {

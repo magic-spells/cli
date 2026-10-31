@@ -12,17 +12,25 @@ connections:
   - FEATURE-KEYRING
   - FEATURE-TELEMETRY
   - ROLE-AGENT
+notes:
+  - kind: decision
+    text: >-
+      2026-10-31: credential prefixes are product-named: Pyramid `pyramid_` (`pyramid_<8>_<32>`,
+      replacing `pyk_`, no legacy acceptance), Sites `sites_`, Marketing `marketing_<mode>_`, and
+      the Account grant `magic_` planned for R1. Why: a key's owner is readable at a glance and
+      `magic login --product-key` routes by prefix.
 ---
 
 # Security
 
 ## Credentials
 
+
 - **What is held.** One Account `cli` grant (identity only, 60 days absolute, 14 idle) and short-lived product keys (24 h, re-minted). A stolen product key is bounded by its expiry and the person's live role; a stolen grant can mint keys until revoked, so `magic logout` revokes it server-side.
 - **Where.** The OS keyring under `io.magicspells.cli`; the 0600 file only with a warning or on purpose ([[DECISION-KEYRING-DEFAULT]]). Environment variables for CI only.
 - **Never in argv.** No flag takes a secret as its value. `--product-key` prompts (hidden input) or reads stdin (`echo $KEY | magic login --product-key -`). The keyring binding replaces pyramid-cli's `security -w <key>`, which exposes the key in the process list. Child processes (the Sites engine) get keys through the environment, never argv.
-- **Never printed.** Keys show masked (`pyk_<prefix>_…abcd`); `--json` output never includes a key; debug logs redact `Authorization`.
-- **Loopback login.** The callback server binds 127.0.0.1 only, checks `state`, uses PKCE, accepts one request on `/callback`, and closes. Pyramid's interim `/auth/cli` passes the key in the loopback URL (FLOW-CLI-BROWSER-LOGIN, pyramid-cli plan); that path ends in R1.
+- **Never printed.** Keys show masked, prefix plus last 4 (`pyramid_<prefix>_…abcd`); `--json` output never includes a key; debug logs redact `Authorization`.
+- **Loopback login.** The callback server binds 127.0.0.1 only, checks `state`, uses PKCE, accepts one request on `/callback`, and closes. Pyramid's interim `/auth/cli` delivers the key in a urlencoded POST body to the loopback listener, never in the URL; a GET or a `key` in the query string is refused unread. That path ends in R1.
 
 ## Scopes
 

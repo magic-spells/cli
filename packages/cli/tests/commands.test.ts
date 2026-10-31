@@ -25,7 +25,7 @@ describe('magic login --product-key', () => {
 		});
 		expect(JSON.parse(r.stdout)).toEqual({
 			product: 'pyramid',
-			key: 'pyk_ab23cd45_…cdef',
+			key: 'pyramid_ab23cd45_…cdef',
 			stored_in: 'keychain',
 		});
 		expect(r.stdout + r.stderr).not.toContain(SECRET);
@@ -68,7 +68,7 @@ describe('magic login --product-key', () => {
 		expect((await magic(['login', '--product-key'], { readSecret: secret('') })).code).toBe(2);
 		const unknown = await magic(['login', '--product-key'], { readSecret: secret('zzz_1_2') });
 		expect(unknown.code).toBe(2);
-		expect(JSON.parse(unknown.stderr).error.hint).toContain('pyk_ (pyramid)');
+		expect(JSON.parse(unknown.stderr).error.hint).toContain('pyramid_ (pyramid)');
 		expect(
 			(await magic(['login', '--product-key', 'nope'], { readSecret: secret(KEY) })).code
 		).toBe(2);
@@ -113,7 +113,7 @@ describe('magic whoami', () => {
 		expect(out.account).toBeNull();
 		expect(out.products.pyramid).toMatchObject({
 			source: 'env',
-			key: 'pyk_ab23cd45_…cdef',
+			key: 'pyramid_ab23cd45_…cdef',
 			identity: {
 				user: { display_name: 'Ann Smith', email: 'ann@example.com' },
 				workspace: { handle: 'acme', name: 'Acme' },
@@ -126,7 +126,7 @@ describe('magic whoami', () => {
 		const store = memoryStore({ 'pyramid:manual': JSON.stringify({ key: KEY }) });
 		const r = await magic(['whoami'], { store, env: { MAGIC_PYRAMID_URL: api.url }, tty: true });
 		expect(r.code).toBe(0);
-		expect(r.stdout).toMatch(/^pyramid\n {2}source +keychain\n {2}key +pyk_ab23cd45_…cdef\n/);
+		expect(r.stdout).toMatch(/^pyramid\n {2}source +keychain\n {2}key +pyramid_ab23cd45_…cdef\n/);
 		expect(r.stdout).toMatch(/workspace +Acme/);
 	});
 
@@ -142,7 +142,10 @@ describe('magic whoami', () => {
 
 	it('a rejected key carries the error envelope and its exit class', async () => {
 		const r = await magic(['whoami'], {
-			env: { MAGIC_PYRAMID_KEY: 'pyk_ab23cd45_wrong', MAGIC_PYRAMID_URL: api.url },
+			env: {
+				MAGIC_PYRAMID_KEY: 'pyramid_ab23cd45_ffffffffffffffffffffffffffffffff',
+				MAGIC_PYRAMID_URL: api.url,
+			},
 		});
 		expect(r.code).toBe(3);
 		expect(JSON.parse(r.stdout).products.pyramid.error).toMatchObject({

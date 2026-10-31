@@ -20,7 +20,7 @@ import { MagicError as McpError } from '@magic-spells/kit';
 import type { PyramidConfig } from '../src/types.js';
 
 const CONFIG: PyramidConfig = {
-	apiKey: 'pyk_test',
+	apiKey: 'pyramid_ab23cd45_0123456789abcdef0123456789abcdef',
 	baseUrl: 'https://pyramid.example.io',
 };
 

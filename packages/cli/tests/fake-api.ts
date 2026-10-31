@@ -4,7 +4,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export const KEY = 'pyk_ab23cd45_0123456789abcdef';
+export const KEY = 'pyramid_ab23cd45_0123456789abcdef0123456789abcdef';
 export const SECRET = '0123456789abcdef';
 
 const ROUTES: Record<string, unknown> = {

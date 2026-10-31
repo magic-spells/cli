@@ -48,7 +48,7 @@ key is stored, without restarting the server.
 
 | Variable | Meaning |
 |---|---|
-| `MAGIC_<PRODUCT>_KEY` | the product's key, e.g. `MAGIC_PYRAMID_KEY=pyk_…`; never stored |
+| `MAGIC_<PRODUCT>_KEY` | the product's key, e.g. `MAGIC_PYRAMID_KEY=pyramid_…`; never stored |
 | `MAGIC_<PRODUCT>_URL` | the product's API base URL, e.g. `MAGIC_PYRAMID_URL` |
 | `MAGIC_ALLOW_DESTRUCTIVE=1` | allow destructive operations (with `--yes`, or `yes: true` in MCP) |
 | `MAGIC_CREDENTIALS_FILE=1` | store keys in the 0600 file instead of the OS keychain |

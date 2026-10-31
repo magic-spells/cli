@@ -16,7 +16,7 @@ connections:
 
 # Product sessions
 
-**Lands in:** sites/server (`/v1/cli/sessions`, `grants.introspect` on its server credential, person-bound `pk_` minting) · pyramid/server (`/v1/cli/sessions`, `pyk_` minting reusing the `/api-keys` path) · marketing in R4 ([[FEATURE-MARKETING-MOVE]])
+**Lands in:** sites/server (`/v1/cli/sessions`, `grants.introspect` on its server credential, person-bound `pk_` minting) · pyramid/server (`/v1/cli/sessions`, `pyramid_` minting reusing the `/api-keys` path) · marketing in R4 ([[FEATURE-MARKETING-MOVE]])
 
 ## Scope
 

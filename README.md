@@ -22,7 +22,9 @@ npm run smoke:pack     # pack, install the tarball in an empty dir, run it
 node packages/cli/bin/magic.js --help
 ```
 
-Publishing happens only in GitHub Actions on a `v*` tag (`.github/workflows/release.yml`):
+Cory publishes from his machine: `npm run build && npm publish -w packages/cli --access public`,
+then pushes the matching `v*` tag. The tag runs `.github/workflows/release.yml`, which builds,
+tests, and installs the published version on each OS; it never publishes and holds no npm token.
 `prepack` bundles the private workspace packages into `packages/cli/dist` with esbuild, and
 third-party packages stay external as `magic-spells`'s dependencies.
 
