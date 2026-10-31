@@ -61,13 +61,19 @@ describe('file backend', () => {
 		);
 	});
 
-	it('MAGIC_CREDENTIALS_FILE=1 forces the file on macOS', () => {
-		const store = createCredentialStore({
-			platform: 'darwin',
-			env: { MAGIC_CREDENTIALS_FILE: '1' },
-			home: home(),
-		});
-		expect(store.backend).toBe('file');
+	it('MAGIC_CREDENTIALS_FILE=1 forces the file on macOS, without the warning', async () => {
+		const warn = vi.fn();
+		for (const platform of ['darwin', 'linux'] as const) {
+			const store = createCredentialStore({
+				platform,
+				env: { MAGIC_CREDENTIALS_FILE: '1' },
+				home: home(),
+				warn,
+			});
+			expect(store.backend).toBe('file');
+			await store.set('demo:manual', 'k1');
+		}
+		expect(warn).not.toHaveBeenCalled();
 	});
 });
 

@@ -3,7 +3,7 @@
 //
 // R0 backend: macOS Keychain through /usr/bin/security (pyramid-cli's path, no native
 // dependency), else a 0600 JSON file with a stderr warning. MAGIC_CREDENTIALS_FILE=1
-// forces the file. R1 swaps the macOS path for a cross-platform keyring binding
+// forces the file, silently. R1 swaps the macOS path for a cross-platform keyring binding
 // (FEATURE-KEYRING), which also takes the secret out of the `security -w` argv.
 // Secrets are never logged.
 
@@ -46,8 +46,11 @@ const realExec: ExecFile = (file, args) =>
 export function createCredentialStore(opts: StoreOptions = {}): CredentialStore {
 	const platform = opts.platform ?? process.platform;
 	const env = opts.env ?? process.env;
-	const file = createFileStore(credentialsFilePath(opts), opts.warn ?? defaultWarn);
-	if (platform !== 'darwin' || env.MAGIC_CREDENTIALS_FILE === '1') return file;
+	// Asking for the file (MAGIC_CREDENTIALS_FILE=1) is a choice, not a fallback: no warning.
+	const chosen = env.MAGIC_CREDENTIALS_FILE === '1';
+	const warn = chosen ? () => {} : (opts.warn ?? defaultWarn);
+	const file = createFileStore(credentialsFilePath(opts), warn);
+	if (platform !== 'darwin' || chosen) return file;
 	return createMacStore(opts.exec ?? realExec, file);
 }
 
