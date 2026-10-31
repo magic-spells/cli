@@ -14,7 +14,7 @@ connections:
 
 # Merchant operator
 
-Runs a store or a team, not code. Meets `magic` through an agent: registers `magic mcp` once (`claude mcp add magic -- npx -y @magic-spells/cli mcp`), runs `magic login` once, then asks the agent to update pages, check campaigns or file tasks.
+Runs a store or a team, not code. Meets `magic` through an agent: registers `magic mcp` once (`claude mcp add magic -- npx -y magic-spells mcp`), runs `magic login` once, then asks the agent to update pages, check campaigns or file tasks.
 
 - Needs clear tool descriptions, hydrated names (never ids), and errors that say what to do ("run magic login").
 - Destructive tools stay blocked unless they started the server with `MAGIC_ALLOW_DESTRUCTIVE=1`.

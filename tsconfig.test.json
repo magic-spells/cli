@@ -1,0 +1,15 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"composite": false,
+		"declaration": false,
+		"declarationMap": false,
+		"sourceMap": false,
+		"noEmit": true,
+		"paths": {
+			"@magic-spells/kit": ["./packages/kit/src/index.ts"],
+			"@magic-spells/pyramid": ["./packages/pyramid/src/index.ts"]
+		}
+	},
+	"include": ["packages/*/src/**/*.ts", "packages/*/tests/**/*.ts", "vitest.config.ts"]
+}

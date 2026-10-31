@@ -11,6 +11,14 @@ connections:
   - COMPONENT-LOGIN
   - FEATURE-KEYRING
   - DOC-SECURITY
+notes:
+  - kind: gotcha
+    text: >-
+      R0's macOS backend (packages/kit/src/keychain.ts) shells out to `/usr/bin/security
+      add-generic-password -w <secret>`, so the secret sits in argv for the duration of that call
+      and is briefly visible to local processes. Inherited unchanged from pyramid-cli's keychain.ts
+      and accepted for R0 (piping the password on stdin is unreliable: `security` prompts for it
+      twice). FEATURE-KEYRING's binding closes it.
 ---
 
 # Keychain

@@ -24,7 +24,7 @@ Three MCP servers exist or are planned per product: `sites mcp` (Go, 59 tools), 
 - `--products pyramid,sites` limits which products' tools are listed; by default every product with a usable credential is listed.
 - Auth is the keyring from `magic login`, or product-key environment variables for CI. A product whose credential is missing or expired still lists its tools; a call fails with `auth_invalid`/`not_logged_in` for that product only, and the other products keep working.
 - Per-product server instructions (Pyramid's rendering rules) are concatenated under product headings; resources and prompts keep a product prefix.
-- Registration: `claude mcp add magic -- npx -y @magic-spells/cli mcp`.
+- Registration: `claude mcp add magic -- npx -y magic-spells mcp`.
 - Destructive tools need `yes: true` in the input and `MAGIC_ALLOW_DESTRUCTIVE=1` in the server's environment ([[DECISION-OPERATION-CONTRACT]]).
 - A hosted HTTP MCP with OAuth is a later option, open in [[DOC-OPEN-DECISIONS]].
 

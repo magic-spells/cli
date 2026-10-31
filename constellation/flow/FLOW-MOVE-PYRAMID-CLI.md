@@ -19,4 +19,4 @@ connections:
 3. **this repo**: move generic modules to `packages/kit` one at a time, each step green: errors → render → argv → config → keychain → mcp builder → cache primitive → doctor runner ([[FEATURE-KIT-EXTRACTION]]).
 4. **this repo**: rename operations to `pyramid.<noun>.<verb>`; env vars to `MAGIC_*`; keychain service to `io.magicspells.cli`.
 5. **this repo**: wire `packages/pyramid` into the shell; `magic pyramid …` and `pyramid_*` tools pass the R0 gate.
-6. **Cory**: after R0 publishes, `npm deprecate @magic-spells/pyramid "Moved to @magic-spells/cli — run: npx @magic-spells/cli pyramid …"` and archive `magic-spells/pyramid-cli` with a README pointer ([[FEATURE-DEPRECATE-PYRAMID-CLI]]).
+6. **Cory**: after R0 publishes, `npm deprecate @magic-spells/pyramid "Moved to magic-spells — run: npx magic-spells pyramid …"` and archive `magic-spells/pyramid-cli` with a README pointer ([[FEATURE-DEPRECATE-PYRAMID-CLI]]).

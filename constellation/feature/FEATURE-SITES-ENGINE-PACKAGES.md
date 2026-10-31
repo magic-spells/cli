@@ -23,4 +23,4 @@ connections:
 ## Acceptance
 
 - A dry-run release on a branch produces five tarballs each holding one executable `sites` binary that prints the locked version.
-- Installing `@magic-spells/cli` on each CI OS installs exactly one engine package.
+- Installing `magic-spells` on each CI OS installs exactly one engine package.

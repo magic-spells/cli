@@ -17,7 +17,7 @@ connections:
 3. **CI (`release.yml`)**: checks the tag equals the package version; installs, type-checks and tests on Node 24.
 4. **CI**: from R2, checks out the Sites engine at the tag in `engine.lock`, cross-compiles `sites` for darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64 with `GOWORK=off`, and places each binary in its `packages/sites-engine-*` folder with `version` = the CLI's.
 5. **CI**: `prepack` injects exact optional-dependency pins; verify-pack checks each tarball's file list.
-6. **CI**: `npm publish --provenance --access public` for each engine package, then `@magic-spells/cli`.
-7. **CI**: smoke test from the registry: `npx -y @magic-spells/cli@X.Y.Z --version` and `doctor --json` on each OS runner.
+6. **CI**: `npm publish --provenance --access public` for each engine package, then `magic-spells`.
+7. **CI**: smoke test from the registry: `npx -y magic-spells@X.Y.Z --version` and `doctor --json` on each OS runner.
 
 - A failure after some engine packages published leaves those versions orphaned; the CLI was not published, so nothing references them. Re-run with a new patch tag.

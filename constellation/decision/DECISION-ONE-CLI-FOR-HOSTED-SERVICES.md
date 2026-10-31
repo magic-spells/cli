@@ -1,5 +1,5 @@
 ---
-name: 'One CLI for the hosted services: @magic-spells/cli, binary `magic`, products as namespaces'
+name: 'One CLI for the hosted services: magic-spells, binary `magic`, products as namespaces'
 status: planned
 connections:
   - DECISION-NOT-FOR-FRAMEWORKS
@@ -31,13 +31,13 @@ Cory, 2026-10-18 (verbatim):
 - "I think we'll also want the Magic CLI to support stuff for pyramid and Marketing and other things as well. should we build this in typescript so it's easy to run across multiple different systems?" → "ok so we'll want our CLI to be public then and use TS"
 - "we can pull in pyramid here and use it as the base for our CLI. so they'll do 'magic whoami' and 'magic pyramid project list'" … "and then 'magic sites xxxx' and 'magic marketing xxxx'"
 - "I think it's better to have one CLI that does everything than have 4 CLIs for each project."
-- Repo: GitHub `magic-spells/cli`, folder `cli`, npm `@magic-spells/cli`, binary `magic`, product name "Magic CLI".
+- Repo: GitHub `magic-spells/cli`, folder `cli`, npm `magic-spells`, binary `magic`, product name "Magic CLI".
 
 Today the family has a CLI per product, each built by copying the last (research §1): `sites` (Go, `pk_` keys, keychain service `dev.sites.cli`), `pyramid` (TypeScript, npm `@magic-spells/pyramid` 0.1.1, `pyk_`, service `pyramid`), `marketing` (TypeScript, unpublished, `pmk_`, service `magic-spells-marketing`), with `reviews` and `wishlist` planned the same way. None authenticates through Account. A person using three products installs three tools and pastes three keys.
 
 ## Decision
 
-- One npm package `@magic-spells/cli`, one binary `magic`, one MCP server `magic mcp`. Public on npm, source public on GitHub, MIT like pyramid-cli.
+- One npm package `magic-spells`, one binary `magic`, one MCP server `magic mcp`. Public on npm, source public on GitHub, MIT like pyramid-cli.
 - The top level belongs to the person and the family: `magic login | logout | whoami | doctor | mcp | upgrade` (plus `magic telemetry on|off`).
 - Each product is a namespace: `magic pyramid …`, `magic sites …`, `magic app …` (the Sites App SDK), `magic marketing …`. Later products (Reviews, Wishlist) arrive as further namespaces, not further binaries.
 - Product command packages are npm workspaces in this monorepo (`packages/pyramid`, `packages/sites`, `packages/app`, `packages/marketing`) bundled into the one published package. The only other published packages are the per-platform Sites engine binaries ([[DECISION-SITES-VIA-BINARY-ADAPTER]]).
