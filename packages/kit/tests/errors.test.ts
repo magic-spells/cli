@@ -288,6 +288,7 @@ describe('exitCodeFor — the exit table (DECISION-OPERATION-CONTRACT)', () => {
 		not_logged_in: 3,
 		auth_invalid: 3,
 		auth_expired: 3,
+		auth_cancelled: 3,
 		permission_denied: 4,
 		not_found: 5,
 		ambiguous_name: 6,
