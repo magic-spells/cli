@@ -17,7 +17,7 @@ The response body of every product's `POST /v1/cli/sessions` (Marketing: `/api/v
 ```ts
 interface ProductSession {
   product: 'pyramid' | 'sites' | 'marketing';
-  key: string;                 // pyk_… | sites_… | marketing_live_… (marketing_test_… also valid); shown once
+  key: string;                 // pyramid_… | sites_… | marketing_live_… (marketing_test_… also valid); Bearer for that product's API; shown once
   key_id: string;              // for revoke
   workspace: { id: string; handle: string; name: string };  // product-local handle, never "slug"
   role: string;                // the person's role in that workspace, in the product's own words
@@ -28,9 +28,10 @@ interface ProductSession {
 interface CliSessionsResponse {
   sessions: ProductSession[];  // one per workspace the person may reach, or one when workspace was given
   workspaces: { id: string; handle: string; name: string; role: string }[];  // for whoami
+  user?: { id: string; display_name: string; email: string };  // optional; fills the grant's user ahead of a product whoami
 }
 ```
 
-Request: `Authorization: Bearer magic_…`, JSON `{ "workspace"?: "<handle>", "label": "magic on <hostname>" }`. Errors in the product envelope: 401 `grant_invalid` (CLI: not_logged_in, "Run `magic login`"), 403 `no_workspaces` (permission_denied, `details.reason`), 404 `workspace_not_found` (not_found, `details.kind: workspace`), 429. The CLI refuses a session whose key lacks the product's prefix or whose workspace has no handle.
+Request: `Authorization: Bearer magic_…`, JSON `{ "workspace"?: "<handle>", "label": "magic on <hostname>" }`. Errors in the product envelope: 401 `grant_invalid` (CLI: not_logged_in, "Run `magic login`"), 403 `no_workspaces` (permission_denied, `details.reason`), 404 `workspace_not_found` (not_found, `details.kind: workspace`), 429. The CLI refuses a session whose key lacks the product's prefix or whose workspace has no handle. Once minted, an expired key is answered with 401 and an error code containing `expired` (e.g. `key_expired`): that, and only that, makes the CLI re-mint.
 
 A key borrows the person's live authority: losing the role in the product disables the key at the next request (see [[DB-ACCESS-KEYS]] (sites server plan)).

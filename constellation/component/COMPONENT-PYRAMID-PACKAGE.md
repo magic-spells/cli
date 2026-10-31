@@ -21,15 +21,23 @@ notes:
       exports the auth and workflow checks for `magic doctor`. src/login.ts is `magic pyramid login`
       (loopback, stores `pyramid:manual`).
     sha: 0304bf4
+  - kind: decision
+    text: >-
+      2026-10-31: the key never travels in a URL. Pyramid web's /auth/cli POSTs `{ state, key, name
+      }` (or `{ state, error }`) as a urlencoded body to the loopback callback; the listener refuses
+      GET and any `key` in the query string. Why: URLs are logged (browser history, proxies, server
+      logs). Rejected: the old GET with the key in the query string.
   - kind: state
     text: >-
-      R1 (feat/r1-login, 2c25e3a): `magic pyramid login` and src/login.ts (+ tests) are removed,
-      with MAGIC_PYRAMID_WEB_URL; the browser handoff to Pyramid's /auth/cli is no longer used by
-      the CLI. The ProductModule declares `sessions: { path: '/v1/cli/sessions' }`, so `magic login`
-      mints its pyk_ keys from the Account grant and the kit re-mints them on auth_expired.
-      `pyramid.whoami` is also what fills the grant's `user` after login (the sessions answer
-      carries no person). No `commands` map remains.
-    sha: 2c25e3a
+      R1 (feat/r1-login, 2c25e3a; merged with release/0.2.0 at 5c53559): `magic pyramid login` and
+      src/login.ts (+ tests) are removed, with MAGIC_PYRAMID_WEB_URL, so the POST-body loopback
+      above (release/0.2.0) no longer ships in the CLI; the no-key-in-URL rule carries over to
+      Account's loopback, which only ever receives a `code`. Keys are `pyramid_<8>_<32>`
+      (PYRAMID_CREDENTIAL.credential = 'pyramid_'). The ProductModule declares `sessions: { path:
+      '/v1/cli/sessions' }`, so `magic login` mints its pyramid_ keys from the Account grant and the
+      kit re-mints them on auth_expired. The grant's `user` comes from an optional top-level `user`
+      in a sessions answer, else from `pyramid.whoami`. No `commands` map remains.
+    sha: 09b2af0
 ---
 
 # Pyramid package
