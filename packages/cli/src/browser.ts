@@ -18,8 +18,9 @@ export function browserIsLocal(env: NodeJS.ProcessEnv, platform: NodeJS.Platform
 export function openBrowser(url: string): Promise<boolean> {
 	return new Promise((resolve) => {
 		const platform = process.platform;
-		const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open';
-		const args = platform === 'win32' ? ['/c', 'start', '', url] : [url];
+		// Not `cmd /c start`: cmd splits the URL at every `&` of the authorize query.
+		const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'rundll32' : 'xdg-open';
+		const args = platform === 'win32' ? ['url.dll,FileProtocolHandler', url] : [url];
 		const child = spawn(command, args, { detached: true, stdio: 'ignore' });
 		child.once('error', () => resolve(false));
 		child.once('close', (code) => resolve(code === 0));

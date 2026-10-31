@@ -14,6 +14,7 @@ import {
 	manualItem,
 	readGrant,
 	readIndex,
+	remintFor,
 	jsonMode,
 	maskKey,
 	productConfig,
@@ -215,15 +216,23 @@ async function productChecks(
 		results.push(soft ? { ...failed, ok: true, warn: true } : failed);
 		return results;
 	}
+	let ctx = contextFor(product, config, session);
+	// An account key past its 24 h is re-minted first, as any command would do.
+	if (session.source === 'account' && Date.parse(session.expires_at ?? '') <= Date.now()) {
+		try {
+			ctx = (await remintFor(product, shell.store)(ctx)) ?? ctx;
+		} catch (err) {
+			results.push(fail(`${id} key`, err));
+			return results;
+		}
+	}
 	results.push({
 		name: `${id} key`,
 		product: id,
 		ok: true,
-		detail: `${maskKey(session.key, product.credential)} from ${keySource(session.source)}${session.workspace ? ` (workspace ${session.workspace.handle})` : ''}`,
+		detail: `${maskKey(ctx.session!.key, product.credential)} from ${keySource(session.source)}${session.workspace ? ` (workspace ${session.workspace.handle})` : ''}`,
 	});
-	results.push(
-		...(await runDoctorChecks(product.doctor ?? [], contextFor(product, config, session), id))
-	);
+	results.push(...(await runDoctorChecks(product.doctor ?? [], ctx, id)));
 	return results;
 }
 

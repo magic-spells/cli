@@ -561,6 +561,22 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 	});
 });
 
+describe('doctor with an expired account key', () => {
+	it('re-mints the key before the product checks, as a command would', async () => {
+		pyramid.workspaces = [ACME];
+		const store = await loggedIn();
+		const old = JSON.parse(store.items['pyramid:acme']!);
+		store.items['pyramid:acme'] = JSON.stringify({
+			...old,
+			expires_at: new Date(Date.now() - 1000).toISOString(),
+		});
+		const r = await magic(['doctor', '--json'], desktop({ store }));
+		const checks = JSON.parse(r.stdout).checks as { name: string; ok: boolean }[];
+		expect(checks.find((c) => c.name === 'pyramid auth')).toMatchObject({ ok: true });
+		expect(JSON.parse(store.items['pyramid:acme']!).key).not.toBe(old.key);
+	});
+});
+
 describe('pasted keys for the sign-in-only products', () => {
 	it('marketing_test_ and marketing_live_ keys are both Marketing keys', async () => {
 		for (const key of ['marketing_test_ab12_0123456789', 'marketing_live_ab12_0123456789']) {
