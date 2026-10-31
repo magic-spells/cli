@@ -244,5 +244,6 @@ describe('magic mcp over stdio', () => {
 		expect(code).toBe(0);
 		expect(JSON.parse(out)).toMatchObject({ product: 'pyramid', stored_in: 'file' });
 		expect(out + err).not.toContain(KEY);
+		expect(err).toContain('reading key from stdin…');
 	}, 20_000);
 });

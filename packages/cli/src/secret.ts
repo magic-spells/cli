@@ -5,7 +5,11 @@ import { cancelled } from './shell.js';
 
 export async function readSecret(prompt: string): Promise<string> {
 	const stdin = process.stdin;
-	if (!stdin.isTTY) return (await readAll(stdin)).trim();
+	if (!stdin.isTTY) {
+		// Say so, or an open pipe that never closes looks like a hang.
+		process.stderr.write('reading key from stdin…\n');
+		return (await readAll(stdin)).trim();
+	}
 
 	process.stderr.write(prompt);
 	stdin.setRawMode(true);
