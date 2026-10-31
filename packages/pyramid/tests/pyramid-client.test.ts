@@ -22,7 +22,6 @@ import type { PyramidConfig } from '../src/types.js';
 const CONFIG: PyramidConfig = {
 	apiKey: 'pyk_test',
 	baseUrl: 'https://pyramid.example.io',
-	allowDestructive: true,
 };
 
 /** A captured call to the mocked undici request. */

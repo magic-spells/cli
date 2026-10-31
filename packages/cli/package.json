@@ -18,6 +18,7 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@magic-spells/kit": "*"
+		"@magic-spells/kit": "*",
+		"@magic-spells/pyramid": "*"
 	}
 }

@@ -1,30 +1,24 @@
 // FILE-RESOURCES — MCP resource skin.
 //
-// Two read-only resources, kept minimal:
-//   - pyramid://me        -> the WhoAmI payload (authenticated user + workspace +
-//                            projects), via the `whoami` operation.
-//   - pyramid://projects  -> the accessible project list, via the `list_projects`
-//                            operation.
-//
-// Both reuse the shared operation registry so a resource read returns exactly
-// what the equivalent tool would. If an operation is missing from the registry we
-// fall back to the raw client call, so the resources stay functional regardless
-// of the registry's naming. Output is the same pretty-printed JSON the tools emit.
+// Read-only resources, each a view over an operation so a read returns exactly what
+// the equivalent tool would:
+//   - pyramid://me                         -> pyramid.whoami
+//   - pyramid://projects                   -> pyramid.project.list
+//   - pyramid://projects/{handle}/workflow -> pyramid.project.workflow
+// Resource names carry the `pyramid_` prefix so they never collide in `magic mcp`.
 
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { toPyramidError } from '../errors.js';
-import { operations } from '../operations/index.js';
+import { operationsByName } from '../operations/index.js';
 import type { Operation, OpContext } from '../operations/index.js';
 
-/** Resolve an operation by its MCP tool name (snake_case, or meta.mcpTool). */
-function findOp(name: string): Operation | undefined {
-	return operations.find((op) => {
-		const meta = (op as { meta?: { mcpTool?: string } }).meta;
-		const toolName = meta?.mcpTool ?? op.name.replace(/\./g, '_');
-		return toolName === name || op.name === name;
-	});
+/** An operation by name; the registry always carries these three. */
+function op(name: string): Operation {
+	const found = operationsByName.get(name);
+	if (!found) throw new Error(`missing operation ${name}`);
+	return found;
 }
 
 /**
@@ -45,7 +39,7 @@ async function renderOp(op: Operation, ctx: OpContext): Promise<string> {
 /** Register `pyramid://me` and `pyramid://projects` as read-only resources. */
 export function registerResources(server: McpServer, ctx: OpContext): void {
 	server.registerResource(
-		'me',
+		'pyramid_me',
 		'pyramid://me',
 		{
 			title: 'Pyramid identity',
@@ -53,10 +47,7 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 			mimeType: 'application/json',
 		},
 		async (uri: URL) => {
-			const op = findOp('whoami');
-			const text = op
-				? await renderOp(op, ctx)
-				: JSON.stringify({ user: await ctx.client.getMe() }, null, 2);
+			const text = await renderOp(op('pyramid.whoami'), ctx);
 			return {
 				contents: [{ uri: uri.href, mimeType: 'application/json', text }],
 			};
@@ -64,7 +55,7 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 	);
 
 	server.registerResource(
-		'projects',
+		'pyramid_projects',
 		'pyramid://projects',
 		{
 			title: 'Pyramid projects',
@@ -72,10 +63,7 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 			mimeType: 'application/json',
 		},
 		async (uri: URL) => {
-			const op = findOp('list_projects');
-			const text = op
-				? await renderOp(op, ctx)
-				: JSON.stringify(await ctx.client.listProjects(), null, 2);
+			const text = await renderOp(op('pyramid.project.list'), ctx);
 			return {
 				contents: [{ uri: uri.href, mimeType: 'application/json', text }],
 			};
@@ -85,7 +73,7 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 	// pyramid://projects/{handle}/workflow -> the project's assembled workflow (stages,
 	// statuses, labels, members, field templates) the model loads to resolve names.
 	server.registerResource(
-		'project-workflow',
+		'pyramid_project_workflow',
 		new ResourceTemplate('pyramid://projects/{handle}/workflow', { list: undefined }),
 		{
 			title: 'Project workflow',
@@ -95,18 +83,24 @@ export function registerResources(server: McpServer, ctx: OpContext): void {
 		async (uri: URL, variables: Record<string, string | string[]>) => {
 			const raw = variables.handle;
 			const handle = Array.isArray(raw) ? raw[0] : raw;
-			const op = findOp('get_project_workflow');
+			const workflow = op('pyramid.project.workflow');
 			let text: string;
-			if (op !== undefined && handle) {
+			if (handle) {
 				try {
-					const result = await op.run(op.input.parse({ project: handle }), ctx);
+					const result = await workflow.run(workflow.input.parse({ project: handle }), ctx);
 					text = JSON.stringify(result, null, 2);
 				} catch (err) {
 					text = JSON.stringify({ error: toPyramidError(err).toJSON() }, null, 2);
 				}
 			} else {
 				text = JSON.stringify(
-					{ error: { code: 'validation_failed', message: 'missing project handle' } },
+					{
+						error: {
+							code: 'validation_failed',
+							message: 'missing project handle',
+							product: 'pyramid',
+						},
+					},
 					null,
 					2
 				);

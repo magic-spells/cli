@@ -397,7 +397,7 @@ export class PyramidClient {
 
 	/**
 	 * DELETE /v1/tasks/{id} — delete a task. `hard=true` requests a hard delete
-	 * (the destructive op gates this upstream behind PYRAMID_ALLOW_DESTRUCTIVE).
+	 * (the destructive op gates this upstream behind MAGIC_ALLOW_DESTRUCTIVE).
 	 * Requires If-Match (DOC-CONCURRENCY): GET first to capture the ETag, send it,
 	 * retry ONCE on 409. The server replies 204; resolves to void.
 	 */

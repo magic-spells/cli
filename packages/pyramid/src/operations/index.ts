@@ -1,21 +1,21 @@
-// FILE-OPERATIONS — the shared operation registry (PLAN-CLI). THE single source of truth consumed by
-// src/mcp/server.ts (MCP tools) and, later, src/cli (CLI commands).
+// The Pyramid operation registry (COMPONENT-PYRAMID-PACKAGE, DATATYPE-OPERATION).
+// The one source both front-ends derive from: the kit builds `magic pyramid …` and
+// the `pyramid_*` MCP tools from this list. Each operation owns its name resolution,
+// API call and hydration; none knows about argv, stdout or MCP.
 //
-// No transport/business logic lives outside an operation's `run`: each op owns
-// its name resolution, client call, and hydration. This file declares the
-// Operation / OpContext seam and assembles the read + write ops into the flat
-// `operations[]` registry.
-//
-// Surface: discovery (whoami, list_projects, get_project_workflow, list_my_tasks)
-// plus the task write surface (create_task, create_tasks_bulk, update_task,
-// move_task, archive_task, delete_task, list_tasks, get_task, get_task_timeline)
-// and comments
-// (add_comment, reply_to_comment). Phase-3 collab (followers, labels, estimates,
-// custom-fields, notifications) remains out of scope.
+// Names follow `pyramid.<noun>.<verb>` (DECISION-OPERATION-CONTRACT). The CLI keeps
+// pyramid-cli's shape through verb aliases: `task next` (list-mine), `task show`
+// (get), `task bulk` (create-bulk).
 
 import { z } from 'zod';
 
-import { MagicError } from '@magic-spells/kit';
+import {
+	MagicError,
+	rec,
+	readStr,
+	type OpContext as KitOpContext,
+	type Operation as KitOperation,
+} from '@magic-spells/kit';
 
 import { pyramidError } from '../errors.js';
 import type { PyramidClient } from '../client/pyramid-client.js';
@@ -29,7 +29,6 @@ import {
 import type {
 	Page,
 	ProjectSummary,
-	PyramidConfig,
 	TaskComment,
 	TaskDetail,
 	TaskSummary,
@@ -40,57 +39,17 @@ import type {
 
 // ============ The shared seam ============
 
-/** Everything an operation's `run` needs: config + client + resolver. */
-export interface OpContext {
-	config: PyramidConfig;
-	client: PyramidClient;
+/** Pyramid's client as operations see it: the HTTP client plus the name resolver. */
+export interface PyramidApi {
+	api: PyramidClient;
 	resolver: Resolver;
 }
 
-/**
- * One operation. `input` is a zod object schema (the MCP skin passes `input.shape`
- * to the SDK; a future CLI derives flags from it). `run` resolves human
- * names/keys, calls the client, and hydrates names back into the output.
- */
-export interface Operation<I = unknown, O = unknown> {
-	/** MCP tool name, snake_case (e.g. "list_my_tasks"). */
-	name: string;
-	/** One-line description — becomes the MCP tool / CLI description. */
-	summary: string;
-	/** Zod object schema for the input (the SDK derives JSON Schema from `.shape`). */
-	input: z.ZodObject<z.ZodRawShape>;
-	/** Resolve names -> ids, call the client, hydrate names back into the output. */
-	run(input: I, ctx: OpContext): Promise<O>;
-	/**
-	 * Optional surface metadata. The Phase-1 MCP skin does not read this (it uses
-	 * `name`/`summary`/`input` only); it exists so the separately-owned CLI can
-	 * derive its command tree + destructive gate from the same registry. Phase-1
-	 * ops leave it unset — they are MCP-only until the CLI lands.
-	 */
-	meta?: {
-		/** Gated behind PYRAMID_ALLOW_DESTRUCTIVE (default false). */
-		destructive?: boolean;
-		/** CLI command surface for this op (group/verb/positionals/aliases). */
-		cli?: {
-			group: string;
-			verb: string;
-			positionals?: string[];
-			aliases?: Record<string, string>;
-		};
-		/** Override the MCP tool name (default: `name`). */
-		mcpTool?: string;
-	};
-}
+/** The kit's OpContext over Pyramid's client (DATATYPE-OPERATION). */
+export type OpContext = KitOpContext<PyramidApi>;
 
-// ============ Defensive raw-row readers ============
-
-function rec(v: unknown): Record<string, unknown> {
-	return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-}
-
-function readStr(v: unknown): string | undefined {
-	return typeof v === 'string' && v.length > 0 ? v : undefined;
-}
+/** One Pyramid operation: resolve names -> ids, call the API, hydrate names back. */
+export type Operation<I = any, O = unknown> = KitOperation<I, O, PyramidApi>;
 
 const PROJECT_ROLES = ['admin', 'pm', 'member', 'viewer', 'guest'] as const;
 type ProjectRole = (typeof PROJECT_ROLES)[number];
@@ -126,17 +85,16 @@ function workspaceRole(v: unknown): WorkspaceRole {
 // ---------- whoami ----------
 
 const whoami: Operation<Record<string, never>, WhoAmI> = {
-	name: 'whoami',
+	name: 'pyramid.whoami',
 	summary: 'Report the authenticated user, their workspace, and accessible projects.',
 	input: z.object({}),
-	meta: { cli: { group: 'whoami', verb: '' } },
 	async run(_input, ctx): Promise<WhoAmI> {
 		// getMe carries the user (and MAY embed a workspace). When it doesn't, fall
 		// back to the key's pinned workspace (the first listWorkspaces entry).
 		const [me, projectsRaw, workspaces] = await Promise.all([
-			ctx.client.getMe(),
-			ctx.client.listProjects(),
-			ctx.client.listWorkspaces().catch(() => [] as unknown[]),
+			ctx.client.api.getMe(),
+			ctx.client.api.listProjects(),
+			ctx.client.api.listWorkspaces().catch(() => [] as unknown[]),
 		]);
 
 		const m = rec(me);
@@ -162,12 +120,11 @@ const whoami: Operation<Record<string, never>, WhoAmI> = {
 // ---------- list_projects ----------
 
 const listProjects: Operation<Record<string, never>, ProjectSummary[]> = {
-	name: 'list_projects',
+	name: 'pyramid.project.list',
 	summary: 'List the projects accessible to the authenticated user.',
 	input: z.object({}),
-	meta: { cli: { group: 'project', verb: 'list' } },
 	async run(_input, ctx): Promise<ProjectSummary[]> {
-		const raw = await ctx.client.listProjects();
+		const raw = await ctx.client.api.listProjects();
 		return raw.map(toProjectSummary);
 	},
 };
@@ -178,14 +135,14 @@ const getProjectWorkflowInput = z.object({ project: z.string() });
 type GetProjectWorkflowInput = z.infer<typeof getProjectWorkflowInput>;
 
 const getProjectWorkflow: Operation<GetProjectWorkflowInput, Workflow> = {
-	name: 'get_project_workflow',
+	name: 'pyramid.project.workflow',
 	summary:
 		"Show a project's workflow: stages, statuses, labels, members, and custom-field templates.",
 	input: getProjectWorkflowInput,
-	meta: { cli: { group: 'project', verb: 'workflow', positionals: ['project'] } },
+	meta: { cli: { positionals: ['project'] } },
 	async run(input, ctx): Promise<Workflow> {
-		const project = await ctx.resolver.resolveProject(input.project);
-		return ctx.resolver.getWorkflow(project.id);
+		const project = await ctx.client.resolver.resolveProject(input.project);
+		return ctx.client.resolver.getWorkflow(project.id);
 	},
 };
 
@@ -203,14 +160,14 @@ type ListMyTasksInput = z.infer<typeof listMyTasksInput>;
 const DEFAULT_LIMIT = 25;
 
 const listMyTasks: Operation<ListMyTasksInput, Page<TaskSummary>> = {
-	name: 'list_my_tasks',
+	name: 'pyramid.task.list-mine',
 	summary:
 		'List tasks you own or review, newest first, across projects. Returns one page with a cursor.',
 	input: listMyTasksInput,
-	meta: { cli: { group: 'task', verb: 'next' } },
+	meta: { cli: { verbAliases: ['next'] } },
 	async run(input, ctx): Promise<Page<TaskSummary>> {
 		const limit = input.limit ?? DEFAULT_LIMIT;
-		const page = await ctx.client.listMyTasks({
+		const page = await ctx.client.api.listMyTasks({
 			limit,
 			cursor: input.cursor,
 		});
@@ -225,7 +182,7 @@ const listMyTasks: Operation<ListMyTasksInput, Page<TaskSummary>> = {
 			if (projectId) {
 				wf = wfCache.get(projectId);
 				if (!wf) {
-					wf = await ctx.resolver.getWorkflow(projectId);
+					wf = await ctx.client.resolver.getWorkflow(projectId);
 					wfCache.set(projectId, wf);
 				}
 			}
@@ -277,7 +234,7 @@ async function resolveTaskRef(ctx: OpContext, ref: string): Promise<TaskRef> {
 	const trimmed = ref.trim();
 
 	if (UUID_RE.test(trimmed)) {
-		const raw = rec(await ctx.client.getTask(trimmed));
+		const raw = rec(await ctx.client.api.getTask(trimmed));
 		return {
 			id: readStr(raw.id) ?? trimmed,
 			projectId: readStr(raw.project_id) ?? '',
@@ -286,7 +243,7 @@ async function resolveTaskRef(ctx: OpContext, ref: string): Promise<TaskRef> {
 	}
 
 	if (TASK_KEY_RE.test(trimmed)) {
-		const page = await ctx.client.searchTasks({ q: trimmed, limit: 50 });
+		const page = await ctx.client.api.searchTasks({ q: trimmed, limit: 50 });
 		const needle = trimmed.toLowerCase();
 		const hit = page.data.map(rec).find((r) => (readStr(r.key) ?? '').toLowerCase() === needle);
 		if (hit) {
@@ -312,7 +269,7 @@ async function hydrateDetailFor(
 	raw: unknown,
 	projectId: string
 ): Promise<TaskDetail> {
-	const wf = projectId ? await ctx.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
+	const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
 	return hydrateTaskDetail(raw, wf);
 }
 
@@ -339,9 +296,9 @@ async function resolveStatusWithStage(
 	status: string | undefined
 ): Promise<{ id: string; stage_id: string } | undefined> {
 	if (status !== undefined) {
-		const resolved = await ctx.resolver.resolveStatus(projectId, status);
+		const resolved = await ctx.client.resolver.resolveStatus(projectId, status);
 		if (stage !== undefined) {
-			const resolvedStage = await ctx.resolver.resolveStage(projectId, stage);
+			const resolvedStage = await ctx.client.resolver.resolveStage(projectId, stage);
 			if (resolved.stage_id !== resolvedStage.id) {
 				throw pyramidError('status_not_in_stage', `Status "${status}" is not in stage "${stage}".`);
 			}
@@ -352,7 +309,7 @@ async function resolveStatusWithStage(
 	if (stage !== undefined) {
 		// A stage with no status -> the stage's first status by position. resolveStatus
 		// already implements "stage name where a status is expected -> first status".
-		const resolved = await ctx.resolver.resolveStatus(projectId, stage);
+		const resolved = await ctx.client.resolver.resolveStatus(projectId, stage);
 		return { id: resolved.id, stage_id: resolved.stage_id };
 	}
 
@@ -368,7 +325,7 @@ async function resolveLabelIds(
 	if (labels === undefined) return undefined;
 	const ids: string[] = [];
 	for (const label of labels) {
-		const resolved = await ctx.resolver.resolveLabel(projectId, label);
+		const resolved = await ctx.client.resolver.resolveLabel(projectId, label);
 		ids.push(resolved.id);
 	}
 	return ids;
@@ -383,7 +340,7 @@ async function resolveMentionIds(
 	if (mentions === undefined) return undefined;
 	const ids: string[] = [];
 	for (const mention of mentions) {
-		const resolved = await ctx.resolver.resolveUser(projectId, mention);
+		const resolved = await ctx.client.resolver.resolveUser(projectId, mention);
 		ids.push(resolved.id);
 	}
 	return ids;
@@ -427,10 +384,10 @@ async function buildCreateBody(
 	// owner/reviewer -> TOP-LEVEL owner_id/reviewer_id. No stage to derive: a task
 	// has one owner and one reviewer (DATATYPE-CREATE-TASK-INPUT).
 	if (row.owner !== undefined) {
-		body.owner_id = (await ctx.resolver.resolveUser(projectId, row.owner)).id;
+		body.owner_id = (await ctx.client.resolver.resolveUser(projectId, row.owner)).id;
 	}
 	if (row.reviewer !== undefined) {
-		body.reviewer_id = (await ctx.resolver.resolveUser(projectId, row.reviewer)).id;
+		body.reviewer_id = (await ctx.client.resolver.resolveUser(projectId, row.reviewer)).id;
 	}
 
 	const labelIds = await resolveLabelIds(ctx, projectId, row.labels);
@@ -454,7 +411,7 @@ async function resolveFieldValues(
 	projectId: string,
 	fields: { field: string; value?: unknown }[]
 ): Promise<Record<string, unknown>> {
-	const wf = await ctx.resolver.getWorkflow(projectId);
+	const wf = await ctx.client.resolver.getWorkflow(projectId);
 	const out: Record<string, unknown> = {};
 	for (const cf of fields) {
 		const needle = cf.field.trim().toLowerCase();
@@ -472,7 +429,7 @@ async function resolveFieldValues(
 		// r7: validate the value against the field's type BEFORE sending. A `user`
 		// field resolves its value (a name/email) to a user UUID.
 		if (def.field_type === 'user' && typeof cf.value === 'string') {
-			out[def.id] = (await ctx.resolver.resolveUser(projectId, cf.value)).id;
+			out[def.id] = (await ctx.client.resolver.resolveUser(projectId, cf.value)).id;
 		} else {
 			validateFieldValue(def, cf.value);
 			out[def.id] = cf.value;
@@ -552,46 +509,48 @@ const taskListInput = z.object({
 type TaskListInput = z.infer<typeof taskListInput>;
 
 const taskList: Operation<TaskListInput, Page<TaskSummary>> = {
-	name: 'list_tasks',
+	name: 'pyramid.task.list',
 	summary:
 		"List a project's tasks, filtered by status/stage/owner/reviewer/label/query. Returns one page with a cursor.",
 	input: taskListInput,
-	meta: { cli: { group: 'task', verb: 'list', positionals: ['project'] } },
+	meta: {
+		cli: { positionals: ['project'], routes: { mine: 'pyramid.task.list-mine' } },
+	},
 	async run(input, ctx): Promise<Page<TaskSummary>> {
-		const project = await ctx.resolver.resolveProject(input.project);
+		const project = await ctx.client.resolver.resolveProject(input.project);
 		const archived = input.archived ?? false;
 
 		// Archived tasks live on a SEPARATE route (/tasks/archived) that does not take
 		// the status/stage/assignee/label filters; route there when archived is asked.
 		let page: { data: unknown[]; cursor: string | null };
 		if (archived) {
-			page = await ctx.client.listArchived(project.id, {
+			page = await ctx.client.api.listArchived(project.id, {
 				limit: input.limit ?? DEFAULT_LIMIT,
 				cursor: input.cursor,
 			});
 		} else {
 			const statusId =
 				input.status !== undefined
-					? (await ctx.resolver.resolveStatus(project.id, input.status)).id
+					? (await ctx.client.resolver.resolveStatus(project.id, input.status)).id
 					: undefined;
 			const stageId =
 				input.stage !== undefined
-					? (await ctx.resolver.resolveStage(project.id, input.stage)).id
+					? (await ctx.client.resolver.resolveStage(project.id, input.stage)).id
 					: undefined;
 			const ownerId =
 				input.owner !== undefined
-					? (await ctx.resolver.resolveUser(project.id, input.owner)).id
+					? (await ctx.client.resolver.resolveUser(project.id, input.owner)).id
 					: undefined;
 			const reviewerId =
 				input.reviewer !== undefined
-					? (await ctx.resolver.resolveUser(project.id, input.reviewer)).id
+					? (await ctx.client.resolver.resolveUser(project.id, input.reviewer)).id
 					: undefined;
 			const labelId =
 				input.label !== undefined
-					? (await ctx.resolver.resolveLabel(project.id, input.label)).id
+					? (await ctx.client.resolver.resolveLabel(project.id, input.label)).id
 					: undefined;
 
-			page = await ctx.client.listTasks(project.id, {
+			page = await ctx.client.api.listTasks(project.id, {
 				status: statusId,
 				stage_id: stageId,
 				owner_id: ownerId,
@@ -603,7 +562,7 @@ const taskList: Operation<TaskListInput, Page<TaskSummary>> = {
 			});
 		}
 
-		const wf = await ctx.resolver.getWorkflow(project.id);
+		const wf = await ctx.client.resolver.getWorkflow(project.id);
 		const items = page.data
 			.map((raw) => hydrateTaskSummary(raw, wf))
 			// The normal list defaults archived=false (r8) — drop archived rows unless
@@ -630,14 +589,14 @@ const taskShowInput = z.object({
 type TaskShowInput = z.infer<typeof taskShowInput>;
 
 const taskShow: Operation<TaskShowInput, TaskDetail> = {
-	name: 'get_task',
+	name: 'pyramid.task.get',
 	summary:
 		"Show one task's full detail by key (WEB-42) or UUID; `expand` inlines owner/reviewer/labels.",
 	input: taskShowInput,
-	meta: { cli: { group: 'task', verb: 'show', positionals: ['task'] } },
+	meta: { cli: { positionals: ['task'], verbAliases: ['show'] } },
 	async run(input, ctx): Promise<TaskDetail> {
 		const ref = await resolveTaskRef(ctx, input.task);
-		const raw = await ctx.client.getTask(
+		const raw = await ctx.client.api.getTask(
 			ref.id,
 			input.expand ? 'owner,reviewer,labels' : undefined
 		);
@@ -670,14 +629,14 @@ const taskCreateInput = z.object({
 type TaskCreateInput = z.infer<typeof taskCreateInput>;
 
 const taskCreate: Operation<TaskCreateInput, TaskDetail> = {
-	name: 'create_task',
+	name: 'pyramid.task.create',
 	summary: 'Create a task in a project. Accepts names/keys for stage/status/owner/reviewer/labels.',
 	input: taskCreateInput,
-	meta: { cli: { group: 'task', verb: 'create', positionals: ['title'] } },
+	meta: { cli: { positionals: ['title'] } },
 	async run(input, ctx): Promise<TaskDetail> {
-		const project = await ctx.resolver.resolveProject(input.project);
+		const project = await ctx.client.resolver.resolveProject(input.project);
 		const body = await buildCreateBody(ctx, project.id, input);
-		const raw = await ctx.client.createTask(project.id, body);
+		const raw = await ctx.client.api.createTask(project.id, body);
 		return hydrateDetailFor(ctx, raw, project.id);
 	},
 };
@@ -717,14 +676,14 @@ const taskBulkCreateInput = z.object({
 type TaskBulkCreateInput = z.infer<typeof taskBulkCreateInput>;
 
 const taskBulkCreate: Operation<TaskBulkCreateInput, TaskDetail[]> = {
-	name: 'create_tasks_bulk',
+	name: 'pyramid.task.create-bulk',
 	summary:
 		'Bulk-create up to 100 tasks in a project from a required template (returns the created tasks).',
 	input: taskBulkCreateInput,
 	// CLI surfaces bulk-create on `task create` via a special-cased `--file`.
-	meta: { cli: { group: 'task', verb: 'bulk', positionals: ['project'] } },
+	meta: { cli: { positionals: ['project'], verbAliases: ['bulk'], fileInput: 'tasks' } },
 	async run(input, ctx): Promise<TaskDetail[]> {
-		const project = await ctx.resolver.resolveProject(input.project);
+		const project = await ctx.client.resolver.resolveProject(input.project);
 		const defaults = input.defaults ?? {};
 
 		// The backend requires a TOP-LEVEL template_id; resolve the named template by
@@ -753,14 +712,14 @@ const taskBulkCreate: Operation<TaskBulkCreateInput, TaskDetail[]> = {
 		}
 
 		const raw = rec(
-			await ctx.client.bulkCreate({
+			await ctx.client.api.bulkCreate({
 				project_id: project.id,
 				template_id: templateId,
 				tasks: rows,
 			})
 		);
 		const created = Array.isArray(raw.created) ? raw.created : [];
-		const wf = await ctx.resolver.getWorkflow(project.id);
+		const wf = await ctx.client.resolver.getWorkflow(project.id);
 		return created.map((r) => hydrateTaskDetail(r, wf));
 	},
 };
@@ -775,7 +734,7 @@ async function resolveTemplateId(
 	projectId: string,
 	template: string
 ): Promise<string> {
-	const wf = await ctx.resolver.getWorkflow(projectId);
+	const wf = await ctx.client.resolver.getWorkflow(projectId);
 	const needle = template.trim().toLowerCase();
 	const match = wf.templates.find((t) => t.id === template || t.name.toLowerCase() === needle);
 	if (match) return match.id;
@@ -804,11 +763,11 @@ const taskUpdateInput = z.object({
 type TaskUpdateInput = z.infer<typeof taskUpdateInput>;
 
 const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
-	name: 'update_task',
+	name: 'pyramid.task.update',
 	summary:
 		'Update a task, including its owner/reviewer (pass null to clear). Labels and custom fields fan out to their endpoints.',
 	input: taskUpdateInput,
-	meta: { cli: { group: 'task', verb: 'update', positionals: ['task'] } },
+	meta: { cli: { positionals: ['task'] } },
 	async run(input, ctx): Promise<TaskDetail> {
 		const ref = await resolveTaskRef(ctx, input.task);
 		const projectId = ref.projectId;
@@ -831,17 +790,19 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 		// field (and must survive as null, not be dropped as "unset").
 		if (input.owner !== undefined) {
 			patch.owner_id =
-				input.owner === null ? null : (await ctx.resolver.resolveUser(projectId, input.owner)).id;
+				input.owner === null
+					? null
+					: (await ctx.client.resolver.resolveUser(projectId, input.owner)).id;
 		}
 		if (input.reviewer !== undefined) {
 			patch.reviewer_id =
 				input.reviewer === null
 					? null
-					: (await ctx.resolver.resolveUser(projectId, input.reviewer)).id;
+					: (await ctx.client.resolver.resolveUser(projectId, input.reviewer)).id;
 		}
 
 		if (Object.keys(patch).length > 0) {
-			await failingSubUpdate('content', () => ctx.client.updateTask(ref.id, patch));
+			await failingSubUpdate('content', () => ctx.client.api.updateTask(ref.id, patch));
 		}
 
 		// 2) FAN-OUT (best-effort, after the PATCH). Labels and custom fields still
@@ -850,23 +811,23 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 		// add_labels / remove_labels -> POST / DELETE /tasks/{id}/labels[/{labelId}].
 		const addLabelIds = await resolveLabelIds(ctx, projectId, input.add_labels);
 		for (const labelId of addLabelIds ?? []) {
-			await failingSubUpdate('add_label', () => ctx.client.addTaskLabel(ref.id, labelId));
+			await failingSubUpdate('add_label', () => ctx.client.api.addTaskLabel(ref.id, labelId));
 		}
 		const removeLabelIds = await resolveLabelIds(ctx, projectId, input.remove_labels);
 		for (const labelId of removeLabelIds ?? []) {
-			await failingSubUpdate('remove_label', () => ctx.client.removeTaskLabel(ref.id, labelId));
+			await failingSubUpdate('remove_label', () => ctx.client.api.removeTaskLabel(ref.id, labelId));
 		}
 
 		// custom_fields -> PATCH /tasks/{id}/field-values { field_values: {...} }.
 		if (input.custom_fields !== undefined) {
 			const fieldValues = await resolveFieldValues(ctx, projectId, input.custom_fields);
 			await failingSubUpdate('field_values', () =>
-				ctx.client.setFieldValues(ref.id, { field_values: fieldValues })
+				ctx.client.api.setFieldValues(ref.id, { field_values: fieldValues })
 			);
 		}
 
 		// 3) Re-fetch + hydrate the final task state.
-		const raw = await ctx.client.getTask(ref.id);
+		const raw = await ctx.client.api.getTask(ref.id);
 		return hydrateDetailFor(ctx, raw, projectId);
 	},
 };
@@ -903,11 +864,11 @@ const taskMoveInput = z.object({
 type TaskMoveInput = z.infer<typeof taskMoveInput>;
 
 const taskMove: Operation<TaskMoveInput, TaskDetail> = {
-	name: 'move_task',
+	name: 'pyramid.task.move',
 	summary:
 		'Move a task to a target status (carries its stage), optionally positioned by neighbor key.',
 	input: taskMoveInput,
-	meta: { cli: { group: 'task', verb: 'move', positionals: ['task'] } },
+	meta: { cli: { positionals: ['task'] } },
 	async run(input, ctx): Promise<TaskDetail> {
 		// Positions are server-generated — pass neighbor ids, never a fractional key.
 		// after + before are mutually exclusive.
@@ -916,7 +877,7 @@ const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 		}
 
 		const ref = await resolveTaskRef(ctx, input.task);
-		const status = await ctx.resolver.resolveStatus(ref.projectId, input.status);
+		const status = await ctx.client.resolver.resolveStatus(ref.projectId, input.status);
 
 		// Wire keys are before_id / after_id (DOC-BACKEND-CONTRACT), not *_task_id.
 		const body: Record<string, unknown> = { status_id: status.id };
@@ -929,7 +890,7 @@ const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 
 		// The response is an ENVELOPE { task, previous } — hydrate raw.task, never the
 		// whole envelope.
-		const raw = rec(await ctx.client.moveTask(ref.id, body));
+		const raw = rec(await ctx.client.api.moveTask(ref.id, body));
 		return hydrateDetailFor(ctx, raw.task, ref.projectId);
 	},
 };
@@ -938,20 +899,21 @@ const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 
 const taskArchiveInput = z.object({
 	task: z.string(),
-	archived: z.boolean(),
+	// The CLI archives by default; `--unarchive` sets false.
+	archived: z.boolean().default(true),
 });
 type TaskArchiveInput = z.infer<typeof taskArchiveInput>;
 
 const taskArchive: Operation<TaskArchiveInput, TaskDetail> = {
-	name: 'archive_task',
+	name: 'pyramid.task.archive',
 	summary: 'Soft-archive (or unarchive) a task. Reversible — not destructive-gated.',
 	input: taskArchiveInput,
-	meta: { cli: { group: 'task', verb: 'archive', positionals: ['task'] } },
+	meta: { cli: { positionals: ['task'], presets: { unarchive: { archived: false } } } },
 	async run(input, ctx): Promise<TaskDetail> {
 		const ref = await resolveTaskRef(ctx, input.task);
 		const raw = input.archived
-			? await ctx.client.archiveTask(ref.id)
-			: await ctx.client.unarchiveTask(ref.id);
+			? await ctx.client.api.archiveTask(ref.id)
+			: await ctx.client.api.unarchiveTask(ref.id);
 		return hydrateDetailFor(ctx, raw, ref.projectId);
 	},
 };
@@ -962,24 +924,24 @@ const taskDeleteInput = z.object({ task: z.string() });
 type TaskDeleteInput = z.infer<typeof taskDeleteInput>;
 
 const taskDelete: Operation<TaskDeleteInput, { id: string; key: string; deleted: true }> = {
-	name: 'delete_task',
+	name: 'pyramid.task.delete',
 	summary:
-		'Hard-delete a task. Requires PYRAMID_ALLOW_DESTRUCTIVE=1 (otherwise destructive_action_disabled).',
+		'Hard-delete a task. Requires MAGIC_ALLOW_DESTRUCTIVE=1 (otherwise destructive_action_disabled).',
 	input: taskDeleteInput,
 	meta: {
 		destructive: true,
-		cli: { group: 'task', verb: 'delete', positionals: ['task'] },
+		cli: { positionals: ['task'] },
 	},
 	async run(input, ctx): Promise<{ id: string; key: string; deleted: true }> {
 		if (!ctx.config.allowDestructive) {
 			throw pyramidError(
 				'destructive_action_disabled',
 				'Deleting a task is destructive and disabled.',
-				{ hint: 'Set PYRAMID_ALLOW_DESTRUCTIVE=1 to enable destructive operations.' }
+				{ hint: 'Set MAGIC_ALLOW_DESTRUCTIVE=1 to enable destructive operations.' }
 			);
 		}
 		const ref = await resolveTaskRef(ctx, input.task);
-		await ctx.client.deleteTask(ref.id, true);
+		await ctx.client.api.deleteTask(ref.id, true);
 		return { id: ref.id, key: ref.key, deleted: true };
 	},
 };
@@ -997,11 +959,11 @@ const commentAddInput = z.object({
 type CommentAddInput = z.infer<typeof commentAddInput>;
 
 const commentAdd: Operation<CommentAddInput, TaskComment> = {
-	name: 'add_comment',
+	name: 'pyramid.task.comment',
 	summary: "Add a stage-scoped comment to a task (defaults to the task's current stage).",
 	input: commentAddInput,
 	meta: {
-		cli: { group: 'task', verb: 'comment', positionals: ['task', 'content'] },
+		cli: { positionals: ['task', 'content'] },
 	},
 	async run(input, ctx): Promise<TaskComment> {
 		const ref = await resolveTaskRef(ctx, input.task);
@@ -1011,7 +973,7 @@ const commentAdd: Operation<CommentAddInput, TaskComment> = {
 		// otherwise default to the task's current stage (read from the task row).
 		let stageId: string | undefined;
 		if (input.stage !== undefined) {
-			stageId = (await ctx.resolver.resolveStage(projectId, input.stage)).id;
+			stageId = (await ctx.client.resolver.resolveStage(projectId, input.stage)).id;
 		} else {
 			stageId = await currentStageId(ctx, ref);
 		}
@@ -1023,8 +985,8 @@ const commentAdd: Operation<CommentAddInput, TaskComment> = {
 		if (stageId !== undefined) body.stage_id = stageId;
 		if (mentionIds !== undefined) body.mention_user_ids = mentionIds;
 
-		const raw = await ctx.client.addComment(ref.id, body);
-		const wf = projectId ? await ctx.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
+		const raw = await ctx.client.api.addComment(ref.id, body);
+		const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
 		return hydrateComment(raw, wf);
 	},
 };
@@ -1032,10 +994,10 @@ const commentAdd: Operation<CommentAddInput, TaskComment> = {
 /** The task's current stage id, derived from its status via the workflow. */
 async function currentStageId(ctx: OpContext, ref: TaskRef): Promise<string | undefined> {
 	if (!ref.projectId) return undefined;
-	const raw = rec(await ctx.client.getTask(ref.id));
+	const raw = rec(await ctx.client.api.getTask(ref.id));
 	const statusId = readStr(raw.status_id);
 	if (statusId) {
-		const wf = await ctx.resolver.getWorkflow(ref.projectId);
+		const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
 		const status = wf.statuses.find((s) => s.id === statusId);
 		if (status) return status.stage_id;
 	}
@@ -1052,21 +1014,17 @@ const commentReplyInput = z.object({
 type CommentReplyInput = z.infer<typeof commentReplyInput>;
 
 const commentReply: Operation<CommentReplyInput, TaskComment> = {
-	name: 'reply_to_comment',
+	name: 'pyramid.comment.reply',
 	summary: 'Reply to a ROOT comment (one level only; replying to a reply -> reply_depth_exceeded).',
 	input: commentReplyInput,
 	meta: {
-		cli: {
-			group: 'comment',
-			verb: 'reply',
-			positionals: ['comment_id', 'content'],
-		},
+		cli: { positionals: ['comment_id', 'content'] },
 	},
 	async run(input, ctx): Promise<TaskComment> {
 		// Replies are one level deep (r5). Validate the target is a ROOT comment
 		// BEFORE the call: a non-null parent_id / thread_root_id means it is itself a
 		// reply -> reply_depth_exceeded, with no write attempted.
-		const target = rec(await ctx.client.getComment(input.comment_id));
+		const target = rec(await ctx.client.api.getComment(input.comment_id));
 		const parentId = readStr(target.parent_id);
 		const threadRootId = readStr(target.thread_root_id);
 		const selfId = readStr(target.id);
@@ -1087,8 +1045,8 @@ const commentReply: Operation<CommentReplyInput, TaskComment> = {
 		const body: Record<string, unknown> = { content: input.content };
 		if (mentionIds !== undefined) body.mention_user_ids = mentionIds;
 
-		const raw = await ctx.client.replyComment(input.comment_id, body);
-		const wf = projectId ? await ctx.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
+		const raw = await ctx.client.api.replyComment(input.comment_id, body);
+		const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
 		return hydrateComment(raw, wf);
 	},
 };
@@ -1102,12 +1060,12 @@ const searchTasksInput = z.object({
 type SearchTasksInput = z.infer<typeof searchTasksInput>;
 
 const searchTasks: Operation<SearchTasksInput, Page<TaskSummary>> = {
-	name: 'search_tasks',
+	name: 'pyramid.task.search',
 	summary: 'Full-text search tasks across the workspace by title/key/content. Returns one page.',
 	input: searchTasksInput,
-	meta: { cli: { group: 'task', verb: 'search', positionals: ['query'] } },
+	meta: { cli: { positionals: ['query'] } },
 	async run(input, ctx): Promise<Page<TaskSummary>> {
-		const page = await ctx.client.searchTasks({
+		const page = await ctx.client.api.searchTasks({
 			q: input.query,
 			limit: input.limit ?? DEFAULT_LIMIT,
 		});
@@ -1119,7 +1077,7 @@ const searchTasks: Operation<SearchTasksInput, Page<TaskSummary>> = {
 			const pid = readStr(rec(raw).project_id) ?? '';
 			let wf = wfCache.get(pid);
 			if (wf === undefined) {
-				wf = pid ? await ctx.resolver.getWorkflow(pid) : EMPTY_WORKFLOW;
+				wf = pid ? await ctx.client.resolver.getWorkflow(pid) : EMPTY_WORKFLOW;
 				wfCache.set(pid, wf);
 			}
 			items.push(hydrateTaskSummary(raw, wf));
@@ -1141,11 +1099,11 @@ const listCommentsInput = z.object({
 type ListCommentsInput = z.infer<typeof listCommentsInput>;
 
 const listComments: Operation<ListCommentsInput, Page<TaskComment>> = {
-	name: 'list_comments',
+	name: 'pyramid.comment.list',
 	summary:
 		'List a task\'s comments, oldest first. Defaults to the task\'s current stage; `stage: "all"` lists every stage.',
 	input: listCommentsInput,
-	meta: { cli: { group: 'comment', verb: 'list', positionals: ['task'] } },
+	meta: { cli: { positionals: ['task'] } },
 	async run(input, ctx): Promise<Page<TaskComment>> {
 		const ref = await resolveTaskRef(ctx, input.task);
 		// Default to the current stage (r4); "all" is the explicit all-stages mode.
@@ -1155,14 +1113,16 @@ const listComments: Operation<ListCommentsInput, Page<TaskComment>> = {
 		} else if (input.stage.trim().toLowerCase() === 'all') {
 			stageId = undefined;
 		} else {
-			stageId = (await ctx.resolver.resolveStage(ref.projectId, input.stage)).id;
+			stageId = (await ctx.client.resolver.resolveStage(ref.projectId, input.stage)).id;
 		}
-		const page = await ctx.client.listComments(ref.id, {
+		const page = await ctx.client.api.listComments(ref.id, {
 			stage_id: stageId,
 			limit: input.limit ?? DEFAULT_LIMIT,
 			cursor: input.cursor,
 		});
-		const wf = ref.projectId ? await ctx.resolver.getWorkflow(ref.projectId) : EMPTY_WORKFLOW;
+		const wf = ref.projectId
+			? await ctx.client.resolver.getWorkflow(ref.projectId)
+			: EMPTY_WORKFLOW;
 		const items = page.data.map((raw) => hydrateComment(raw, wf));
 		return { items, next_cursor: page.cursor, has_more: page.cursor !== null };
 	},
@@ -1183,21 +1143,23 @@ const taskTimelineInput = z.object({
 type TaskTimelineInput = z.infer<typeof taskTimelineInput>;
 
 const taskTimeline: Operation<TaskTimelineInput, Page<TimelineEvent>> = {
-	name: 'get_task_timeline',
+	name: 'pyramid.task.timeline',
 	summary:
 		"A task's history (who changed what, when), OLDEST first. Optionally filter to one event_type, e.g. owner_changed.",
 	input: taskTimelineInput,
-	meta: { cli: { group: 'task', verb: 'timeline', positionals: ['task'] } },
+	meta: { cli: { positionals: ['task'] } },
 	async run(input, ctx): Promise<Page<TimelineEvent>> {
 		const ref = await resolveTaskRef(ctx, input.task);
-		const page = await ctx.client.getTaskTimeline(ref.id, {
+		const page = await ctx.client.api.getTaskTimeline(ref.id, {
 			limit: input.limit ?? TIMELINE_DEFAULT_LIMIT,
 			cursor: input.cursor,
 			event_type: input.event_type,
 		});
 		// Only the actor is joined to a name; the per-event values stay raw because
 		// their shape is event_type-dependent (DATATYPE-TIMELINE-EVENT).
-		const wf = ref.projectId ? await ctx.resolver.getWorkflow(ref.projectId) : EMPTY_WORKFLOW;
+		const wf = ref.projectId
+			? await ctx.client.resolver.getWorkflow(ref.projectId)
+			: EMPTY_WORKFLOW;
 		const items = page.data.map((raw) => hydrateTimelineEvent(raw, wf));
 		return { items, next_cursor: page.cursor, has_more: page.cursor !== null };
 	},

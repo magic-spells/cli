@@ -69,3 +69,36 @@ describe('mapPyramidHttpError / toPyramidError', () => {
 		expect(err.hint).toMatch(/MAGIC_PYRAMID_URL/);
 	});
 });
+
+describe('exit classes of Pyramid failure words (pyramid-cli exit table)', () => {
+	it('maps each Pyramid failure word to its documented exit class', () => {
+		const exit = (c: Parameters<typeof pyramidError>[0]): number =>
+			exitCodeFor(pyramidError(c, 'x').code);
+		expect(exit('auth_invalid')).toBe(3);
+		expect(exit('auth_expired')).toBe(3);
+		expect(exit('permission_denied')).toBe(4);
+		for (const c of [
+			'project_not_found',
+			'task_not_found',
+			'status_not_found',
+			'stage_not_found',
+			'user_not_found',
+			'label_not_found',
+			'field_not_found',
+		] as const) {
+			expect(exit(c)).toBe(5);
+		}
+		expect(exit('ambiguous_project_name')).toBe(6);
+		expect(exit('ambiguous_user_name')).toBe(6);
+		expect(exit('ambiguous_label_name')).toBe(6);
+		expect(exit('validation_failed')).toBe(7);
+		expect(exit('invalid_field_value')).toBe(7);
+		expect(exit('status_not_in_stage')).toBe(7);
+		expect(exit('reply_depth_exceeded')).toBe(7);
+		expect(exit('task_archived')).toBe(7);
+		expect(exit('destructive_action_disabled')).toBe(8);
+		expect(exit('rate_limited')).toBe(9);
+		expect(exit('network')).toBe(10);
+		expect(exit('unknown')).toBe(1);
+	});
+});

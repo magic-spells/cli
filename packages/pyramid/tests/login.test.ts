@@ -1,18 +1,11 @@
-// Unit tests for the local credential commands (FILE-AUTH-COMMANDS). Side effects
-// are injected via a fake AuthIO, so NO real keychain / `security` call happens.
+// Unit tests for `magic pyramid login` (src/login.ts). Side effects are injected via
+// a fake AuthIO, so NO real keychain / `security` call happens. pyramid-cli's
+// set-key / show-key / logout tests moved to the kit's credentials tests.
 
 import { get } from 'node:http';
 import { describe, it, expect } from 'vitest';
 
-import {
-	AUTH_COMMANDS,
-	maskKey,
-	runLogin,
-	runLogout,
-	runSetKey,
-	runShowKey,
-	type AuthIO,
-} from '../src/auth-commands.js';
+import { maskKey, runLogin, type AuthIO } from '../src/login.js';
 
 const KEY = 'pyk_ab23cd45_0123456789abcdef0123456789abcdef';
 const SECRET = '0123456789abcdef0123456789abcdef';
@@ -23,12 +16,8 @@ function fakeIO(stored: string | null = null, overrides: Partial<AuthIO> = {}) {
 	return {
 		io: {
 			out: (l: string) => lines.push(l),
-			getKey: () => key,
-			setKey: (k: string) => {
+			setKey: async (k: string) => {
 				key = k;
-			},
-			deleteKey: () => {
-				key = null;
 			},
 			openBrowser: () => true,
 			env: {},
@@ -74,51 +63,6 @@ describe('maskKey', () => {
 	});
 });
 
-describe('runSetKey', () => {
-	it('stores a valid key and returns 0', () => {
-		const f = fakeIO();
-		expect(runSetKey(['set-key', KEY], f.io)).toBe(0);
-		expect(f.stored).toBe(KEY);
-		expect(f.lines.join(' ')).toContain('keychain');
-	});
-	it('does NOT store and returns 1 on a non-pyk_ value', () => {
-		const f = fakeIO();
-		expect(runSetKey(['set-key', 'sk_live_nope'], f.io)).toBe(1);
-		expect(f.stored).toBeNull();
-	});
-	it('returns 2 (usage) when no key is given', () => {
-		const f = fakeIO();
-		expect(runSetKey(['set-key'], f.io)).toBe(2);
-	});
-	it('does not print the full secret in the confirmation', () => {
-		const f = fakeIO();
-		runSetKey(['set-key', KEY], f.io);
-		expect(f.lines.join(' ')).not.toContain(SECRET);
-	});
-});
-
-describe('runShowKey', () => {
-	it('reports no key when none is stored', () => {
-		const f = fakeIO(null);
-		expect(runShowKey(['show-key'], f.io)).toBe(0);
-		expect(f.lines.join(' ')).toMatch(/No Pyramid key/i);
-	});
-	it('shows the masked key when one is stored (never the full secret)', () => {
-		const f = fakeIO(KEY);
-		runShowKey(['show-key'], f.io);
-		expect(f.lines.join(' ')).toContain('pyk_ab23cd45_…cdef');
-		expect(f.lines.join(' ')).not.toContain(SECRET);
-	});
-});
-
-describe('runLogout', () => {
-	it('clears the stored key and returns 0', () => {
-		const f = fakeIO(KEY);
-		expect(runLogout(['logout'], f.io)).toBe(0);
-		expect(f.stored).toBeNull();
-	});
-});
-
 describe('runLogin', () => {
 	it('stores the callback key and never prints the full secret', async () => {
 		const f = fakeIO(null, {
@@ -128,7 +72,7 @@ describe('runLogin', () => {
 			},
 		});
 
-		expect(await runLogin(['login'], f.io)).toBe(0);
+		expect(await runLogin([], f.io)).toBe(0);
 		expect(f.stored).toBe(KEY);
 		const output = f.lines.join(' ');
 		expect(output).toContain('pyk_ab23cd45_…cdef');
@@ -143,7 +87,7 @@ describe('runLogin', () => {
 			},
 		});
 
-		expect(await runLogin(['login'], f.io)).toBe(1);
+		expect(await runLogin([], f.io)).toBe(1);
 		expect(f.stored).toBeNull();
 		expect(f.lines.join(' ')).toContain('invalid state');
 	});
@@ -156,7 +100,7 @@ describe('runLogin', () => {
 			},
 		});
 
-		expect(await runLogin(['login'], f.io)).toBe(1);
+		expect(await runLogin([], f.io)).toBe(1);
 		expect(f.stored).toBeNull();
 		expect(f.lines.join(' ')).toContain('cancelled');
 	});
@@ -174,7 +118,7 @@ describe('runLogin', () => {
 		});
 
 		expect(
-			await runLogin(['login', '--web-url', 'http://localhost:5173', '--name', 'Local CLI'], f.io)
+			await runLogin(['--web-url', 'http://localhost:5173', '--name', 'Local CLI'], f.io)
 		).toBe(0);
 		expect(f.stored).toBe(KEY);
 		const login = new URL(seenURL);
@@ -190,20 +134,8 @@ describe('runLogin', () => {
 			loginTimeoutMs: 5,
 		});
 
-		expect(await runLogin(['login'], f.io)).toBe(1);
+		expect(await runLogin([], f.io)).toBe(1);
 		expect(f.stored).toBeNull();
 		expect(f.lines.join(' ')).toContain('timed out');
-	});
-});
-
-describe('AUTH_COMMANDS', () => {
-	it('routes set-key, set-api-key and set-token to the same handler', () => {
-		expect(AUTH_COMMANDS['set-api-key']).toBe(AUTH_COMMANDS['set-key']);
-		expect(AUTH_COMMANDS['set-token']).toBe(AUTH_COMMANDS['set-key']);
-	});
-	it('exposes show-key, logout and login', () => {
-		expect(typeof AUTH_COMMANDS['show-key']).toBe('function');
-		expect(typeof AUTH_COMMANDS['logout']).toBe('function');
-		expect(typeof AUTH_COMMANDS['login']).toBe('function');
 	});
 });

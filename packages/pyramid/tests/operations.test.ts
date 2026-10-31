@@ -25,21 +25,20 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { z } from 'zod';
 
-import { MagicError as McpError } from '@magic-spells/kit';
+import { MagicError as McpError, TtlCache, loadCliConfig, type CliConfig } from '@magic-spells/kit';
 
 import { pyramidError } from '../src/errors.js';
 import { hydrateTaskDetail, hydrateTaskSummary } from '../src/hydrate.js';
 import { operationsByName, type Operation, type OpContext } from '../src/operations/index.js';
-import type { PyramidConfig, TaskDetail, Workflow, WhoAmI } from '../src/types.js';
+import type { TaskDetail, Workflow, WhoAmI } from '../src/types.js';
 
 // ============ Shared fixtures ============
 
-const CONFIG_SAFE: PyramidConfig = {
-	apiKey: 'pyk_test_secret',
-	baseUrl: 'https://pyramid.magicspells.io',
-	allowDestructive: false,
-};
-const CONFIG_DESTRUCTIVE: PyramidConfig = { ...CONFIG_SAFE, allowDestructive: true };
+const CONFIG_SAFE: CliConfig = loadCliConfig({
+	products: [{ id: 'pyramid', apiUrl: 'https://api.pyramid.magicspells.io' }],
+	env: {},
+});
+const CONFIG_DESTRUCTIVE: CliConfig = { ...CONFIG_SAFE, allowDestructive: true };
 
 // A workflow rich enough to drive every resolver/hydration join below.
 const APOLLO_WORKFLOW: Workflow = {
@@ -136,12 +135,14 @@ function makeResolver() {
 function makeCtx(
 	client: Record<string, unknown>,
 	resolver: ReturnType<typeof makeResolver>,
-	config: PyramidConfig = CONFIG_SAFE
+	config: CliConfig = CONFIG_SAFE
 ): OpContext {
 	return {
 		config,
-		client: client as never,
-		resolver: resolver as never,
+		session: { product: 'pyramid', key: 'pyk_test_secret', source: 'env' },
+		client: { api: client as never, resolver: resolver as never },
+		cache: new TtlCache(60_000),
+		signal: new AbortController().signal,
 	};
 }
 
@@ -156,14 +157,14 @@ interface ExtendedResolver {
 	resolveTask(name: string): Promise<{ id: string; projectId: string; key: string }>;
 }
 function ext(ctx: OpContext): ExtendedResolver {
-	return ctx.resolver as unknown as ExtendedResolver;
+	return ctx.client.resolver as unknown as ExtendedResolver;
 }
 
 // ============ Phase-1 ops against the REAL registry ============
 
 describe('operation: list_projects (real registry)', () => {
 	it('hydrates raw rows to ProjectSummary with archived derived from archived_at', async () => {
-		const op = operationsByName.get('list_projects')!;
+		const op = operationsByName.get('pyramid.project.list')!;
 		expect(op).toBeDefined();
 
 		const client = {
@@ -195,7 +196,7 @@ describe('operation: list_projects (real registry)', () => {
 
 describe('operation: get_project_workflow (real registry)', () => {
 	it('resolves the project name to an id, then fetches the workflow by id', async () => {
-		const op = operationsByName.get('get_project_workflow')!;
+		const op = operationsByName.get('pyramid.project.workflow')!;
 		const client = {}; // the op talks to the resolver only
 		const resolver = makeResolver();
 
@@ -211,7 +212,7 @@ describe('operation: get_project_workflow (real registry)', () => {
 
 describe('operation: list_my_tasks (real registry)', () => {
 	it('hydrates each row against its project workflow and surfaces the cursor', async () => {
-		const op = operationsByName.get('list_my_tasks')!;
+		const op = operationsByName.get('pyramid.task.list-mine')!;
 		const client = {
 			// raw rows keyed by UUID; project_id drives per-project workflow hydration.
 			listMyTasks: vi.fn(async () => ({
@@ -259,7 +260,7 @@ describe('operation: list_my_tasks (real registry)', () => {
 	});
 
 	it('caps the page with the requested limit, and never sends a `role` the server ignores', async () => {
-		const op = operationsByName.get('list_my_tasks')!;
+		const op = operationsByName.get('pyramid.task.list-mine')!;
 		const client = {
 			listMyTasks: vi.fn(async (q: { role?: string; limit?: number; cursor?: string }) => {
 				expect(q.limit).toBe(5);
@@ -280,14 +281,14 @@ describe('operation: list_my_tasks (real registry)', () => {
 	});
 
 	it('exposes NO `role` input at all (the server ignores the filter)', () => {
-		const op = operationsByName.get('list_my_tasks')!;
+		const op = operationsByName.get('pyramid.task.list-mine')!;
 		expect(Object.keys(op.input.shape)).toEqual(['limit', 'cursor']);
 	});
 });
 
 describe('operation: whoami (real registry)', () => {
 	it('assembles user + pinned workspace + projects from three client calls', async () => {
-		const op = operationsByName.get('whoami')!;
+		const op = operationsByName.get('pyramid.whoami')!;
 		const client = {
 			getMe: vi.fn(async () => ({
 				id: 'u-ann',
@@ -346,16 +347,16 @@ const taskCreate: Operation<CreateTaskInput, TaskDetail> = {
 		labels: z.array(z.string()).optional(),
 	}) as never,
 	async run(input, ctx): Promise<TaskDetail> {
-		const project = await ctx.resolver.resolveProject(input.project);
-		const wf = await ctx.resolver.getWorkflow(project.id);
+		const project = await ctx.client.resolver.resolveProject(input.project);
+		const wf = await ctx.client.resolver.getWorkflow(project.id);
 
 		let statusId: string;
 		if (input.status) {
-			const status = await ctx.resolver.resolveStatus(project.id, input.status);
+			const status = await ctx.client.resolver.resolveStatus(project.id, input.status);
 			// r3: status carries its stage. A stage+status pair that disagrees ->
 			// status_not_in_stage, raised BEFORE the client call.
 			if (input.stage) {
-				const stage = await ctx.resolver.resolveStage(project.id, input.stage);
+				const stage = await ctx.client.resolver.resolveStage(project.id, input.stage);
 				if (status.stage_id !== stage.id) {
 					throw pyramidError(
 						'status_not_in_stage',
@@ -366,7 +367,7 @@ const taskCreate: Operation<CreateTaskInput, TaskDetail> = {
 			statusId = status.id;
 		} else if (input.stage) {
 			// stage without status -> first status of that stage by position.
-			const stage = await ctx.resolver.resolveStage(project.id, input.stage);
+			const stage = await ctx.client.resolver.resolveStage(project.id, input.stage);
 			const first = [...wf.statuses]
 				.filter((s) => s.stage_id === stage.id)
 				.sort((a, b) => a.position.localeCompare(b.position))[0]!;
@@ -376,17 +377,17 @@ const taskCreate: Operation<CreateTaskInput, TaskDetail> = {
 		}
 
 		const ownerId = input.owner
-			? (await ctx.resolver.resolveUser(project.id, input.owner)).id
+			? (await ctx.client.resolver.resolveUser(project.id, input.owner)).id
 			: undefined;
 		const labelIds: string[] = [];
 		for (const l of input.labels ?? []) {
-			labelIds.push((await ctx.resolver.resolveLabel(project.id, l)).id);
+			labelIds.push((await ctx.client.resolver.resolveLabel(project.id, l)).id);
 		}
 
 		// client called with RESOLVED UUIDs (never the human names). Ownership is
 		// FLAT: owner -> a top-level owner_id.
 		const raw = await (
-			ctx.client as never as {
+			ctx.client.api as never as {
 				createTask: (
 					projectId: string,
 					body: {
@@ -521,8 +522,8 @@ const taskMove: Operation<MoveTaskInput, TaskDetail> = {
 			throw pyramidError('validation_failed', 'after_task and before_task are mutually exclusive.');
 		}
 		const task = await ext(ctx).resolveTask(input.task);
-		const status = await ctx.resolver.resolveStatus(task.projectId, input.status);
-		const wf = await ctx.resolver.getWorkflow(task.projectId);
+		const status = await ctx.client.resolver.resolveStatus(task.projectId, input.status);
+		const wf = await ctx.client.resolver.getWorkflow(task.projectId);
 
 		// Wire keys are before_id / after_id (DOC-BACKEND-CONTRACT).
 		const body: {
@@ -539,7 +540,7 @@ const taskMove: Operation<MoveTaskInput, TaskDetail> = {
 
 		// The move response is an envelope { task, previous } — hydrate raw.task.
 		const raw = await (
-			ctx.client as never as {
+			ctx.client.api as never as {
 				moveTask: (taskId: string, body: unknown) => Promise<{ task: unknown }>;
 			}
 		).moveTask(task.id, body);
@@ -617,7 +618,7 @@ const taskDelete: Operation<DeleteTaskInput, { id: string; key: string; deleted:
 			);
 		}
 		await (
-			ctx.client as never as {
+			ctx.client.api as never as {
 				deleteTask: (taskId: string, hard: boolean) => Promise<void>;
 			}
 		).deleteTask(task.id, true);
@@ -678,7 +679,7 @@ const commentReply: Operation<ReplyCommentInput, { id: string }> = {
 	input: z.object({ comment_id: z.string(), content: z.string() }) as never,
 	async run(input, ctx) {
 		const c = await (
-			ctx.client as never as {
+			ctx.client.api as never as {
 				getComment: (
 					id: string
 				) => Promise<{ parent_id: string | null; thread_root_id: string | null }>;
@@ -691,7 +692,7 @@ const commentReply: Operation<ReplyCommentInput, { id: string }> = {
 			);
 		}
 		const raw = await (
-			ctx.client as never as {
+			ctx.client.api as never as {
 				replyComment: (id: string, body: { content: string }) => Promise<{ id: string }>;
 			}
 		).replyComment(input.comment_id, { content: input.content });
@@ -803,7 +804,7 @@ function makeRefClient(extra: Record<string, unknown>) {
 
 describe('operation: create_task (real registry)', () => {
 	it('resolves project/status/owner/labels to UUIDs, calls createTask with the REAL contract, and hydrates', async () => {
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		expect(op).toBeDefined();
 
 		const resolver = makeResolver();
@@ -858,7 +859,7 @@ describe('operation: create_task (real registry)', () => {
 	});
 
 	it('maps custom_fields to a field_values MAP keyed by field UUID (not a custom_fields array)', async () => {
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		// Give the workflow a template with one field so resolveFieldValues can map it.
 		resolver.getWorkflow.mockResolvedValue({
@@ -896,7 +897,7 @@ describe('operation: create_task (real registry)', () => {
 	});
 
 	it("stage without status picks the stage's first status by position (r3)", async () => {
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		const createTask = vi.fn(async (_p: string, body: { status_id: string }) => ({
 			id: 't',
@@ -918,7 +919,7 @@ describe('operation: create_task (real registry)', () => {
 	});
 
 	it('rejects an inconsistent stage+status pair with status_not_in_stage, BEFORE any client call', async () => {
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		const createTask = vi.fn();
 		const ctx = makeCtx({ createTask }, resolver);
@@ -935,7 +936,7 @@ describe('operation: create_task (real registry)', () => {
 	});
 
 	it('owner with NO status/stage is just a top-level owner_id (no stage is derived at all)', async () => {
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		const createTask = vi.fn(async () => ({
 			id: 't',
@@ -957,7 +958,7 @@ describe('operation: create_task (real registry)', () => {
 	});
 
 	it('forwards priority / due_date / estimate_hours / client_* onto the create body', async () => {
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		const createTask = vi.fn(async () => ({
 			id: 't',
@@ -994,7 +995,7 @@ describe('operation: create_task (real registry)', () => {
 
 describe('operation: search_tasks (real registry)', () => {
 	it('searches full-text and hydrates each result against its own project workflow', async () => {
-		const op = operationsByName.get('search_tasks')!;
+		const op = operationsByName.get('pyramid.task.search')!;
 		expect(op).toBeDefined();
 
 		const resolver = makeResolver();
@@ -1018,7 +1019,7 @@ describe('operation: search_tasks (real registry)', () => {
 
 describe('operation: list_comments (real registry)', () => {
 	it('resolves the task ref then lists + hydrates its comments', async () => {
-		const op = operationsByName.get('list_comments')!;
+		const op = operationsByName.get('pyramid.comment.list')!;
 		expect(op).toBeDefined();
 
 		const TASK_UUID = '11111111-1111-1111-1111-111111111111';
@@ -1061,7 +1062,7 @@ describe('operation: move_task (real registry)', () => {
 	};
 
 	it('passes the after_task NEIGHBOR via after_id and hydrates raw.task from the envelope', async () => {
-		const op = operationsByName.get('move_task')!;
+		const op = operationsByName.get('pyramid.task.move')!;
 		expect(op).toBeDefined();
 
 		const resolver = makeResolver();
@@ -1095,7 +1096,7 @@ describe('operation: move_task (real registry)', () => {
 	});
 
 	it('passes the before_task neighbor via before_id', async () => {
-		const op = operationsByName.get('move_task')!;
+		const op = operationsByName.get('pyramid.task.move')!;
 		const resolver = makeResolver();
 		const moveTask = vi.fn(async () => moveEnvelope);
 		const client = makeRefClient({ moveTask });
@@ -1110,7 +1111,7 @@ describe('operation: move_task (real registry)', () => {
 	});
 
 	it('rejects after_task + before_task together with validation_failed, before any resolve/move', async () => {
-		const op = operationsByName.get('move_task')!;
+		const op = operationsByName.get('pyramid.task.move')!;
 		const resolver = makeResolver();
 		const moveTask = vi.fn();
 		const client = makeRefClient({ moveTask });
@@ -1137,7 +1138,7 @@ describe('operation: move_task (real registry)', () => {
 		// The stage+status mismatch guard is shared (resolveStatusWithStage);
 		// move_task takes a status alone (it carries its own stage), so the mismatch
 		// surfaces on the stage+status surface — create_task — as status_not_in_stage.
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		const createTask = vi.fn();
 		const ctx = makeCtx({ createTask }, resolver);
@@ -1156,7 +1157,7 @@ describe('operation: move_task (real registry)', () => {
 
 describe('operation: reply_to_comment (real registry)', () => {
 	it('replying to a reply throws reply_depth_exceeded BEFORE calling replyComment', async () => {
-		const op = operationsByName.get('reply_to_comment')!;
+		const op = operationsByName.get('pyramid.comment.reply')!;
 		expect(op).toBeDefined();
 
 		const resolver = makeResolver();
@@ -1183,7 +1184,7 @@ describe('operation: reply_to_comment (real registry)', () => {
 	});
 
 	it('replying to a ROOT comment resolves its task project and calls replyComment, then hydrates', async () => {
-		const op = operationsByName.get('reply_to_comment')!;
+		const op = operationsByName.get('pyramid.comment.reply')!;
 		const resolver = makeResolver();
 		// A root comment: no parent, thread_root_id === its own id.
 		const getComment = vi.fn(async () => ({
@@ -1228,7 +1229,7 @@ describe('operation: reply_to_comment (real registry)', () => {
 
 describe('operation: delete_task (real registry)', () => {
 	it('throws destructive_action_disabled and never touches the client when allowDestructive is false', async () => {
-		const op = operationsByName.get('delete_task')!;
+		const op = operationsByName.get('pyramid.task.delete')!;
 		expect(op).toBeDefined();
 		expect(op.meta?.destructive).toBe(true);
 
@@ -1252,7 +1253,7 @@ describe('operation: delete_task (real registry)', () => {
 	});
 
 	it('resolves the key and calls deleteTask(id, true) when allowDestructive is true', async () => {
-		const op = operationsByName.get('delete_task')!;
+		const op = operationsByName.get('pyramid.task.delete')!;
 		const resolver = makeResolver();
 		const deleteTask = vi.fn(async () => undefined);
 		const client = makeRefClient({ deleteTask });
@@ -1281,7 +1282,7 @@ describe('operation: delete_task (real registry)', () => {
 
 describe('operation: update_task (real registry)', () => {
 	it('sends owner/reviewer ON the PATCH and fans only labels/fields out to dedicated endpoints', async () => {
-		const op = operationsByName.get('update_task')!;
+		const op = operationsByName.get('pyramid.task.update')!;
 		expect(op).toBeDefined();
 
 		const resolver = makeResolver();
@@ -1355,7 +1356,7 @@ describe('operation: update_task (real registry)', () => {
 	});
 
 	it('surfaces WHICH sub-update failed (add_label) with its code', async () => {
-		const op = operationsByName.get('update_task')!;
+		const op = operationsByName.get('pyramid.task.update')!;
 		const resolver = makeResolver();
 		const getTask = vi.fn(async (id: string) => ({
 			id,
@@ -1379,7 +1380,7 @@ describe('operation: update_task (real registry)', () => {
 	});
 
 	it('clears an owner with an explicit null (the null must SURVIVE onto the patch)', async () => {
-		const op = operationsByName.get('update_task')!;
+		const op = operationsByName.get('pyramid.task.update')!;
 		const resolver = makeResolver();
 		const updateTask = vi.fn(async () => ({ id: TASK_UUID }));
 		const getTask = vi.fn(async (id: string) => ({
@@ -1406,7 +1407,7 @@ describe('operation: update_task (real registry)', () => {
 
 describe('operation: create_tasks_bulk (real registry)', () => {
 	it('resolves the template, sends top-level project_id + template_id, and hydrates `created`', async () => {
-		const op = operationsByName.get('create_tasks_bulk')!;
+		const op = operationsByName.get('pyramid.task.create-bulk')!;
 		expect(op).toBeDefined();
 
 		const resolver = makeResolver();
@@ -1459,7 +1460,7 @@ describe('operation: create_tasks_bulk (real registry)', () => {
 	});
 
 	it('requires a template — a missing one is a clear validation_failed (no write)', async () => {
-		const op = operationsByName.get('create_tasks_bulk')!;
+		const op = operationsByName.get('pyramid.task.create-bulk')!;
 		const resolver = makeResolver();
 		const bulkCreate = vi.fn();
 		const ctx = makeCtx({ bulkCreate }, resolver);
@@ -1475,7 +1476,7 @@ describe('operation: create_tasks_bulk (real registry)', () => {
 
 describe('create_task: field validation + ownership', () => {
 	it('rejects a value whose type mismatches the field_type (r7) before any client call', async () => {
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		resolver.getWorkflow.mockResolvedValue({
 			...APOLLO_WORKFLOW,
@@ -1508,7 +1509,7 @@ describe('create_task: field validation + ownership', () => {
 	});
 
 	it('resolves owner AND reviewer to top-level ids; rejects the removed assignments[] input', async () => {
-		const op = operationsByName.get('create_task')!;
+		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		const createTask = vi.fn(async () => ({
 			id: 't',
@@ -1544,7 +1545,7 @@ describe('create_task: field validation + ownership', () => {
 
 describe('list_tasks: owner/reviewer filters', () => {
 	it('resolves --owner and --reviewer to owner_id/reviewer_id, and has no assignee input', async () => {
-		const op = operationsByName.get('list_tasks')!;
+		const op = operationsByName.get('pyramid.task.list')!;
 		const resolver = makeResolver();
 		const listTasks = vi.fn(async () => ({ data: [], cursor: null }));
 		const ctx = makeCtx({ listTasks }, resolver);
@@ -1562,7 +1563,7 @@ describe('list_tasks: owner/reviewer filters', () => {
 	});
 
 	it('labels a hydrated owner with the job_title the workflow already knows', async () => {
-		const op = operationsByName.get('get_task')!;
+		const op = operationsByName.get('pyramid.task.get')!;
 		const resolver = makeResolver();
 		// A LEAN row (no ?expand): only owner_id. The job_title still lands, because
 		// the cached workflow's member rows carry it.
@@ -1587,7 +1588,7 @@ describe('list_tasks: owner/reviewer filters', () => {
 	});
 
 	it('keeps the expanded stub profile fields when the server sends them', async () => {
-		const op = operationsByName.get('get_task')!;
+		const op = operationsByName.get('pyramid.task.get')!;
 		const resolver = makeResolver();
 		const getTask = vi.fn(async () => ({
 			id: 't1',
@@ -1628,7 +1629,7 @@ describe('operation: get_task_timeline (real registry)', () => {
 	const taskRow = { id: TASK_UUID, project_id: 'p-apollo', key: 'APO-1', status_id: 'st-review' };
 
 	it('resolves the task ref, passes limit/cursor/event_type, and hydrates the actor', async () => {
-		const op = operationsByName.get('get_task_timeline')!;
+		const op = operationsByName.get('pyramid.task.timeline')!;
 		expect(op).toBeDefined();
 
 		const resolver = makeResolver();
@@ -1678,7 +1679,7 @@ describe('operation: get_task_timeline (real registry)', () => {
 	});
 
 	it('defaults the limit to 50 and tolerates a system event with no actor', async () => {
-		const op = operationsByName.get('get_task_timeline')!;
+		const op = operationsByName.get('pyramid.task.timeline')!;
 		const resolver = makeResolver();
 		const getTask = vi.fn(async () => taskRow);
 		const getTaskTimeline = vi.fn(async () => ({
@@ -1696,13 +1697,13 @@ describe('operation: get_task_timeline (real registry)', () => {
 	});
 
 	it('is a read: it carries no destructive flag', () => {
-		const op = operationsByName.get('get_task_timeline')!;
+		const op = operationsByName.get('pyramid.task.timeline')!;
 		expect(op.meta?.destructive).toBeFalsy();
-		expect(op.meta?.cli).toMatchObject({ group: 'task', verb: 'timeline' });
+		expect(op.meta?.cli).toMatchObject({ positionals: ['task'] });
 	});
 
 	it('leaves an unknown event kind, and an unknown user, exactly as the server sent it', async () => {
-		const op = operationsByName.get('get_task_timeline')!;
+		const op = operationsByName.get('pyramid.task.timeline')!;
 		const getTask = vi.fn(async () => taskRow);
 		const getTaskTimeline = vi.fn(async () => ({
 			data: [
@@ -1748,7 +1749,7 @@ describe('list_comments: stage scoping', () => {
 	const taskRow = { id: TASK_UUID, project_id: 'p-apollo', key: 'APO-1', status_id: 'st-review' };
 
 	it("defaults to the task's CURRENT stage (r4)", async () => {
-		const op = operationsByName.get('list_comments')!;
+		const op = operationsByName.get('pyramid.comment.list')!;
 		const resolver = makeResolver();
 		const getTask = vi.fn(async () => taskRow);
 		const listComments = vi.fn(async () => ({ data: [], cursor: null }));
@@ -1758,7 +1759,7 @@ describe('list_comments: stage scoping', () => {
 	});
 
 	it('lists ALL stages when stage: "all"', async () => {
-		const op = operationsByName.get('list_comments')!;
+		const op = operationsByName.get('pyramid.comment.list')!;
 		const resolver = makeResolver();
 		const getTask = vi.fn(async () => taskRow);
 		const listComments = vi.fn(async () => ({ data: [], cursor: null }));

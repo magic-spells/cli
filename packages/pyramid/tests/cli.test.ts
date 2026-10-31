@@ -1,335 +1,196 @@
-// Unit tests for the CLI surface (src/cli/render.ts + src/cli/index.ts) — pure,
-// NO network. The CLI is the "data channel" half of the stream contract (DOC-CLI-OUTPUT):
-//   - stdout carries DATA only (human lines or JSON);
-//   - stderr carries DIAGNOSTICS (errors, hints, usage);
-//   - output is JSON when --json OR stdout is not a TTY (auto-JSON for pipes);
-//   - an McpError maps to a stable non-zero exit code (DOC-CLI-OUTPUT table);
-//   - a usage/parse error (not an McpError) exits 2.
-//
-// We capture stdout/stderr and stub process.exit so renderError/renderUsageError
-// (which call process.exit) are observable without killing the test runner.
-//
-// SCOPE NOTE (read before extending the arg-parser assertions):
-//   The test plan's flagship arg-parsing case — `task move WEB-42 --status "In
-//   Review" --after WEB-10` -> a task.move input — requires the command tree to
-//   contain a `task move` command. That tree is DERIVED FROM THE REGISTRY: the
-//   CLI walks `operations` and reads each op's `meta.cli.{group,verb,...}`
-//   (src/cli/index.ts buildCommands). In the current codebase NO operation
-//   defines `meta.cli` (the Phase-1 ops are MCP-only), AND the write ops
-//   (task.create/move/delete, comment.*) are not implemented yet — so
-//   buildCommands() returns []. Therefore `pyramid task move …` resolves to an
-//   "unknown command" usage error (exit 2), which we assert below as the real
-//   current behavior. The render / exit-code / error-mapping contract the prompt
-//   leans on IS fully implemented and is tested thoroughly here.
+// `magic pyramid …` end to end against a fake Pyramid API on 127.0.0.1: the shell's
+// product runner, the real registry, the real HTTP client, resolver and hydration.
+// This is the R0 gate shape (`magic pyramid task next` with a pyk_ key in
+// MAGIC_PYRAMID_KEY) without touching production.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
-import { pyramidError } from '../src/errors.js';
-import { exitCodeFor, render, renderError, type CliGlobalOptions } from '../src/cli/render.js';
-import { runCli } from '../src/cli/index.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-// ============ stdout / stderr / exit capture ============
+import { runProductCli, type CredentialStore } from '@magic-spells/kit';
 
-interface Capture {
-	out: string;
-	err: string;
-	exitCode?: number;
-	restore: () => void;
-}
+import pyramid from '../src/index.js';
 
-/**
- * Capture stdout + stderr writes and intercept process.exit. `process.exit` is
- * stubbed to THROW a sentinel so the call stack unwinds (matching the real
- * `never`-returning behavior) without terminating vitest; callers catch it.
- */
-class ExitSignal extends Error {
-	constructor(public code: number) {
-		super(`__exit_${code}__`);
-	}
-}
+const KEY = 'pyk_ab23cd45_0123456789abcdef';
 
-function capture(opts?: { isTTY?: boolean }): Capture {
-	const cap: Capture = { out: '', err: '', restore: () => {} };
+const WORKFLOW = {
+	stages: [{ id: 'stg-doing', key: 'doing', name: 'In Progress', position: '1' }],
+	statuses: [
+		{ id: 'st-review', key: 'review', name: 'In Review', stage_id: 'stg-doing', position: '1' },
+	],
+};
+const MEMBERS = [
+	{ id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com', role: 'admin' },
+];
 
-	const outSpy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
-		cap.out += String(chunk);
-		return true;
-	});
-	const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
-		cap.err += String(chunk);
-		return true;
-	});
-	const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-		cap.exitCode = code ?? 0;
-		throw new ExitSignal(code ?? 0);
-	}) as never);
-
-	// Make the TTY-ness deterministic for the format decision in render.ts.
-	const tty = opts?.isTTY ?? false;
-	const origIsTTY = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
-	Object.defineProperty(process.stdout, 'isTTY', { value: tty, configurable: true });
-
-	cap.restore = () => {
-		outSpy.mockRestore();
-		errSpy.mockRestore();
-		exitSpy.mockRestore();
-		if (origIsTTY) Object.defineProperty(process.stdout, 'isTTY', origIsTTY);
-		else delete (process.stdout as { isTTY?: boolean }).isTTY;
-	};
-	return cap;
-}
-
-/** Run `fn` and swallow the ExitSignal thrown by the stubbed process.exit. */
-function runUntilExit(fn: () => void): void {
-	try {
-		fn();
-	} catch (e) {
-		if (!(e instanceof ExitSignal)) throw e;
-	}
-}
-
-const BASE_OPTS: CliGlobalOptions = { json: false, yes: false, quiet: false };
-
-// ============ exitCodeFor — the DOC-CLI-OUTPUT exit table ============
-
-describe('exitCodeFor — error-class -> exit code (DOC-CLI-OUTPUT)', () => {
-	it('maps each Pyramid failure word to its documented exit class', () => {
-		const exit = (c: Parameters<typeof pyramidError>[0]): number =>
-			exitCodeFor(pyramidError(c, 'x').code);
-		expect(exit('auth_invalid')).toBe(3);
-		expect(exit('auth_expired')).toBe(3);
-		expect(exit('permission_denied')).toBe(4);
-		for (const c of [
-			'project_not_found',
-			'task_not_found',
-			'status_not_found',
-			'stage_not_found',
-			'user_not_found',
-			'label_not_found',
-			'field_not_found',
-		] as const) {
-			expect(exit(c)).toBe(5);
-		}
-		expect(exit('ambiguous_project_name')).toBe(6);
-		expect(exit('ambiguous_user_name')).toBe(6);
-		expect(exit('ambiguous_label_name')).toBe(6);
-		expect(exit('validation_failed')).toBe(7);
-		expect(exit('invalid_field_value')).toBe(7);
-		expect(exit('status_not_in_stage')).toBe(7);
-		expect(exit('reply_depth_exceeded')).toBe(7);
-		expect(exit('task_archived')).toBe(7);
-		expect(exit('destructive_action_disabled')).toBe(8);
-		expect(exit('rate_limited')).toBe(9);
-		expect(exit('network')).toBe(10);
-		expect(exit('unknown')).toBe(1);
-	});
-});
-
-// ============ render — format + stream contract ============
-
-describe('render — emits JSON when --json or non-TTY (DOC-CLI-OUTPUT)', () => {
-	let cap: Capture;
-	afterEach(() => cap?.restore());
-
-	it('writes pretty JSON to stdout when --json is set (even on a TTY)', () => {
-		cap = capture({ isTTY: true });
-		const result = { key: 'APO-1', title: 'Wire auth' };
-		render(result, { ...BASE_OPTS, json: true });
-		cap.restore();
-
-		expect(cap.err).toBe(''); // no diagnostics on the data path
-		expect(JSON.parse(cap.out)).toEqual(result);
-	});
-
-	it('auto-JSONs to stdout when stdout is NOT a TTY (pipe/agent), no --json needed', () => {
-		cap = capture({ isTTY: false });
-		const result = { key: 'APO-1', status: { id: 'st-1', name: 'In Review' } };
-		render(result, { ...BASE_OPTS, json: false });
-		cap.restore();
-
-		// non-TTY -> machine consumers always get parseable JSON.
-		expect(JSON.parse(cap.out)).toEqual(result);
-	});
-
-	it('prints a compact human line (not JSON) on a TTY without --json', () => {
-		cap = capture({ isTTY: true });
-		render({ key: 'APO-1', title: 'Wire auth' }, { ...BASE_OPTS, json: false });
-		cap.restore();
-
-		// human mode: aligned key/value lines, NOT a JSON object.
-		expect(cap.out).toContain('key');
-		expect(cap.out).toContain('APO-1');
-		expect(() => JSON.parse(cap.out)).toThrow();
-	});
-
-	it('renders a Page as a table and notes more results on stderr (never truncates)', () => {
-		cap = capture({ isTTY: true });
-		render(
+const ROUTES: Record<string, unknown> = {
+	'GET /v1/me': { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' },
+	'GET /v1/workspaces': { data: [{ id: 'w1', handle: 'acme', name: 'Acme', role: 'owner' }] },
+	'GET /v1/projects': {
+		data: [{ id: 'p-web', handle: 'web', name: 'Website', task_prefix: 'WEB', role: 'admin' }],
+	},
+	'GET /v1/me/tasks': {
+		data: [
 			{
-				items: [
-					{ key: 'APO-1', title: 'a' },
-					{ key: 'APO-2', title: 'b' },
-				],
-				next_cursor: 'CUR-2',
-				has_more: true,
+				id: 't-42',
+				key: 'WEB-42',
+				title: 'Ship the CLI',
+				description: null,
+				project_id: 'p-web',
+				status_id: 'st-review',
+				owner_id: 'u-ann',
+				updated_at: '2026-10-30T00:00:00Z',
 			},
-			{ ...BASE_OPTS, json: false }
-		);
-		cap.restore();
+		],
+		cursor: 'next-page',
+	},
+	'GET /v1/projects/p-web/workflow': WORKFLOW,
+	'GET /v1/projects/p-web/labels': [],
+	'GET /v1/projects/p-web/members': MEMBERS,
+	'GET /v1/projects/p-web/task-schema': { templates: [] },
+};
 
-		// rows on stdout (data), pagination note on stderr (diagnostic).
-		expect(cap.out).toContain('APO-1');
-		expect(cap.out).toContain('APO-2');
-		expect(cap.err).toContain('CUR-2');
-	});
+let server: Server;
+let baseUrl = '';
+const seen: { method: string; path: string; auth: string | undefined }[] = [];
 
-	it('shows Owner and Reviewer with their job_title when one is known', () => {
-		cap = capture({ isTTY: true });
-		render(
-			{
-				key: 'APO-1',
-				owner: { id: 'u-ann', display_name: 'Ann Smith', job_title: 'Design Lead' },
-				reviewer: { id: 'u-bob', display_name: 'Bob Jones' },
-			},
-			{ ...BASE_OPTS, json: false }
-		);
-		cap.restore();
-
-		// the title is what says whether the right person holds it.
-		expect(cap.out).toContain('Ann Smith (Design Lead)');
-		// no title known -> the bare name, never an empty "()".
-		expect(cap.out).toContain('Bob Jones');
-		expect(cap.out).not.toContain('Bob Jones (');
-	});
-
-	it('JSON mode preserves a Page envelope including the cursor on stdout', () => {
-		cap = capture({ isTTY: true });
-		const page = { items: [{ key: 'APO-1' }], next_cursor: 'CUR-2', has_more: true };
-		render(page, { ...BASE_OPTS, json: true });
-		cap.restore();
-
-		expect(cap.err).toBe('');
-		expect(JSON.parse(cap.out)).toEqual(page);
-	});
-});
-
-// ============ renderError — error -> stderr + mapped exit code ============
-
-describe('renderError — McpError to stderr with the mapped exit code', () => {
-	let cap: Capture;
-	afterEach(() => cap?.restore());
-
-	it('an ambiguous_project_name prints candidates to stderr and exits 6', () => {
-		cap = capture({ isTTY: true });
-		const err = pyramidError('ambiguous_project_name', 'pick one', {
-			candidates: ['website-redesign', 'webhooks'],
-		});
-		runUntilExit(() => renderError(err, { ...BASE_OPTS, json: false }));
-		cap.restore();
-
-		expect(cap.exitCode).toBe(6);
-		expect(cap.out).toBe(''); // errors NEVER pollute the data channel
-		expect(cap.err).toContain('ambiguous_name');
-		expect(cap.err).toContain('website-redesign');
-		expect(cap.err).toContain('webhooks');
-	});
-
-	it('emits the canonical { error: {...} } envelope to stderr under --json', () => {
-		cap = capture({ isTTY: false });
-		const err = pyramidError('task_not_found', 'no such task', { hint: 'check the key' });
-		runUntilExit(() => renderError(err, { ...BASE_OPTS, json: true }));
-		cap.restore();
-
-		expect(cap.exitCode).toBe(5);
-		expect(cap.out).toBe('');
-		const parsed = JSON.parse(cap.err) as {
-			error: { code: string; message: string; hint?: string };
-		};
-		expect(parsed.error.code).toBe('not_found');
-		expect(parsed.error.message).toBe('no such task');
-		expect(parsed.error.hint).toBe('check the key');
-	});
-
-	it('a destructive_action_disabled error exits 8', () => {
-		cap = capture({ isTTY: false });
-		runUntilExit(() =>
-			renderError(pyramidError('destructive_action_disabled', 'gate is off'), {
-				...BASE_OPTS,
-				json: true,
-			})
-		);
-		cap.restore();
-		expect(cap.exitCode).toBe(8);
-	});
-});
-
-// ============ runCli — global-flag parsing, help, usage errors ============
-//
-// runCli parses globals (--json/--project/--base-url/-y/-q/--no-cache),
-// matches a command from the REGISTRY-DERIVED tree, then parses + validates the
-// op input. We assert the reachable behaviors of the current build.
-
-describe('runCli — global flags, help, and usage errors', () => {
-	let cap: Capture;
-	afterEach(() => cap?.restore());
-
-	it('no args -> prints the help/usage tree to stderr and returns 0 (no exit)', async () => {
-		cap = capture({ isTTY: true });
-		const code = await runCli([]);
-		cap.restore();
-
-		expect(code).toBe(0);
-		expect(cap.out).toBe(''); // help is a diagnostic -> stderr only
-		expect(cap.err).toContain('Usage:');
-		expect(cap.err).toContain('pyramid');
-	});
-
-	it('`help` / `--help` print usage to stderr and return 0', async () => {
-		for (const argv of [['help'], ['--help'], ['-h']]) {
-			cap = capture({ isTTY: true });
-			const code = await runCli(argv);
-			cap.restore();
-			expect(code).toBe(0);
-			expect(cap.err).toContain('Usage:');
+beforeAll(async () => {
+	server = createServer((req: IncomingMessage, res) => {
+		const url = new URL(req.url ?? '/', 'http://x');
+		seen.push({ method: req.method ?? '', path: url.pathname, auth: req.headers.authorization });
+		const body = ROUTES[`${req.method} ${url.pathname}`];
+		if (req.headers.authorization !== `Bearer ${KEY}`) {
+			res.writeHead(401, { 'content-type': 'application/json' });
+			res.end(JSON.stringify({ error: { code: 'unauthorized', message: 'bad key' } }));
+			return;
 		}
+		if (body === undefined) {
+			res.writeHead(404, { 'content-type': 'application/json' });
+			res.end(
+				JSON.stringify({ error: { code: 'not_found', message: `no route ${url.pathname}` } })
+			);
+			return;
+		}
+		res.writeHead(200, { 'content-type': 'application/json' });
+		res.end(JSON.stringify(body));
 	});
-
-	it('an unknown command is a usage error -> stderr + exit 2', async () => {
-		cap = capture({ isTTY: true });
-		// `task bogus` has a known group but an unknown verb -> not in the
-		// registry-derived command tree. (`task move` IS registered now.)
-		await runUntilExitAsync(() => runCli(['task', 'bogus', 'WEB-42', '--status', 'In Review']));
-		cap.restore();
-
-		expect(cap.exitCode).toBe(2); // CLI usage/parse error class
-		expect(cap.out).toBe('');
-		expect(cap.err).toMatch(/unknown command/i);
-	});
-
-	it('strips recognized global flags (--json) before matching the command', async () => {
-		cap = capture({ isTTY: true });
-		// --json is a global; with it stripped the residual is still an unknown
-		// command (empty tree) -> exit 2. This proves --json was consumed as a
-		// global and not treated as the command token.
-		await runUntilExitAsync(() => runCli(['--json', 'bogus']));
-		cap.restore();
-
-		expect(cap.exitCode).toBe(2);
-		expect(cap.err).toMatch(/unknown command/i);
-		expect(cap.err).not.toContain('--json');
-	});
+	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+	baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 
-/** Async sibling of runUntilExit: awaits the promise, swallowing ExitSignal. */
-async function runUntilExitAsync(fn: () => Promise<unknown>): Promise<void> {
-	try {
-		await fn();
-	} catch (e) {
-		if (!(e instanceof ExitSignal)) throw e;
-	}
-}
+afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
-// keep the lint happy: beforeEach reserved for future per-test env isolation.
 beforeEach(() => {
-	/* no shared mutable state to reset; each test owns its capture. */
+	seen.length = 0;
+});
+
+const emptyStore: CredentialStore = {
+	backend: 'file',
+	get: async () => null,
+	set: async () => {},
+	delete: async () => {},
+	list: async () => [],
+};
+
+async function magicPyramid(argv: string[], env: NodeJS.ProcessEnv = {}, tty = false) {
+	const cap = { stdout: '', stderr: '' };
+	const code = await runProductCli(pyramid, argv, {
+		env: { MAGIC_PYRAMID_KEY: KEY, MAGIC_PYRAMID_URL: baseUrl, ...env },
+		store: emptyStore,
+		readConfig: () => null,
+		io: {
+			out: (t) => void (cap.stdout += t),
+			err: (t) => void (cap.stderr += t),
+			isTTY: () => tty,
+		},
+	});
+	return { code, ...cap };
+}
+
+describe('magic pyramid task next', () => {
+	it('lists my tasks hydrated to names, with the cursor, using MAGIC_PYRAMID_KEY', async () => {
+		const r = await magicPyramid(['task', 'next']);
+		expect(r.code).toBe(0);
+		const page = JSON.parse(r.stdout);
+		expect(page.next_cursor).toBe('next-page');
+		expect(page.items[0]).toMatchObject({
+			key: 'WEB-42',
+			title: 'Ship the CLI',
+			status: { name: 'In Review' },
+			stage: { name: 'In Progress' },
+			owner: { display_name: 'Ann Smith' },
+		});
+		expect(seen.every((s) => s.auth === `Bearer ${KEY}`)).toBe(true);
+		expect(seen.map((s) => s.path)).toContain('/v1/me/tasks');
+	});
+
+	it('`task list --mine` routes to the same operation', async () => {
+		const r = await magicPyramid(['task', 'list', '--mine', '--limit', '5']);
+		expect(r.code).toBe(0);
+		expect(JSON.parse(r.stdout).items).toHaveLength(1);
+	});
+
+	it('renders a table on a TTY with the cursor hint on stderr', async () => {
+		const r = await magicPyramid(['task', 'next'], {}, true);
+		expect(r.stdout).toContain('WEB-42');
+		expect(r.stdout).toContain('In Review');
+		expect(r.stderr).toContain('more: --cursor next-page');
+	});
+
+	it('a bad key is auth_invalid (exit 3) with the regenerate hint', async () => {
+		const r = await magicPyramid(['task', 'next'], { MAGIC_PYRAMID_KEY: 'pyk_wrong_key' });
+		expect(r.code).toBe(3);
+		expect(JSON.parse(r.stderr).error).toMatchObject({ code: 'auth_invalid', product: 'pyramid' });
+	});
+});
+
+describe('magic pyramid whoami / project list', () => {
+	it('whoami prints user, workspace and projects', async () => {
+		const r = await magicPyramid(['whoami']);
+		expect(r.code).toBe(0);
+		expect(JSON.parse(r.stdout)).toMatchObject({
+			user: { display_name: 'Ann Smith', email: 'ann@example.com' },
+			workspace: { handle: 'acme', name: 'Acme' },
+			projects: [{ handle: 'web', name: 'Website' }],
+		});
+	});
+
+	it('project list', async () => {
+		const r = await magicPyramid(['project', 'list']);
+		expect(JSON.parse(r.stdout)).toEqual([
+			{
+				id: 'p-web',
+				handle: 'web',
+				name: 'Website',
+				task_prefix: 'WEB',
+				role: 'admin',
+				archived: false,
+			},
+		]);
+	});
+});
+
+describe('magic pyramid task delete (destructive gate)', () => {
+	it('--yes without MAGIC_ALLOW_DESTRUCTIVE never reaches the API (exit 8)', async () => {
+		const r = await magicPyramid(['task', 'delete', 'WEB-42', '--yes']);
+		expect(r.code).toBe(8);
+		expect(seen).toEqual([]);
+	});
+
+	it('PYRAMID_ALLOW_DESTRUCTIVE is no longer read', async () => {
+		const r = await magicPyramid(['task', 'delete', 'WEB-42', '--yes'], {
+			PYRAMID_ALLOW_DESTRUCTIVE: '1',
+		});
+		expect(r.code).toBe(8);
+	});
+});
+
+describe('registry', () => {
+	it('every operation is pyramid.<noun>.<verb> and unique', async () => {
+		const { assertRegistry } = await import('@magic-spells/kit');
+		const ops = await pyramid.load();
+		expect(() => assertRegistry('pyramid', ops)).not.toThrow();
+		expect(ops).toHaveLength(17);
+	});
 });

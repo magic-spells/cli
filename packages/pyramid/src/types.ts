@@ -4,10 +4,10 @@
 // classes live in this file. Every other module imports its shapes from here,
 // so these are the canonical interfaces; match them exactly.
 
+/** What the HTTP client needs: the `pyk_` key and the API base URL. */
 export interface PyramidConfig {
 	apiKey: string;
 	baseUrl: string;
-	allowDestructive: boolean;
 }
 
 export interface ProjectSummary {

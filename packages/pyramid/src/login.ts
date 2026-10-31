@@ -1,32 +1,29 @@
-// FILE-AUTH-COMMANDS — local credential commands for the `pyramid` bin
-// (DOC-CREDENTIAL-STORAGE). These manage the keychain-stored API key, so
-// bin/pyramid.ts dispatches to them BEFORE config load (you can store a key
-// without already having one). config.ts later READS the key.
+// `magic pyramid login` — the browser handoff from pyramid-cli's `pyramid login`
+// (COMPONENT-PYRAMID-PACKAGE, FEATURE-PYRAMID-MOVE): a loopback callback on 127.0.0.1
+// receives a workspace `pyk_` key minted by Pyramid web's /auth/cli and stores it as
+// the `pyramid:manual` item. Kept until R1's `magic login` replaces it. The full
+// secret is never printed.
 //
-//   pyramid set-key <pyk_...>   store a pasted key   (aliases: set-api-key, set-token)
-//   pyramid show-key            show the stored key, masked
-//   pyramid logout              clear the stored key
-//   pyramid login               browser handoff -> keychain
-//
-// Each handler returns a process exit code; bin owns process.exit. Output goes to
-// the injected `out` (stderr in production). The full secret is NEVER printed.
+// pyramid-cli's set-key / show-key / logout move to the shell's
+// `magic login --product-key`, `magic whoami` and `magic logout --product pyramid`
+// (FEATURE-WHOAMI-DOCTOR), on the kit's saveProductKey / forgetProductKey.
 
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { deleteKey, getKey, setKey } from './keychain.js';
+import { createCredentialStore, maskKey as kitMaskKey, saveProductKey } from '@magic-spells/kit';
+
+import { PYRAMID_CREDENTIAL } from './credential.js';
 
 const DEFAULT_WEB_URL = 'https://pyramid.magicspells.io';
 const DEFAULT_LOGIN_TIMEOUT_MS = 2 * 60 * 1000;
 
-/** Injected side effects, so handlers are unit-testable without the keychain. */
+/** Injected side effects, so the handoff is unit-testable without a keychain. */
 export interface AuthIO {
 	out: (line: string) => void;
-	getKey: () => string | null;
-	setKey: (key: string) => void;
-	deleteKey: () => void;
+	setKey: (key: string) => Promise<void>;
 	openBrowser: (url: string) => boolean | Promise<boolean>;
 	env: NodeJS.ProcessEnv;
 	randomState: () => string;
@@ -35,60 +32,18 @@ export interface AuthIO {
 
 const realIO: AuthIO = {
 	out: (line) => process.stderr.write(`${line}\n`),
-	getKey,
-	setKey,
-	deleteKey,
+	setKey: async (key) => {
+		await saveProductKey(PYRAMID_CREDENTIAL, createCredentialStore(), key);
+	},
 	openBrowser,
 	env: process.env,
 	randomState: () => randomBytes(24).toString('base64url'),
 	loginTimeoutMs: DEFAULT_LOGIN_TIMEOUT_MS,
 };
 
-/**
- * Mask a `pyk_<prefix>_<secret>` key for display: keep the non-secret prefix,
- * hide the secret (show only its last 4). Never reveals the full secret.
- */
+/** Mask a `pyk_<prefix>_<secret>` key: the prefix and the secret's last 4. */
 export function maskKey(key: string): string {
-	const m = /^pyk_([^_]+)_(.+)$/.exec(key);
-	if (!m) return 'pyk_…';
-	return `pyk_${m[1]}_…${m[2].slice(-4)}`;
-}
-
-/** `pyramid set-key <pyk_...>` — store a pasted key in the OS keychain. */
-export function runSetKey(argv: string[], io: AuthIO = realIO): number {
-	const key = argv[1]?.trim();
-	if (!key) {
-		io.out('usage: pyramid set-key <pyk_...>');
-		return 2;
-	}
-	if (!key.startsWith('pyk_')) {
-		io.out(
-			'That does not look like a Pyramid key (it must start with "pyk_"). ' +
-				'Generate one in Pyramid → Settings → API Keys.'
-		);
-		return 1;
-	}
-	io.setKey(key);
-	io.out(`Saved ${maskKey(key)} to the OS keychain — the MCP and CLI will use it automatically.`);
-	return 0;
-}
-
-/** `pyramid show-key` — print the stored key, masked (or that none is stored). */
-export function runShowKey(_argv: string[], io: AuthIO = realIO): number {
-	const key = io.getKey();
-	if (!key) {
-		io.out('No Pyramid key stored. Run `pyramid set-key <pyk_...>` to save one.');
-		return 0;
-	}
-	io.out(`Stored Pyramid key: ${maskKey(key)} (OS keychain).`);
-	return 0;
-}
-
-/** `pyramid logout` — clear the stored key. Idempotent. */
-export function runLogout(_argv: string[], io: AuthIO = realIO): number {
-	io.deleteKey();
-	io.out('Cleared the stored Pyramid key from the OS keychain.');
-	return 0;
+	return kitMaskKey(key, 'pyk_');
 }
 
 interface LoginOptions {
@@ -97,14 +52,14 @@ interface LoginOptions {
 }
 
 function parseLoginOptions(argv: string[], env: NodeJS.ProcessEnv): LoginOptions | string {
-	let webUrl = env.PYRAMID_WEB_URL?.trim() || DEFAULT_WEB_URL;
-	let name = 'Pyramid CLI';
-	const args = argv.slice(1);
+	let webUrl = env.MAGIC_PYRAMID_WEB_URL?.trim() || DEFAULT_WEB_URL;
+	let name = 'Magic CLI';
+	const args = argv;
 	for (let i = 0; i < args.length; i += 1) {
 		const arg = args[i];
 		if (arg === '--web-url') {
 			const next = args[++i];
-			if (!next) return 'usage: pyramid login [--web-url <url>] [--name <key name>]';
+			if (!next) return 'usage: magic pyramid login [--web-url <url>] [--name <key name>]';
 			webUrl = next;
 			continue;
 		}
@@ -114,7 +69,7 @@ function parseLoginOptions(argv: string[], env: NodeJS.ProcessEnv): LoginOptions
 		}
 		if (arg === '--name') {
 			const next = args[++i];
-			if (!next) return 'usage: pyramid login [--web-url <url>] [--name <key name>]';
+			if (!next) return 'usage: magic pyramid login [--web-url <url>] [--name <key name>]';
 			name = next;
 			continue;
 		}
@@ -122,14 +77,14 @@ function parseLoginOptions(argv: string[], env: NodeJS.ProcessEnv): LoginOptions
 			name = arg.slice('--name='.length);
 			continue;
 		}
-		return `unknown option for pyramid login: ${arg}`;
+		return `unknown option for magic pyramid login: ${arg}`;
 	}
 	try {
 		new URL(webUrl);
 	} catch {
-		return `PYRAMID_WEB_URL is not a valid URL: "${webUrl}".`;
+		return `MAGIC_PYRAMID_WEB_URL is not a valid URL: "${webUrl}".`;
 	}
-	return { webUrl, name: name.trim() || 'Pyramid CLI' };
+	return { webUrl, name: name.trim() || 'Magic CLI' };
 }
 
 function authURL(webUrl: string, callbackURL: string, state: string, name: string): string {
@@ -146,7 +101,7 @@ function closeServer(server: Server): Promise<void> {
 	});
 }
 
-/** `pyramid login` — browser handoff that stores a minted API key locally. */
+/** `magic pyramid login` — browser handoff that stores a minted API key locally. */
 export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<number> {
 	const opts = parseLoginOptions(argv, io.env);
 	if (typeof opts === 'string') {
@@ -167,7 +122,7 @@ export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<num
 		};
 	});
 
-	const server = createServer((req, res) => {
+	const server = createServer(async (req, res) => {
 		const requestURL = new URL(req.url ?? '/', 'http://127.0.0.1');
 		if (requestURL.pathname !== '/callback') {
 			res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
@@ -204,10 +159,20 @@ export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<num
 			return;
 		}
 
-		io.setKey(key);
+		try {
+			await io.setKey(key);
+		} catch (err) {
+			res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+			res.end('Could not store the key. Return to your terminal.\n');
+			io.out(
+				`Could not store the Pyramid key: ${err instanceof Error ? err.message : String(err)}`
+			);
+			void closeServer(server).then(() => finish(1));
+			return;
+		}
 		res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
 		res.end('Pyramid CLI connected. You can close this tab.\n');
-		io.out(`Saved ${maskKey(key)} to the OS keychain — the MCP and CLI will use it automatically.`);
+		io.out(`Saved ${maskKey(key)} — magic and magic mcp will use it automatically.`);
 		void closeServer(server).then(() => finish(0));
 	});
 
@@ -257,15 +222,3 @@ function openBrowser(url: string): Promise<boolean> {
 		child.unref();
 	});
 }
-
-/** Command name -> handler, including aliases. Consumed by bin/pyramid.ts. */
-export type AuthCommand = (argv: string[]) => number | Promise<number>;
-
-export const AUTH_COMMANDS: Record<string, AuthCommand> = {
-	'set-key': runSetKey,
-	'set-api-key': runSetKey,
-	'set-token': runSetKey,
-	'show-key': runShowKey,
-	logout: runLogout,
-	login: runLogin,
-};

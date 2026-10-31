@@ -1,47 +1,74 @@
 // COMPONENT-SHELL — the `magic` entry: top-level commands and product dispatch.
-// Process concerns only; everything behind a product token is an operation.
+// Process concerns only; everything behind a product token is an operation run by
+// the kit's runProductCli. Returns exit codes; bin/magic.js sets process.exitCode.
 
-import { readPackageVersion } from '@magic-spells/kit';
+import {
+	createCredentialStore,
+	readPackageVersion,
+	runProductCli,
+	type CredentialStore,
+	type RenderIO,
+	processIO,
+} from '@magic-spells/kit';
 
-export interface ShellIO {
-	out: (text: string) => void;
-	err: (text: string) => void;
+import { PRODUCTS, type ProductEntry } from './products.js';
+
+export interface ShellDeps {
+	io?: RenderIO;
+	env?: NodeJS.ProcessEnv;
+	store?: CredentialStore;
+	products?: ProductEntry[];
 }
-
-const realIO: ShellIO = {
-	out: (text) => process.stdout.write(text),
-	err: (text) => process.stderr.write(text),
-};
 
 export function version(): string {
 	return readPackageVersion(import.meta.url);
 }
 
-function help(): string {
-	return [
+function help(products: ProductEntry[]): string {
+	const lines = [
 		'magic — the command line for Magic Spells services',
 		'',
 		'Usage: magic <command> [args] [--flags]',
+		'       magic <product> <noun> <verb> [args] [--flags]',
 		'',
 		'Commands:',
 		'  version              print the version',
 		'',
-		'Global flags: --json --yes/-y --no-color --quiet/-q --no-cache --version --help',
+		'Products:',
+		...products.map((p) => `  ${p.id.padEnd(21)}${p.title}`),
 		'',
-	].join('\n');
+		'Global flags: --json --yes/-y --no-color --quiet/-q --no-cache --workspace <handle> --version --help',
+		'Run `magic <product> --help` for a product’s commands.',
+		'',
+	];
+	return lines.join('\n');
 }
 
 /** Run the shell and return the process exit code. */
-export async function run(argv: string[], io: ShellIO = realIO): Promise<number> {
-	const [cmd] = argv;
+export async function run(argv: string[], deps: ShellDeps = {}): Promise<number> {
+	const io = deps.io ?? processIO;
+	const products = deps.products ?? PRODUCTS;
+	const [cmd, ...rest] = argv;
+
 	if (cmd === 'version' || cmd === '--version' || cmd === '-v') {
 		io.out(`magic ${version()}\n`);
 		return 0;
 	}
 	if (cmd === undefined || cmd === 'help' || cmd === '--help' || cmd === '-h') {
-		io.err(help());
+		io.err(help(products));
 		return 0;
 	}
-	io.err(`error: unknown command "${cmd}"\nRun \`magic --help\` for usage.\n`);
+
+	const entry = products.find((p) => p.id === cmd);
+	if (entry) {
+		const product = await entry.load();
+		return runProductCli(product, rest, {
+			io,
+			env: deps.env ?? process.env,
+			store: deps.store ?? createCredentialStore({ env: deps.env ?? process.env }),
+		});
+	}
+
+	io.err(`error [usage]: unknown command "${cmd}"\nRun \`magic --help\` for usage.\n`);
 	return 2;
 }
