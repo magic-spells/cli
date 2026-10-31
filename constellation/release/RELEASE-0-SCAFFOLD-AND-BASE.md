@@ -21,6 +21,14 @@ notes:
       tag; (6) after the gate, `npm deprecate @magic-spells/pyramid` and archive
       magic-spells/pyramid-cli (FEATURE-DEPRECATE-PYRAMID-CLI).
     sha: '2952966'
+  - kind: state
+    text: >-
+      2026-10-31: the live gate in the notes above now uses a real `pyramid_<8>_<32>` key; `pyk_` is
+      no longer accepted anywhere in the CLI. login.test.ts holds the loopback contract with Pyramid
+      web's /auth/cli end to end: fetch() to the redirect_uri with a URLSearchParams body stores the
+      key, a GET carrying the key gets 405 without ending the login, and an empty state is a
+      mismatch.
+    sha: d8db6ba
 ---
 
 # R0: Scaffold and base
