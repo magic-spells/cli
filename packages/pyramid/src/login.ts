@@ -1,8 +1,10 @@
 // `magic pyramid login` — the browser handoff from pyramid-cli's `pyramid login`
 // (COMPONENT-PYRAMID-PACKAGE, FEATURE-PYRAMID-MOVE): a loopback callback on 127.0.0.1
 // receives a workspace `pyk_` key minted by Pyramid web's /auth/cli and stores it as
-// the `pyramid:manual` item. Kept until R1's `magic login` replaces it. The full
-// secret is never printed.
+// the `pyramid:manual` item. Kept until R1's `magic login` replaces it. The key
+// arrives only in a urlencoded POST body (`state`, `key`, `name` or `error`), never in
+// the URL, because URLs get logged; a GET or a `key` in the query string is refused
+// unread. The full secret is never printed.
 //
 // pyramid-cli's set-key / show-key / logout move to the shell's
 // `magic login --product-key`, `magic whoami` and `magic logout --product pyramid`
@@ -11,7 +13,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createCredentialStore, maskKey, saveProductKey } from '@magic-spells/kit';
 
@@ -19,6 +21,8 @@ import { PYRAMID_CREDENTIAL } from './credential.js';
 
 const DEFAULT_WEB_URL = 'https://pyramid.magicspells.io';
 const DEFAULT_LOGIN_TIMEOUT_MS = 2 * 60 * 1000;
+/** The callback form carries a state, a key and a name; anything bigger is not it. */
+const MAX_CALLBACK_BODY_BYTES = 4 * 1024;
 
 /** Injected side effects, so the handoff is unit-testable without a keychain. */
 export interface AuthIO {
@@ -93,6 +97,27 @@ function authURL(webUrl: string, callbackURL: string, state: string, name: strin
 	return target.toString();
 }
 
+/** The urlencoded callback body, or null once it passes the size cap. */
+function readCallbackForm(req: IncomingMessage): Promise<URLSearchParams | null> {
+	return new Promise((resolve, reject) => {
+		const chunks: Buffer[] = [];
+		let size = 0;
+		const onData = (chunk: Buffer) => {
+			size += chunk.length;
+			if (size > MAX_CALLBACK_BODY_BYTES) {
+				req.off('data', onData);
+				req.resume();
+				resolve(null);
+				return;
+			}
+			chunks.push(chunk);
+		};
+		req.on('data', onData);
+		req.once('end', () => resolve(new URLSearchParams(Buffer.concat(chunks).toString('utf8'))));
+		req.once('error', reject);
+	});
+}
+
 function closeServer(server: Server): Promise<void> {
 	return new Promise((resolve) => {
 		server.close(() => resolve());
@@ -133,7 +158,27 @@ export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<num
 			return;
 		}
 
-		const gotState = requestURL.searchParams.get('state') ?? '';
+		if (req.method !== 'POST' || requestURL.searchParams.has('key')) {
+			res.writeHead(405, { 'content-type': 'text/plain; charset=utf-8', allow: 'POST' });
+			res.end('Method not allowed. Return to your terminal.\n');
+			io.out('Ignored a Pyramid login callback that did not POST the key.');
+			return;
+		}
+
+		let form: URLSearchParams | null;
+		try {
+			form = await readCallbackForm(req);
+		} catch {
+			return;
+		}
+		if (!form) {
+			res.writeHead(413, { 'content-type': 'text/plain; charset=utf-8', connection: 'close' });
+			res.end('Login callback too large. Return to your terminal.\n');
+			io.out('Ignored an oversized Pyramid login callback.');
+			return;
+		}
+
+		const gotState = form.get('state') ?? '';
 		if (gotState !== state) {
 			res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
 			res.end('Invalid login state. Return to your terminal.\n');
@@ -142,7 +187,7 @@ export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<num
 			return;
 		}
 
-		const error = requestURL.searchParams.get('error');
+		const error = form.get('error');
 		if (error) {
 			res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
 			res.end('Pyramid login cancelled. Return to your terminal.\n');
@@ -153,7 +198,7 @@ export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<num
 			return;
 		}
 
-		const key = requestURL.searchParams.get('key')?.trim() ?? '';
+		const key = form.get('key')?.trim() ?? '';
 		if (!key.startsWith('pyk_')) {
 			res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
 			res.end('Invalid Pyramid key. Return to your terminal.\n');
