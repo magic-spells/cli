@@ -18,20 +18,23 @@ Product commands are derived from each registry; this card is the intended shape
 
 | Command | Release | Does |
 |---|---|---|
-| `magic login [--device] [--product <p>] [--product-key]` | R0 (`--product-key`), R1 (Account) | Sign in; mint product sessions |
-| `magic logout [--product <p>]` | R0 | Revoke and forget credentials |
+| `magic login [--device] [--product <p>] [--yes]` | R1 | Sign in to Account (browser or code); mint product sessions |
+| `magic login --product-key [<product>]` | R0 | Store a pasted product key (CI) |
+| `magic logout [--product <p>]` | R0, R1 | Revoke and forget credentials (R1: product keys revoked server-side, grant revoked) |
 | `magic whoami` | R0, R1 | Account identity + workspaces per product |
-| `magic doctor` | R0 | Environment, credentials, product reachability, engine |
+| `magic doctor` | R0, R1 | Environment, Account and sign-in, credentials, product reachability, engine |
 | `magic mcp [--products a,b]` | R0 | The MCP server |
 | `magic upgrade` | R4 | Update the CLI |
 | `magic telemetry on\|off\|status` | R4 | Consent |
 | `magic version` / `--version` | R0 | Version |
 
-Global flags: `--json`, `--yes/-y`, `--no-color`, `--quiet/-q`, `--no-cache`, `--workspace <handle>`, `--product-key`.
+Global flags: `--json`, `--yes/-y`, `--no-color`, `--quiet/-q`, `--no-cache`, `--workspace <handle>` (picks the product session; R1). `--product-key` is a `login` flag, not a global one.
 
 ## `magic pyramid …` (R0)
 
-`whoami`; `project list`; `project workflow`; `task next | list | get | create | create-bulk | update | move | archive | delete | timeline`; `task comment`, `comment reply` — the current pyramid-cli tree under the new names (`pyramid.task.next`, …). `login` until R1.
+`whoami`; `project list`; `project workflow`; `task next | list | get | create | create-bulk | update | move | archive | delete | timeline`; `task comment`, `comment reply` — the current pyramid-cli tree under the new names (`pyramid.task.next`, …). `magic pyramid login` existed in R0 only; R1 removed it (`magic login` mints Pyramid keys).
+
+`magic sites` and `magic marketing` exist from R1 as sign-in-only namespaces (no commands; `--help` lists none) so login, whoami and logout cover them.
 
 ## `magic sites …` (R2)
 

@@ -88,6 +88,12 @@ export interface ProductModule<C = any> {
 	apiUrl: string;
 	/** Where a person gets a key, for not_logged_in hints. */
 	keyHelp?: string;
+	/**
+	 * The product's CLI sessions route (FLOW-PRODUCT-SESSION-MINT), relative to apiUrl:
+	 * `magic login` mints a key per workspace there from the Account grant, and the kit
+	 * re-mints on auth_expired. Absent: pasted keys only.
+	 */
+	sessions?: { path: string };
 	/** The only async step: native products return a static list. */
 	load(): Promise<Operation<any, unknown, C>[]>;
 	client(session: ProductSession, config: CliConfig): C;

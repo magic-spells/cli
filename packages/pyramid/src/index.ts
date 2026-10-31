@@ -8,13 +8,14 @@ import { Resolver } from './cache/resolver.js';
 import { PyramidClient } from './client/pyramid-client.js';
 import { DEFAULT_API_URL, PYRAMID_CREDENTIAL } from './credential.js';
 import { doctorChecks } from './doctor.js';
-import { runLogin } from './login.js';
 import { instructions, registerPyramidMcp } from './mcp/index.js';
 import type { PyramidApi } from './operations/index.js';
 
 export const pyramid: ProductModule<PyramidApi> = {
 	...PYRAMID_CREDENTIAL,
 	apiUrl: DEFAULT_API_URL,
+	// `magic login` mints workspace keys here from the Account grant (API-PYRAMID-CLI-SESSIONS).
+	sessions: { path: '/v1/cli/sessions' },
 	// The operations graph loads only when a Pyramid command runs.
 	load: async () => (await import('./operations/index.js')).operations,
 	client(session, config) {
@@ -26,12 +27,6 @@ export const pyramid: ProductModule<PyramidApi> = {
 	},
 	// `--project` stays a Pyramid flag, usable anywhere in argv (pyramid-cli's global).
 	globalFlags: ['project'],
-	commands: {
-		login: {
-			summary: 'Sign in through Pyramid in the browser and store a workspace key (until R1)',
-			run: (argv) => runLogin(argv),
-		},
-	},
 	doctor: doctorChecks,
 	mcp: { instructions, register: registerPyramidMcp },
 };

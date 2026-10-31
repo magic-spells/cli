@@ -1,6 +1,6 @@
 ---
 name: 'magic login with the device flow'
-status: planned
+status: building
 triggers:
   - kind: manual
 connections:
@@ -12,6 +12,21 @@ connections:
   - FEATURE-DEVICE-LOGIN
   - DIAGRAM-LOGIN
   - ROLE-DEVELOPER
+notes:
+  - kind: state
+    text: >-
+      Built on feat/r1-login against the fake Account. POST /auth/device form
+      `client_id&scope=basic`; polls POST /auth/token form
+      `grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code&client_id`. kit
+      waitForDevice: waits `interval` in 1 s steps (countdown ticks), +5 s per slow_down, stops
+      without another poll once expires_in has passed (auth_expired "The code expired", hint "Run
+      `magic login` again."), access_denied → auth_cancelled, Ctrl-C (abort) → auth_cancelled,
+      nothing stored. The CLI prints verification_uri and the user_code spaced and bold (also under
+      --quiet), opens verification_uri_complete only when a browser is local (i.e. --device on a
+      desktop), shows a `\r` countdown on a TTY and a single "Waiting for approval" line otherwise.
+      Account's error body is read as either `{error:"code"}` (RFC) or `{error:{code}}` (Account's
+      existing jsonError shape) because the device handler is not built yet.
+    sha: 9d2583d
 ---
 
 # Login with the device flow

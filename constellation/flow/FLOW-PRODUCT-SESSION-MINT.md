@@ -1,6 +1,6 @@
 ---
 name: 'Mint product sessions from the Account grant (login, re-mint on expiry)'
-status: planned
+status: building
 triggers:
   - kind: manual
 connections:
@@ -14,6 +14,22 @@ connections:
   - COMPONENT-KEYCHAIN
   - FEATURE-PRODUCT-SESSIONS
   - DIAGRAM-LOGIN
+notes:
+  - kind: state
+    text: >-
+      Client side built on feat/r1-login (kit/src/sessions.ts, context.ts), tested against fake
+      product servers. Products are data: a ProductModule with `sessions: { path }` is minted
+      (pyramid /v1/cli/sessions, sites /v1/cli/sessions, marketing /api/v1/cli/sessions). Login
+      mints all in parallel, then stores sequentially (one shared `account:sessions` index item
+      would lose updates otherwise). Re-mint: kit runWithRemint wraps op.run in runProductCli and in
+      MCP callTool (McpProduct.remint); on auth_expired with session.source==='account' it POSTs
+      `{workspace:<handle>, label}`, overwrites `<product>:<handle>`, updates the grant's
+      last_used_at, retries once; no grant or 401 grant_invalid → not_logged_in "Run `magic
+      login`."; manual and env keys pass auth_expired through untouched. auth_expired is recognised
+      the existing way (401 whose code/message contains "expired"), so product servers must answer
+      an expired key with e.g. 401 `key_expired`. Re-mint is reactive only: an expired `expires_at`
+      is not checked before the call.
+    sha: 9d2583d
 ---
 
 # Mint product sessions

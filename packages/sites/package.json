@@ -1,0 +1,19 @@
+{
+	"name": "@magic-spells/sites",
+	"private": true,
+	"description": "Sites product package for the Magic CLI (magic sites …). Never published on its own.",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=24"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"dependencies": {
+		"@magic-spells/kit": "*"
+	}
+}

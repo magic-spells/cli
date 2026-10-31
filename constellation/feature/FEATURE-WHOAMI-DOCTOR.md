@@ -32,6 +32,20 @@ notes:
       Deviations: doctor has no install-method or latest-version check (COMPONENT-UPGRADE is later);
       --workspace on top-level commands is a usage error.
     sha: '2952966'
+  - kind: state
+    text: >-
+      R1 on feat/r1-login (fce00fd). whoami --json is now `{ account: { user, grant_id, expires_at,
+      idle_expires_at, account_url } | null, products: { <id>: { source: env|account|manual|none,
+      stored_in: keychain|file|null, key (masked, the one commands use, null when several workspaces
+      and no default), default, workspaces: [{ handle, name, role, key (masked), expires_at }],
+      identity, error? } } }`. `source` changed meaning from R0 (was the storage location, now where
+      the key comes from; the location moved to `stored_in`). Identity runs through runWithRemint.
+      Exit 3 only when no grant and no key anywhere. doctor adds `account` (HEAD MAGIC_ACCOUNT_URL;
+      fail only with a grant stored) and `account grant` (warn when absent, fail not_logged_in when
+      idle-expired); `<id> key` names the workspace and source; a missing key is a warning when
+      anything else is signed in, and several workspaces without a default is a warning. logout
+      output is `{ removed, revoked, account: revoked|unsupported|failed|kept|none, errors? }`.
+    sha: 9d2583d
 ---
 
 # whoami and doctor

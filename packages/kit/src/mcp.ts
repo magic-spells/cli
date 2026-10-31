@@ -11,6 +11,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z, type ZodRawShape } from 'zod';
 
 import { destructiveDisabled } from './cli.js';
+import { runWithRemint, type Remint } from './context.js';
 import { MagicError, toMagicError, toToolError } from './errors.js';
 import {
 	onSurface,
@@ -24,6 +25,8 @@ export interface McpProduct<C = any> {
 	module: ProductModule<C>;
 	operations: Operation<any, unknown, C>[];
 	context: ContextSource<C>;
+	/** Re-mints an expired account session once per call (FLOW-PRODUCT-SESSION-MINT). */
+	remint?: Remint<C>;
 }
 
 export interface McpServerOptions {
@@ -66,7 +69,7 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 
 function registerProduct(server: McpServer, p: McpProduct): void {
 	for (const op of p.operations) {
-		if (onSurface(op, 'mcp')) registerTool(server, p.module.id, op, p.context);
+		if (onSurface(op, 'mcp')) registerTool(server, p.module.id, op, p.context, p.remint);
 	}
 	p.module.mcp?.register?.(server, p.context);
 }
@@ -89,7 +92,8 @@ export async function callTool(
 	product: string,
 	op: Operation,
 	context: ContextSource,
-	args: unknown
+	args: unknown,
+	remint?: Remint
 ): Promise<{ content: { type: 'text'; text: string }[]; isError?: true }> {
 	try {
 		const ctx = await context();
@@ -105,7 +109,7 @@ export async function callTool(
 		}
 		const parsed = op.input.safeParse(op.meta?.destructive ? rest : (args ?? {}));
 		if (!parsed.success) throw invalidInput(product, parsed.error);
-		const result = await op.run(parsed.data, ctx);
+		const result = await runWithRemint(op, parsed.data, ctx, remint);
 		return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
 	} catch (err) {
 		return toToolError(toMagicError(err, { product }));
@@ -127,12 +131,13 @@ function registerTool(
 	server: McpServer,
 	product: string,
 	op: Operation,
-	context: ContextSource
+	context: ContextSource,
+	remint?: Remint
 ): void {
 	const description = op.detail ? `${op.summary}\n\n${op.detail}` : op.summary;
 	server.registerTool(
 		toolName(op),
 		{ description, inputSchema: toolInputShape(op) },
-		async (args: unknown) => callTool(product, op, context, args)
+		async (args: unknown) => callTool(product, op, context, args, remint)
 	);
 }

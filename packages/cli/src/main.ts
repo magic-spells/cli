@@ -17,13 +17,14 @@ import {
 	type RenderIO,
 } from '@magic-spells/kit';
 
+import { confirmOnTty, openBrowser } from './browser.js';
 import { doctor } from './commands/doctor.js';
 import { login, logout } from './commands/login.js';
 import { serveMcp } from './commands/mcp.js';
 import { whoami } from './commands/whoami.js';
 import { PRODUCTS, type ProductEntry } from './products.js';
 import { readSecret } from './secret.js';
-import type { Shell } from './shell.js';
+import type { LoginTiming, Shell } from './shell.js';
 import { version } from './version.js';
 
 export { version } from './version.js';
@@ -34,16 +35,20 @@ export interface ShellDeps {
 	store?: CredentialStore;
 	products?: ProductEntry[];
 	readSecret?: (prompt: string) => Promise<string>;
+	openBrowser?: (url: string) => Promise<boolean>;
+	confirm?: ((question: string) => Promise<boolean>) | null;
+	platform?: NodeJS.Platform;
+	login?: LoginTiming;
 }
 
 const COMMANDS: Record<
 	string,
 	{ summary: string; run: (shell: Shell, args: string[]) => Promise<number> }
 > = {
-	login: { summary: 'store a product key: login --product-key [<product>]', run: login },
-	logout: { summary: 'forget stored keys: logout [--product <product>]', run: logout },
-	whoami: { summary: 'who each product key belongs to', run: whoami },
-	doctor: { summary: 'check the install, the keys and each product', run: doctor },
+	login: { summary: 'sign in and mint product keys: login [--device] [--product <p>]', run: login },
+	logout: { summary: 'revoke and forget credentials: logout [--product <p>]', run: logout },
+	whoami: { summary: 'your account and your workspaces in each product', run: whoami },
+	doctor: { summary: 'check the install, the sign-in and each product', run: doctor },
 	mcp: { summary: 'serve every product’s tools over stdio: mcp [--products a,b]', run: serveMcp },
 };
 
@@ -107,6 +112,11 @@ export async function run(argv: string[], deps: ShellDeps = {}): Promise<number>
 			opts,
 			readConfig,
 			readSecret: deps.readSecret ?? readSecret,
+			openBrowser: deps.openBrowser ?? openBrowser,
+			confirm:
+				deps.confirm !== undefined ? deps.confirm : process.stdin.isTTY ? confirmOnTty : null,
+			platform: deps.platform ?? process.platform,
+			login: deps.login ?? {},
 		};
 		return await command.run(shell, parsed.rest);
 	} catch (err) {

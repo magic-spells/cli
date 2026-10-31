@@ -11,7 +11,9 @@ claude mcp add magic -- npx -y magic-spells mcp
 ## Develop
 
 Node 24 (`nvm use`). npm workspaces: `packages/cli` (the `magic` shell, the only published
-package), `packages/kit` (the shared core), `packages/pyramid` (the Pyramid product).
+package), `packages/kit` (the shared core, including the Account client and product
+sessions), `packages/pyramid` (the Pyramid product), `packages/sites` and
+`packages/marketing` (sign-in only until their commands arrive).
 
 ```sh
 npm install
