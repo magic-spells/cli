@@ -25,16 +25,20 @@ export interface Shell {
 	readSecret: (prompt: string) => Promise<string>;
 }
 
-/** Load the named products (all when `ids` is undefined); unknown ids are usage errors. */
-export async function loadProducts(shell: Shell, ids?: string[]): Promise<ProductModule[]> {
+/** The named product entries (all when `ids` is undefined); unknown ids are usage errors. */
+export function chooseEntries(shell: Shell, ids?: string[]): ProductEntry[] {
 	const known = shell.entries.map((e) => e.id);
 	for (const id of ids ?? []) {
 		if (!known.includes(id)) {
 			throw usage(`unknown product "${id}"`, `Products: ${known.join(', ')}.`);
 		}
 	}
-	const chosen = ids ? shell.entries.filter((e) => ids.includes(e.id)) : shell.entries;
-	return Promise.all(chosen.map((e) => e.load()));
+	return ids ? shell.entries.filter((e) => ids.includes(e.id)) : shell.entries;
+}
+
+/** Load the named products (all when `ids` is undefined). */
+export async function loadProducts(shell: Shell, ids?: string[]): Promise<ProductModule[]> {
+	return Promise.all(chooseEntries(shell, ids).map((e) => e.load()));
 }
 
 /** The value after `--name`, or `--name=value`; removes both tokens from `args`. */

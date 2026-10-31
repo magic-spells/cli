@@ -32,11 +32,25 @@ export interface McpServerOptions {
 	/** Family text placed before the products' instructions, which then get headings. */
 	preamble?: string;
 	products: McpProduct[];
+	/** A product whose registration throws is left out and reported here. */
+	onSkip?: (product: string, err: unknown) => void;
 }
 
 /** Build (not connect) a server over the products' operations. */
 export function createMcpServer(opts: McpServerOptions): McpServer {
-	const sections = opts.products.flatMap((p) => {
+	// A dry run on a scratch server keeps one broken product from taking the rest
+	// down, and keeps it out of the instructions too.
+	const products = opts.products.filter((p) => {
+		try {
+			registerProduct(new McpServer({ name: opts.name, version: opts.version }), p);
+			return true;
+		} catch (err) {
+			if (!opts.onSkip) throw err;
+			opts.onSkip(p.module.id, err);
+			return false;
+		}
+	});
+	const sections = products.flatMap((p) => {
 		const text = p.module.mcp?.instructions?.(opts.version);
 		if (!text) return [];
 		return [opts.preamble ? `## ${p.module.title}\n\n${text}` : text];
@@ -46,13 +60,15 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 		{ name: opts.name, version: opts.version },
 		instructions ? { instructions } : {}
 	);
-	for (const p of opts.products) {
-		for (const op of p.operations) {
-			if (onSurface(op, 'mcp')) registerTool(server, p.module.id, op, p.context);
-		}
-		p.module.mcp?.register?.(server, p.context);
-	}
+	for (const p of products) registerProduct(server, p);
 	return server;
+}
+
+function registerProduct(server: McpServer, p: McpProduct): void {
+	for (const op of p.operations) {
+		if (onSurface(op, 'mcp')) registerTool(server, p.module.id, op, p.context);
+	}
+	p.module.mcp?.register?.(server, p.context);
 }
 
 /** The input shape an operation advertises; destructive ones gain `yes`. */

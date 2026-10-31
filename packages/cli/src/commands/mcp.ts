@@ -4,8 +4,8 @@
 // before any product code loads, and every diagnostic goes to stderr.
 //
 // No key is not fatal: the product's tools are still listed and each call resolves
-// the key then, answering not_logged_in until one is stored (a key stored later is
-// picked up without a restart). One stderr line says so at start.
+// the key then, answering not_logged_in until one is stored (a key stored, replaced
+// or removed later takes effect without a restart). One stderr line says so at start.
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -17,13 +17,12 @@ import {
 	toMagicError,
 	type ContextSource,
 	type McpProduct,
-	type OpContext,
 	type ProductModule,
 } from '@magic-spells/kit';
 
 import { version } from '../version.js';
 import {
-	loadProducts,
+	chooseEntries,
 	noMoreArgs,
 	rejectWorkspace,
 	takeValue,
@@ -54,33 +53,43 @@ export async function buildMcp(
 		.map((s) => s.trim())
 		.filter((s) => s.length > 0);
 
+	// A product that fails to load or register is left out with one stderr line.
+	const skipped = new Set<string>();
+	const skip = (id: string, err: unknown): void => {
+		skipped.add(id);
+		shell.io.err(`magic mcp: ${id}: left out (${toMagicError(err, { product: id }).message})\n`);
+	};
 	const products: McpProduct[] = [];
-	for (const module of await loadProducts(shell, ids)) {
-		const operations = await module.load();
-		products.push({ module, operations, context: lazyContext(shell, module, signal) });
+	for (const entry of chooseEntries(shell, ids)) {
+		try {
+			const module = await entry.load();
+			const operations = await module.load();
+			products.push({ module, operations, context: contextSource(shell, module, signal) });
+		} catch (err) {
+			skip(entry.id, err);
+		}
 	}
 	const server = createMcpServer({
 		name: 'magic',
 		version: version(),
 		preamble: PREAMBLE,
 		products,
+		onSkip: skip,
 	});
-	return { server, products };
+	return { server, products: products.filter((p) => !skipped.has(p.module.id)) };
 }
 
-/** Resolve the context on first use and keep it once a key resolves. */
-function lazyContext(shell: Shell, module: ProductModule, signal: AbortSignal): ContextSource {
-	let ready: Promise<OpContext> | undefined;
-	return () => {
-		ready ??= (async () => {
-			const config = productConfig(module, shell);
-			return buildContext(module, config, { env: shell.env, store: shell.store, signal });
-		})().catch((err: unknown) => {
-			ready = undefined;
-			throw err;
+/**
+ * The context for each call, built fresh: env and store are read every time, so a
+ * logout or a replaced key takes effect without restarting the server.
+ */
+function contextSource(shell: Shell, module: ProductModule, signal: AbortSignal): ContextSource {
+	return async () =>
+		buildContext(module, productConfig(module, shell), {
+			env: shell.env,
+			store: shell.store,
+			signal,
 		});
-		return ready;
-	};
 }
 
 /** Serve over stdio until SIGINT/SIGTERM or the host closes stdin, then exit 0. */

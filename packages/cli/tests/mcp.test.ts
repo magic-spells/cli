@@ -13,7 +13,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildMcp } from '../src/commands/mcp.js';
-import { PRODUCTS } from '../src/products.js';
+import { PRODUCTS, type ProductEntry } from '../src/products.js';
 import type { Shell } from '../src/shell.js';
 import { KEY, startFakeApi, type FakeApi } from './fake-api.js';
 import { memoryStore } from './helpers.js';
@@ -72,7 +72,7 @@ describe('magic mcp (in-process harness)', () => {
 		await client.close();
 	});
 
-	it('no key: tools still listed, calls answer not_logged_in, a key stored later is used', async () => {
+	it('no key: tools still listed, calls answer not_logged_in; store, replace and logout apply live', async () => {
 		const store = memoryStore();
 		const client = await connect(shell({}, store));
 		expect((await client.listTools()).tools).toHaveLength(17);
@@ -86,9 +86,60 @@ describe('magic mcp (in-process harness)', () => {
 		expect(JSON.parse((resource.contents[0] as { text: string }).text).error.code).toBe(
 			'not_logged_in'
 		);
+		const call = async () => {
+			const r = await client.callTool({ name: 'pyramid_whoami', arguments: {} });
+			return r.isError ? JSON.parse(text(r)).error.code : 'ok';
+		};
 		store.items['pyramid:manual'] = JSON.stringify({ key: KEY });
-		const after = await client.callTool({ name: 'pyramid_whoami', arguments: {} });
-		expect(after.isError).toBeFalsy();
+		expect(await call()).toBe('ok');
+		// A replaced key is used on the next call (the fake API rejects this one).
+		store.items['pyramid:manual'] = JSON.stringify({ key: 'pyk_ab23cd45_replaced' });
+		expect(await call()).toBe('auth_invalid');
+		// After logout the server is logged out too.
+		delete store.items['pyramid:manual'];
+		expect(await call()).toBe('not_logged_in');
+		await client.close();
+	});
+
+	it('a product that throws in load() or mcp.register is left out with one stderr line', async () => {
+		const broken = (id: string, where: 'load' | 'register'): ProductEntry => ({
+			id,
+			title: id,
+			load: async () => ({
+				id,
+				title: id,
+				credential: `${id.slice(0, 2)}k_`,
+				apiUrl: 'http://127.0.0.1:1',
+				client: () => ({}),
+				load: async () => {
+					if (where === 'load') throw new Error('load exploded');
+					return [];
+				},
+				mcp: {
+					instructions: () => `${id} rules`,
+					register: () => {
+						throw new Error('register exploded');
+					},
+				},
+			}),
+		});
+		const lines: string[] = [];
+		const s = {
+			...shell({ MAGIC_PYRAMID_KEY: KEY }),
+			entries: [...PRODUCTS, broken('aa', 'load'), broken('bb', 'register')],
+			io: { out: () => {}, err: (t: string) => void lines.push(t), isTTY: () => false },
+		};
+		const built = await buildMcp(s, [], new AbortController().signal);
+		expect(built.products.map((p) => p.module.id)).toEqual(['pyramid']);
+		expect(lines).toEqual([
+			'magic mcp: aa: left out (load exploded)\n',
+			'magic mcp: bb: left out (register exploded)\n',
+		]);
+		const [a, b] = InMemoryTransport.createLinkedPair();
+		const client = new Client({ name: 'harness', version: '0.0.0' });
+		await Promise.all([built.server.connect(a), client.connect(b)]);
+		expect((await client.listTools()).tools).toHaveLength(17);
+		expect(client.getInstructions()).not.toContain('bb rules');
 		await client.close();
 	});
 
