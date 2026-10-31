@@ -50,16 +50,18 @@ export async function login(shell: Shell, argv: string[]): Promise<number> {
 			'Run `magic login --product-key [<product>]` to store a product key.'
 		);
 	}
-	const named = args.length > 0 && !args[0]!.startsWith('--') ? args.shift() : undefined;
-	// Product ids never hold `_`; keys always do. Refuse a key typed as an argument
-	// without echoing it (DOC-SECURITY).
-	if (named?.includes('_')) {
+	// Product ids never hold `_`; keys always do. Refuse a key typed as any argument,
+	// and never quote a leftover argument back (DOC-SECURITY).
+	if (args.some((a) => a.includes('_'))) {
 		throw usage(
 			'Keys are never read from arguments.',
 			'Run `magic login --product-key` and paste the key at the prompt, or pipe it on stdin.'
 		);
 	}
-	noMoreArgs('login', args);
+	const named = args.length > 0 && !args[0]!.startsWith('--') ? args.shift() : undefined;
+	if (args.length > 0) {
+		throw usage('login: unexpected arguments.', 'Usage: magic login --product-key [<product>]');
+	}
 
 	const products = await loadProducts(shell, named ? [named] : undefined);
 	const label = named ? `${products[0]!.title} key` : 'Product key';
@@ -71,7 +73,7 @@ export async function login(shell: Shell, argv: string[]): Promise<number> {
 	const where = storeLabel(await shell.store.locate(manualItem(product.id)));
 	envShadowNote(shell, product);
 	render(
-		{ product: product.id, key: maskKey(key.trim(), product.credential), stored_in: where },
+		{ product: product.id, key: maskKey(key, product.credential), stored_in: where },
 		shell.opts,
 		shell.io
 	);

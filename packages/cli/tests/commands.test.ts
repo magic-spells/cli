@@ -42,11 +42,25 @@ describe('magic login --product-key', () => {
 		expect(store.items).toEqual({});
 	});
 
-	it('refuses a key given as an argument, without echoing it', async () => {
-		const r = await magic(['login', '--product-key', KEY], { readSecret: secret('unused') });
+	it('refuses a key given as any argument, without echoing it', async () => {
+		for (const argv of [
+			['login', '--product-key', KEY],
+			['login', '--product-key', 'pyramid', KEY],
+			['login', '--product-key', `--key=${KEY}`],
+		]) {
+			const r = await magic(argv, { readSecret: secret('unused') });
+			expect(r.code).toBe(2);
+			expect(r.stderr).not.toContain(SECRET);
+			expect(JSON.parse(r.stderr).error.message).toBe('Keys are never read from arguments.');
+		}
+	});
+
+	it('leftover arguments are a usage error that does not quote them', async () => {
+		const r = await magic(['login', '--product-key', 'pyramid', 'extra'], {
+			readSecret: secret(KEY),
+		});
 		expect(r.code).toBe(2);
-		expect(r.stderr).not.toContain(SECRET);
-		expect(JSON.parse(r.stderr).error.message).toBe('Keys are never read from arguments.');
+		expect(r.stderr).not.toContain('extra');
 	});
 
 	it('usage errors: no --product-key, empty key, unknown prefix, unknown product', async () => {
