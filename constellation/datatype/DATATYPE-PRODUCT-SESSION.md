@@ -17,7 +17,7 @@ The response body of every product's `POST /v1/cli/sessions`, stored as-is plus 
 ```ts
 interface ProductSession {
   product: 'pyramid' | 'sites' | 'marketing';
-  key: string;                 // pyk_… | pk_… | pmk_live_…; Bearer for that product's API
+  key: string;                 // pyramid_… | pk_… | pmk_live_…; Bearer for that product's API
   key_id: string;              // for revoke
   workspace: { id: string; handle: string; name: string };
   role: string;                // the person's role in that workspace, in the product's own words

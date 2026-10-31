@@ -3,7 +3,7 @@
 export const PYRAMID_CREDENTIAL = {
 	id: 'pyramid',
 	title: 'Pyramid',
-	credential: 'pyk_',
+	credential: 'pyramid_',
 	keyHelp: 'Pyramid → Settings → API Keys',
 } as const;
 

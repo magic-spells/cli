@@ -21,6 +21,12 @@ notes:
       exports the auth and workflow checks for `magic doctor`. src/login.ts is `magic pyramid login`
       (loopback, stores `pyramid:manual`).
     sha: 0304bf4
+  - kind: decision
+    text: >-
+      2026-10-31: the key never travels in a URL. Pyramid web's /auth/cli POSTs `{ state, key, name
+      }` (or `{ state, error }`) as a urlencoded body to the loopback callback; the listener refuses
+      GET and any `key` in the query string. Why: URLs are logged (browser history, proxies, server
+      logs). Rejected: the old GET with the key in the query string.
 ---
 
 # Pyramid package
@@ -38,6 +44,9 @@ The whole current `pyramid` tree under `magic pyramid …`.
 
 ## Changes on the move
 
+
 - `PYRAMID_ALLOW_DESTRUCTIVE` → `MAGIC_ALLOW_DESTRUCTIVE`; `PYRAMID_API_KEY` → `MAGIC_PYRAMID_KEY`; `--project` stays a Pyramid flag, `--workspace` is the kit's.
 - `set-key | show-key | logout` move to `magic login --product-key`, `magic whoami`, `magic logout --product pyramid`.
 - `magic pyramid whoami` keeps its product meaning (user, workspace, projects).
+- Keys are `pyramid_<8>_<32>` (credential prefix `pyramid_`); no other prefix is accepted.
+- `magic pyramid login`'s loopback listener reads `state`, `key`, `name` or `error` from a urlencoded POST body (capped at 4 KB); a GET or a `key` in the query string gets 405 and is never read.

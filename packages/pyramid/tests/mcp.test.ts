@@ -13,7 +13,11 @@ describe('pyramid MCP surface', () => {
 			products: [{ id: 'pyramid', apiUrl: pyramid.apiUrl }],
 			env: {},
 		});
-		const session = { product: 'pyramid', key: 'pyk_x_y', source: 'env' as const };
+		const session = {
+			product: 'pyramid',
+			key: 'pyramid_ab23cd45_0123456789abcdef0123456789abcdef',
+			source: 'env' as const,
+		};
 		const ctx = {
 			config,
 			session,

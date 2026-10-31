@@ -25,6 +25,7 @@ connections:
 
 ## Acceptance
 
+
 - The R1 gate: one `magic login` yields working Sites and Pyramid keys.
 - `magic login --device` over SSH works with the code typed on a phone.
-- After `magic logout`, `magic whoami` shows no identity and the old `pk_` and `pyk_` keys return 401.
+- After `magic logout`, `magic whoami` shows no identity and the old `pk_` and `pyramid_` keys return 401.
