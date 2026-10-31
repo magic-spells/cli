@@ -35,7 +35,7 @@ export interface McpServerOptions {
 /** Build (not connect) a server over the products' operations. */
 export function createMcpServer(opts: McpServerOptions): McpServer {
 	const instructions = opts.products
-		.map((p) => p.module.mcp?.instructions)
+		.map((p) => p.module.mcp?.instructions?.(opts.version))
 		.filter((t): t is string => typeof t === 'string' && t.length > 0)
 		.join('\n\n');
 	const server = new McpServer(

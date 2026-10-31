@@ -23,7 +23,7 @@ describe('pyramid MCP surface', () => {
 		};
 		const server = createMcpServer({
 			name: 'magic',
-			version: '0.0.0',
+			version: '9.8.7',
 			products: [{ module: pyramid, operations: await pyramid.load(), ctx }],
 		});
 		const internals = server as unknown as {
@@ -47,6 +47,6 @@ describe('pyramid MCP surface', () => {
 		expect(Object.keys(internals._registeredResourceTemplates)).toEqual([
 			'pyramid_project_workflow',
 		]);
-		expect(internals.server._instructions).toMatch(/^Pyramid MCP v/);
+		expect(internals.server._instructions).toMatch(/^Pyramid MCP v9\.8\.7 — /);
 	});
 });

@@ -66,7 +66,8 @@ export interface Operation<I = any, O = unknown, C = any> {
 export type ProductCommand = (argv: string[]) => Promise<number>;
 
 export interface ProductMcp<C = any> {
-	instructions?: string;
+	/** The product's model-facing text; `version` is the CLI's. */
+	instructions?: (version: string) => string;
 	/** Register the product's resources and prompts; names must carry the product prefix. */
 	register?(server: unknown, ctx: OpContext<C>): void;
 }

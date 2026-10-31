@@ -9,7 +9,7 @@ import { PyramidClient } from './client/pyramid-client.js';
 import { DEFAULT_API_URL, PYRAMID_CREDENTIAL } from './credential.js';
 import { doctorChecks } from './doctor.js';
 import { runLogin } from './login.js';
-import { INSTRUCTIONS, registerPyramidMcp } from './mcp/index.js';
+import { instructions, registerPyramidMcp } from './mcp/index.js';
 import type { PyramidApi } from './operations/index.js';
 
 export const pyramid: ProductModule<PyramidApi> = {
@@ -33,7 +33,7 @@ export const pyramid: ProductModule<PyramidApi> = {
 		},
 	},
 	doctor: doctorChecks,
-	mcp: { instructions: INSTRUCTIONS, register: registerPyramidMcp },
+	mcp: { instructions, register: registerPyramidMcp },
 };
 
 export default pyramid;
