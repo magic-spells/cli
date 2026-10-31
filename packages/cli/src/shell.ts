@@ -23,6 +23,21 @@ export interface Shell {
 	readConfig: () => ConfigFile | null;
 	/** Read a secret: hidden TTY prompt, or stdin when piped. */
 	readSecret: (prompt: string) => Promise<string>;
+	/** Open a URL in the browser; false when it could not. */
+	openBrowser: (url: string) => Promise<boolean>;
+	/** Ask yes/no; null when stdin is not a terminal (then --yes is required). */
+	confirm: ((question: string) => Promise<boolean>) | null;
+	platform: NodeJS.Platform;
+	/** Login waits, injected by tests: Ctrl-C, the device-poll clock, the loopback timeout. */
+	login: LoginTiming;
+}
+
+export interface LoginTiming {
+	/** Aborts the sign-in like Ctrl-C (SIGINT is wired when absent). */
+	interrupt?: AbortSignal;
+	sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+	now?: () => number;
+	loopbackTimeoutMs?: number;
 }
 
 /** The named product entries (all when `ids` is undefined); unknown ids are usage errors. */

@@ -26,6 +26,12 @@ notes:
       product's registry test. The shell's cross-product merged map is not built yet: `magic mcp`
       aggregation is FEATURE-MCP-AGGREGATOR's.
     sha: 5f84173
+  - kind: state
+    text: >-
+      R1: `magic pyramid login` is gone, so no product uses `commands` today; the hook stays in
+      ProductModule for later non-operation product commands. ProductModule also gained `sessions: {
+      path }` (FLOW-PRODUCT-SESSION-MINT).
+    sha: 9a25cf7
 ---
 
 # Operation registry

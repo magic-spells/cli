@@ -10,6 +10,9 @@ export * from './render.js';
 export * from './argv.js';
 export * from './context.js';
 export * from './doctor.js';
+export * from './account.js';
+export * from './loopback.js';
+export * from './sessions.js';
 export { runProductCli, helpText, destructiveDisabled, type RunProductDeps } from './cli.js';
 export {
 	createMcpServer,

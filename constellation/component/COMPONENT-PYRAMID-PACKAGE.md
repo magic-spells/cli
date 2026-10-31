@@ -27,6 +27,17 @@ notes:
       }` (or `{ state, error }`) as a urlencoded body to the loopback callback; the listener refuses
       GET and any `key` in the query string. Why: URLs are logged (browser history, proxies, server
       logs). Rejected: the old GET with the key in the query string.
+  - kind: state
+    text: >-
+      R1 (feat/r1-login, 2c25e3a; merged with release/0.2.0 at 5c53559): `magic pyramid login` and
+      src/login.ts (+ tests) are removed, with MAGIC_PYRAMID_WEB_URL, so the POST-body loopback
+      above (release/0.2.0) no longer ships in the CLI; the no-key-in-URL rule carries over to
+      Account's loopback, which only ever receives a `code`. Keys are `pyramid_<8>_<32>`
+      (PYRAMID_CREDENTIAL.credential = 'pyramid_'). The ProductModule declares `sessions: { path:
+      '/v1/cli/sessions' }`, so `magic login` mints its pyramid_ keys from the Account grant and the
+      kit re-mints them on auth_expired. The grant's `user` comes from an optional top-level `user`
+      in a sessions answer, else from `pyramid.whoami`. No `commands` map remains.
+    sha: 09b2af0
 ---
 
 # Pyramid package
@@ -44,9 +55,6 @@ The whole current `pyramid` tree under `magic pyramid …`.
 
 ## Changes on the move
 
-
 - `PYRAMID_ALLOW_DESTRUCTIVE` → `MAGIC_ALLOW_DESTRUCTIVE`; `PYRAMID_API_KEY` → `MAGIC_PYRAMID_KEY`; `--project` stays a Pyramid flag, `--workspace` is the kit's.
 - `set-key | show-key | logout` move to `magic login --product-key`, `magic whoami`, `magic logout --product pyramid`.
 - `magic pyramid whoami` keeps its product meaning (user, workspace, projects).
-- Keys are `pyramid_<8>_<32>` (credential prefix `pyramid_`); no other prefix is accepted.
-- `magic pyramid login`'s loopback listener reads `state`, `key`, `name` or `error` from a urlencoded POST body (capped at 4 KB); a GET or a `key` in the query string gets 405 and is never read.

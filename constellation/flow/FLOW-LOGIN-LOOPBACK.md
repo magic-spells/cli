@@ -1,6 +1,6 @@
 ---
 name: 'magic login with a loopback browser callback (desktop)'
-status: planned
+status: building
 triggers:
   - kind: manual
 connections:
@@ -9,6 +9,20 @@ connections:
   - FLOW-PRODUCT-SESSION-MINT
   - FLOW-LOGIN-DEVICE
   - DIAGRAM-LOGIN
+notes:
+  - kind: state
+    text: >-
+      Built on feat/r1-login, tested only against the fake Account (packages/kit/tests/fakes.ts).
+      kit/src/loopback.ts: 127.0.0.1:0, only GET /callback with the expected state and a code ends
+      it; other path/method/state or a missing code → 400 and keeps listening; a second callback
+      while the exchange runs → 400. error=access_denied with the right state → auth_cancelled;
+      other error values → auth_invalid. The exchange gets an AbortSignal of 30 s (code lifetime) +
+      Ctrl-C. Replies carry `connection: close`; on settle the server closes and drops idle
+      preconnects. Timeout 2 min → auth_expired with hint `magic login --device`. Exchange body:
+      grant_type=authorization_code, code, code_verifier, client_id, redirect_uri (form-encoded). If
+      the browser does not open, the authorize URL is printed to stderr and the listener keeps
+      waiting. Other query params (e.g. a future `iss`) are ignored rather than refused.
+    sha: 9d2583d
 ---
 
 # Login with a loopback callback

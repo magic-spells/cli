@@ -10,6 +10,7 @@ export type MagicErrorCode =
 	| 'not_logged_in'
 	| 'auth_invalid'
 	| 'auth_expired'
+	| 'auth_cancelled'
 	| 'permission_denied'
 	| 'not_found'
 	| 'ambiguous_name'
@@ -28,6 +29,7 @@ export const MAGIC_ERROR_CODES: readonly MagicErrorCode[] = [
 	'not_logged_in',
 	'auth_invalid',
 	'auth_expired',
+	'auth_cancelled',
 	'permission_denied',
 	'not_found',
 	'ambiguous_name',
@@ -100,6 +102,7 @@ export function exitCodeFor(code: MagicErrorCode): number {
 		case 'not_logged_in':
 		case 'auth_invalid':
 		case 'auth_expired':
+		case 'auth_cancelled':
 			return 3;
 		case 'permission_denied':
 			return 4;
