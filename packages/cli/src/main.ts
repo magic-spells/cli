@@ -5,7 +5,9 @@
 import {
 	createCredentialStore,
 	readPackageVersion,
+	renderError,
 	runProductCli,
+	usage,
 	type CredentialStore,
 	type RenderIO,
 	processIO,
@@ -69,6 +71,9 @@ export async function run(argv: string[], deps: ShellDeps = {}): Promise<number>
 		});
 	}
 
-	io.err(`error [usage]: unknown command "${cmd}"\nRun \`magic --help\` for usage.\n`);
-	return 2;
+	return renderError(
+		usage(`unknown command "${cmd}"`, 'Run `magic --help` for usage.'),
+		{ json: argv.includes('--json'), yes: false, quiet: false },
+		io
+	);
 }

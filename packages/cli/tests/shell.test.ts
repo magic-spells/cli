@@ -29,9 +29,13 @@ describe('magic shell', () => {
 		expect(cap.stdout).toBe('');
 	});
 
-	it('an unknown command is a usage error (exit 2)', async () => {
-		const { io: sink } = io();
-		expect(await run(['bogus'], { io: sink })).toBe(2);
+	it('an unknown command is a usage error (exit 2) in the envelope', async () => {
+		const piped = io();
+		expect(await run(['bogus'], { io: piped.io })).toBe(2);
+		expect(JSON.parse(piped.cap.stderr).error).toMatchObject({ code: 'usage', product: 'magic' });
+		const tty = io(true);
+		expect(await run(['bogus'], { io: tty.io })).toBe(2);
+		expect(tty.cap.stderr).toMatch(/^error \[usage\]: unknown command "bogus"\n  hint: /);
 	});
 
 	it('magic pyramid --help lists the Pyramid tree in pyramid-cli’s shape', async () => {
