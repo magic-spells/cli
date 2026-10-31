@@ -61,9 +61,22 @@ describe('MCP tools', () => {
 		expect(JSON.parse(ok.content[0]!.text).input).toEqual({ widget: 'W-1' });
 	});
 
-	it('bad input and thrown errors come back as product envelopes', async () => {
+	it('with MAGIC_ALLOW_DESTRUCTIVE=1 but no yes, the hint asks for yes: true', async () => {
+		const r = await callTool('demo', del, ctx(true), { widget: 'W-1' });
+		expect(JSON.parse(r.content[0]!.text).error.hint).toBe('Pass yes: true to confirm it.');
+		const off = await callTool('demo', del, ctx(false), { widget: 'W-1', yes: true });
+		expect(JSON.parse(off.content[0]!.text).error.hint).toContain('MAGIC_ALLOW_DESTRUCTIVE=1');
+	});
+
+	it('bad input is validation_failed naming the field, in the product envelope', async () => {
 		const r = await callTool('demo', move, ctx(false), {});
 		expect(r.isError).toBe(true);
-		expect(JSON.parse(r.content[0]!.text).error.product).toBe('demo');
+		const error = JSON.parse(r.content[0]!.text).error;
+		expect(error).toMatchObject({
+			code: 'validation_failed',
+			product: 'demo',
+			details: { field: 'widget' },
+		});
+		expect(error.message).toMatch(/^widget: /);
 	});
 });

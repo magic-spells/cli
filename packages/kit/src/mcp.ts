@@ -11,7 +11,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z, type ZodRawShape } from 'zod';
 
 import { destructiveDisabled } from './cli.js';
-import { toMagicError, toToolError } from './errors.js';
+import { MagicError, toMagicError, toToolError } from './errors.js';
 import {
 	onSurface,
 	toolName,
@@ -73,15 +73,33 @@ export async function callTool(
 ): Promise<{ content: { type: 'text'; text: string }[]; isError?: true }> {
 	try {
 		const { yes, ...rest } = (args ?? {}) as Record<string, unknown>;
-		if (op.meta?.destructive && (yes !== true || !ctx.config.allowDestructive)) {
-			throw destructiveDisabled(product);
+		if (op.meta?.destructive) {
+			if (!ctx.config.allowDestructive) throw destructiveDisabled(product);
+			if (yes !== true) {
+				throw new MagicError('destructive_action_disabled', 'This action is destructive.', {
+					product,
+					hint: 'Pass yes: true to confirm it.',
+				});
+			}
 		}
-		const input = op.input.parse(op.meta?.destructive ? rest : (args ?? {}));
-		const result = await op.run(input, ctx);
+		const parsed = op.input.safeParse(op.meta?.destructive ? rest : (args ?? {}));
+		if (!parsed.success) throw invalidInput(product, parsed.error);
+		const result = await op.run(parsed.data, ctx);
 		return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
 	} catch (err) {
 		return toToolError(toMagicError(err, { product }));
 	}
+}
+
+/** A zod failure as validation_failed, naming the first bad field. */
+function invalidInput(product: string, error: z.ZodError): MagicError {
+	const first = error.issues[0];
+	const field = first?.path.join('.') ?? '';
+	const message = first?.message ?? 'Invalid input.';
+	return new MagicError('validation_failed', field ? `${field}: ${message}` : message, {
+		product,
+		...(field ? { details: { field } } : {}),
+	});
 }
 
 function registerTool(server: McpServer, product: string, op: Operation, ctx: OpContext): void {
