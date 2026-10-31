@@ -1,6 +1,6 @@
 // `magic pyramid login` — the browser handoff from pyramid-cli's `pyramid login`
 // (COMPONENT-PYRAMID-PACKAGE, FEATURE-PYRAMID-MOVE): a loopback callback on 127.0.0.1
-// receives a workspace `pyk_` key minted by Pyramid web's /auth/cli and stores it as
+// receives a workspace `pyramid_` key minted by Pyramid web's /auth/cli and stores it as
 // the `pyramid:manual` item. Kept until R1's `magic login` replaces it. The key
 // arrives only in a urlencoded POST body (`state`, `key`, `name` or `error`), never in
 // the URL, because URLs get logged; a GET or a `key` in the query string is refused
@@ -199,7 +199,7 @@ export async function runLogin(argv: string[], io: AuthIO = realIO): Promise<num
 		}
 
 		const key = form.get('key')?.trim() ?? '';
-		if (!key.startsWith('pyk_')) {
+		if (!key.startsWith(PYRAMID_CREDENTIAL.credential)) {
 			res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
 			res.end('Invalid Pyramid key. Return to your terminal.\n');
 			io.out('Pyramid login returned an invalid key.');

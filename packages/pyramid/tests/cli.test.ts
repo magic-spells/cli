@@ -1,6 +1,6 @@
 // `magic pyramid …` end to end against a fake Pyramid API on 127.0.0.1: the shell's
 // product runner, the real registry, the real HTTP client, resolver and hydration.
-// This is the R0 gate shape (`magic pyramid task next` with a pyk_ key in
+// This is the R0 gate shape (`magic pyramid task next` with a pyramid_ key in
 // MAGIC_PYRAMID_KEY) without touching production.
 
 import { createServer, type IncomingMessage, type Server } from 'node:http';
@@ -12,7 +12,7 @@ import { runProductCli, type CredentialStore } from '@magic-spells/kit';
 
 import pyramid from '../src/index.js';
 
-const KEY = 'pyk_ab23cd45_0123456789abcdef';
+const KEY = 'pyramid_ab23cd45_0123456789abcdef0123456789abcdef';
 
 const WORKFLOW = {
 	stages: [{ id: 'stg-doing', key: 'doing', name: 'In Progress', position: '1' }],
@@ -139,7 +139,9 @@ describe('magic pyramid task next', () => {
 	});
 
 	it('a bad key is auth_invalid (exit 3) with the regenerate hint', async () => {
-		const r = await magicPyramid(['task', 'next'], { MAGIC_PYRAMID_KEY: 'pyk_wrong_key' });
+		const r = await magicPyramid(['task', 'next'], {
+			MAGIC_PYRAMID_KEY: 'pyramid_ffffffff_ffffffffffffffffffffffffffffffff',
+		});
 		expect(r.code).toBe(3);
 		expect(JSON.parse(r.stderr).error).toMatchObject({ code: 'auth_invalid', product: 'pyramid' });
 	});

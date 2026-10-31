@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 
 import { runLogin, type AuthIO } from '../src/login.js';
 
-const KEY = 'pyk_ab23cd45_0123456789abcdef0123456789abcdef';
+const KEY = 'pyramid_ab23cd45_0123456789abcdef0123456789abcdef';
 const SECRET = '0123456789abcdef0123456789abcdef';
 
 function fakeIO(stored: string | null = null, overrides: Partial<AuthIO> = {}) {
@@ -79,7 +79,7 @@ describe('runLogin', () => {
 		expect(await runLogin([], f.io)).toBe(0);
 		expect(f.stored).toBe(KEY);
 		const output = f.lines.join(' ');
-		expect(output).toContain('pyk_ab23cd45_…cdef');
+		expect(output).toContain('pyramid_ab23cd45_…cdef');
 		expect(output).not.toContain(SECRET);
 	});
 
