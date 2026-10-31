@@ -1,5 +1,5 @@
 {
-	"name": "@magic-spells/cli",
+	"name": "magic-spells",
 	"version": "0.1.0",
 	"description": "Magic CLI — one command line and MCP server for Magic Spells' hosted services.",
 	"license": "MIT",

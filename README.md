@@ -4,8 +4,8 @@ One command line and MCP server for Magic Spells' hosted services: `magic`. Usag
 environment and exit codes: [packages/cli/README.md](packages/cli/README.md) (the npm page).
 
 ```sh
-npx -y @magic-spells/cli --help
-claude mcp add magic -- npx -y @magic-spells/cli mcp
+npx -y magic-spells --help
+claude mcp add magic -- npx -y magic-spells mcp
 ```
 
 ## Develop
@@ -24,6 +24,6 @@ node packages/cli/bin/magic.js --help
 
 Publishing happens only in GitHub Actions on a `v*` tag (`.github/workflows/release.yml`):
 `prepack` bundles the private workspace packages into `packages/cli/dist` with esbuild, and
-third-party packages stay external as `@magic-spells/cli`'s dependencies.
+third-party packages stay external as `magic-spells`'s dependencies.
 
 MIT licensed.

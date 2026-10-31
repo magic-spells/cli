@@ -36,6 +36,6 @@ notes:
 
 ## Acceptance
 
-- `claude mcp add magic -- npx -y @magic-spells/cli mcp` then `tools/list` shows `pyramid_*` tools only.
+- `claude mcp add magic -- npx -y magic-spells mcp` then `tools/list` shows `pyramid_*` tools only.
 - With no Pyramid credential, `tools/list` still lists them and a call returns `isError` with code `not_logged_in`.
 - Nothing but JSON-RPC is written to stdout (a test pipes stdout through a JSON-RPC parser for a full session).

@@ -7,7 +7,7 @@ and dev workflow, magic CLI is for magic spells services and products, not open 
 better to have one CLI that does everything than have 4 CLIs for each project."
 
 ## Shape (decided 2026-10-18)
-- One published package `@magic-spells/cli`, one binary `magic`, one MCP server `magic mcp`. Product packages
+- One published package `magic-spells`, one binary `magic`, one MCP server `magic mcp`. Product packages
   live in this monorepo and are never published on their own. The Pyramid CLI moves in as the base and the old
   `@magic-spells/pyramid` package is deprecated on npm and its repo archived — no migration period, Pyramid has not
   launched (Cory 2026-10-18: "we can deprecate and archive pyramid CLI after this, pyramid isn't even launched yet").

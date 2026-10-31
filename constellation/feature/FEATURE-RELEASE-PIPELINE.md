@@ -16,7 +16,7 @@ notes:
       build, typecheck (sources + tests via tsconfig.test.json), test, smoke:pack. `release.yml` on
       `v*`: fails first if the tag is not `v<packages/cli version>`, then ci steps, then `npm
       publish -w packages/cli --access public --provenance` with NODE_AUTH_TOKEN=secrets.NPM_TOKEN
-      and id-token: write; a `smoke` job on three OSes runs `npx -y @magic-spells/cli@<version>
+      and id-token: write; a `smoke` job on three OSes runs `npx -y magic-spells@<version>
       --version/--help` with retries for registry lag. Bundling: packages/cli `prepack` =
       scripts/bundle.mjs — empties dist/, esbuild bundles src/main.ts (ESM, node24, splitting so
       products stay lazy chunks) with every private workspace package aliased to its src/index.ts;
@@ -48,5 +48,5 @@ notes:
 
 ## Acceptance
 
-- A `v0.1.0` tag publishes `@magic-spells/cli@0.1.0` with a provenance badge, and the smoke job passes.
+- A `v0.1.0` tag publishes `magic-spells@0.1.0` with a provenance badge, and the smoke job passes.
 - A tag that does not match `packages/cli/package.json` fails before publishing.

@@ -15,5 +15,5 @@ connections:
 2. **shell**: read `~/.cache/magic/update.json`. If `latest` > the running version, print one stderr line: "magic <latest> is available — run magic upgrade".
 3. **shell**: if `checked_at` is older than an hour, spawn a detached `magic __update-check` that fetches the npm dist-tag `latest` and rewrites the cache; the parent does not wait.
 4. **person**: `magic upgrade`.
-5. **upgrade**: detect the install (global npm/pnpm/bun prefix of the running file, or an `npx` cache path); for `npx`, print "you are running through npx; use npx -y @magic-spells/cli@latest" and exit 0.
-6. **upgrade**: run the manager's global install of `@magic-spells/cli@latest` with output streamed; exit with its status. The engine packages follow because they are pinned optional dependencies.
+5. **upgrade**: detect the install (global npm/pnpm/bun prefix of the running file, or an `npx` cache path); for `npx`, print "you are running through npx; use npx -y magic-spells@latest" and exit 0.
+6. **upgrade**: run the manager's global install of `magic-spells@latest` with output streamed; exit with its status. The engine packages follow because they are pinned optional dependencies.

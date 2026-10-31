@@ -1,9 +1,9 @@
-# @magic-spells/cli
+# magic-spells
 
 `magic`: one command line and MCP server for Magic Spells' hosted services. Node 24 or newer.
 
 ```sh
-npx -y @magic-spells/cli --help      # or: npm i -g @magic-spells/cli
+npx -y magic-spells --help      # or: npm i -g magic-spells
 ```
 
 ## Sign in with a product key
@@ -38,7 +38,7 @@ Output is JSON whenever stdout is not a terminal; errors go to stderr as
 ## MCP
 
 ```sh
-claude mcp add magic -- npx -y @magic-spells/cli mcp
+claude mcp add magic -- npx -y magic-spells mcp
 ```
 
 A product without a key still lists its tools; their calls answer `not_logged_in` until a

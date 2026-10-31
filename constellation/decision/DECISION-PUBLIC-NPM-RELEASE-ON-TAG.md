@@ -9,6 +9,17 @@ connections:
   - COMPONENT-UPGRADE
   - COMPONENT-SITES-ENGINE-PACKAGES
   - EXTERNAL-NPM
+notes:
+  - kind: decision
+    text: >-
+      Cory, 2026-10-31: the CLI publishes as the unscoped npm package `magic-spells`; the binary
+      stays `magic`, and the workspace packages `@magic-spells/kit` and `@magic-spells/pyramid` keep
+      their names. Why: `npx magic-spells login` is what people will guess; the hyphen matches the
+      `@magic-spells` scope and the GitHub org; an unscoped front-door CLI beside scoped libraries
+      is the usual pattern among the reference CLIs. Rejected: the scoped `cli` package under the
+      `@magic-spells` scope (the earlier plan; harder to guess, and that name is no longer used
+      anywhere); `magicspells` (only the domain is squashed, so the package name would not match the
+      scope and org); `magic` (taken on npm).
 ---
 
 # Public npm, release on tag
@@ -19,11 +30,11 @@ connections:
 
 ## Decision
 
-- `@magic-spells/cli` and its `@magic-spells/sites-engine-<os>-<arch>` packages publish to the public npm registry, `access: public`, with npm provenance.
+- `magic-spells` and its `@magic-spells/sites-engine-<os>-<arch>` packages publish to the public npm registry, `access: public`, with npm provenance.
 - Publishing happens only in GitHub Actions on a `v*` tag that Cory pushes. Agents prepare release branches and never tag or publish.
 - One version for the whole CLI. Product packages are unversioned workspaces (`private: true`). Engine packages carry the CLI's version and the CLI pins them exactly.
 - The engine binaries are built in the same workflow from a pinned Sites engine tag recorded in this repo.
-- `npx -y @magic-spells/cli <command>` is the documented zero-install path; `npm i -g @magic-spells/cli` the installed one.
+- `npx -y magic-spells <command>` is the documented zero-install path; `npm i -g magic-spells` the installed one.
 
 ## Alternatives
 

@@ -1,6 +1,6 @@
 # Release (FEATURE-RELEASE-PIPELINE, DECISION-PUBLIC-NPM-RELEASE-ON-TAG): on a `v*` tag
 # that Cory pushes, check the tag matches packages/cli, build, test, and publish
-# @magic-spells/cli to public npm with provenance. `prepack` bundles the private
+# magic-spells to public npm with provenance. `prepack` bundles the private
 # workspace packages into packages/cli/dist, so the tarball is self-contained.
 # Then install the published version on each OS. Agents never tag or publish.
 name: Release
@@ -59,9 +59,9 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           # The registry can take a moment to serve a new version.
           for attempt in 1 2 3 4 5 6; do
-            if out=$(npx -y "@magic-spells/cli@$version" --version 2>&1); then break; fi
+            if out=$(npx -y "magic-spells@$version" --version 2>&1); then break; fi
             echo "attempt $attempt: $out"; sleep 20
           done
           echo "$out"
           [ "$out" = "magic $version" ]
-          npx -y "@magic-spells/cli@$version" --help
+          npx -y "magic-spells@$version" --help

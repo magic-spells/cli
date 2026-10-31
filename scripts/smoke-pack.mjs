@@ -1,4 +1,4 @@
-// Packs @magic-spells/cli (prepack bundles it), installs the tarball into an empty
+// Packs magic-spells (prepack bundles it), installs the tarball into an empty
 // directory with only its declared dependencies, and runs the installed `magic`.
 // Proves the tarball is self-contained. Never publishes.
 
@@ -23,7 +23,10 @@ const out = execFileSync(
 		...sh,
 	}
 );
-const tarball = join(work, JSON.parse(out)[0].filename);
+const filename = JSON.parse(out)[0].filename;
+if (filename !== `magic-spells-${version}.tgz`)
+	throw new Error(`packed ${filename}, want magic-spells-${version}.tgz`);
+const tarball = join(work, filename);
 
 const app = join(work, 'app');
 mkdirSync(app);
@@ -34,7 +37,7 @@ execFileSync(npm, ['install', '--no-audit', '--no-fund', tarball], {
 	...sh,
 });
 
-const bin = join(app, 'node_modules/@magic-spells/cli/bin/magic.js');
+const bin = join(app, 'node_modules/magic-spells/bin/magic.js');
 const magic = (...args) =>
 	execFileSync(process.execPath, [bin, ...args], {
 		cwd: app,

@@ -1,7 +1,7 @@
 # @magic-spells/pyramid (workspace package)
 
 The Pyramid product inside the Magic CLI: `magic pyramid …` and the `pyramid_*` MCP
-tools. Private; ships inside `@magic-spells/cli`, never on its own. Moved here from
+tools. Private; ships inside `magic-spells`, never on its own. Moved here from
 `magic-spells/pyramid-cli` with its history (git subtree).
 
 ```sh

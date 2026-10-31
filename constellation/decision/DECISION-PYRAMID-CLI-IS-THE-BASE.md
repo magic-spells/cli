@@ -34,7 +34,7 @@ pyramid-cli (`pyramid/pyramid-cli`, npm `@magic-spells/pyramid` 0.1.1, public re
 - The generic parts of pyramid-cli become the kit ([[COMPONENT-KIT]]): config, keychain, argv parsing and flag derivation, render, errors, the hydrate/cache primitives, the MCP server builder, the doctor framework.
 - The Pyramid-specific parts become `packages/pyramid` ([[COMPONENT-PYRAMID-PACKAGE]]): operations, client, resolver, hydration rules, MCP instructions, resources and prompts.
 - The move keeps history: pyramid-cli's commits are imported with a subtree-style merge into `packages/pyramid` before the split ([[FLOW-MOVE-PYRAMID-CLI]]).
-- After R0 ships, `@magic-spells/pyramid` gets an `npm deprecate` message pointing at `@magic-spells/cli`, and `magic-spells/pyramid-cli` is archived on GitHub. No compatibility shim, no `pyramid` binary alias, no migration period.
+- After R0 ships, `@magic-spells/pyramid` gets an `npm deprecate` message pointing at `magic-spells`, and `magic-spells/pyramid-cli` is archived on GitHub. No compatibility shim, no `pyramid` binary alias, no migration period.
 
 ## Alternatives
 

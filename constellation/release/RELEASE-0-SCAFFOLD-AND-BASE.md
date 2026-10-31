@@ -17,8 +17,8 @@ notes:
       magic-spells/cli and push; (2) add the NPM_TOKEN secret (automation token) and confirm the npm
       scope allows provenance from that repo; (3) merge feat/r0-scaffold into release/0.1.0, watch
       CI on three OSes; (4) the live gate — `magic pyramid task next` with a real pyk_ key and
-      `claude mcp add magic -- npx -y @magic-spells/cli mcp` — never run by agents; (5) push the
-      v0.1.0 tag; (6) after the gate, `npm deprecate @magic-spells/pyramid` and archive
+      `claude mcp add magic -- npx -y magic-spells mcp` — never run by agents; (5) push the v0.1.0
+      tag; (6) after the gate, `npm deprecate @magic-spells/pyramid` and archive
       magic-spells/pyramid-cli (FEATURE-DEPRECATE-PYRAMID-CLI).
     sha: '2952966'
 ---
@@ -39,8 +39,8 @@ Theme: make `magic` real with one product. Everything lands in this repo except 
 
 ## Gate
 
-- `npx @magic-spells/cli pyramid task next` works with a `pyk_` key from `MAGIC_PYRAMID_KEY` or `magic login --product-key`.
-- `claude mcp add magic -- npx -y @magic-spells/cli mcp` lists the Pyramid tools as `pyramid_*`.
+- `npx magic-spells pyramid task next` works with a `pyk_` key from `MAGIC_PYRAMID_KEY` or `magic login --product-key`.
+- `claude mcp add magic -- npx -y magic-spells mcp` lists the Pyramid tools as `pyramid_*`.
 - pyramid-cli's test suite passes inside `packages/pyramid`.
 
 ## Lead-time items (Cory)
