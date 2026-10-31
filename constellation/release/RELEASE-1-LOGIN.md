@@ -6,6 +6,15 @@ connections:
   - DECISION-KEYRING-DEFAULT
   - RELEASE-0-SCAFFOLD-AND-BASE
   - RELEASE-2-SITES
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: the Magic CLI application is registered in Account production (handle magic-cli,
+      id 993a800d-2705-4408-bd85-686b0e182253, kind cli, product magic). DEFAULT_ACCOUNT_CLIENT_ID
+      is now 'magic-cli' (packages/kit/src/config.ts) and packages/cli and packages/kit are 0.2.0 on
+      release/0.2.0. Still outstanding before the first real login: the loopback callback
+      http://127.0.0.1/callback on that application, Pyramid and Sites server credentials reissued
+      with grants.introspect_cli, and Pyramid 0.8.0 / Sites 0.4.1 shipped to main.
 ---
 
 # R1: Login

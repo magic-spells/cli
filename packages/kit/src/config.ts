@@ -11,12 +11,15 @@ import { configDir, type PathEnv } from './paths.js';
 export const DEFAULT_ACCOUNT_URL = 'https://account.magicspells.io';
 
 /**
- * The `magic` cli-kind application's client_id in Account production. A placeholder
- * until the application is registered (RELEASE-1-LOGIN lead-time item);
- * MAGIC_ACCOUNT_CLIENT_ID overrides it. Public: PKCE, no client secret.
+ * The `magic` cli-kind application's client_id in Account production: the
+ * application's handle, registered 2026-10-31 (its id is
+ * 993a800d-2705-4408-bd85-686b0e182253; Account accepts either).
+ * MAGIC_ACCOUNT_CLIENT_ID overrides it for staging. Public: PKCE, no client
+ * secret. The placeholder is what login refuses, so a build that never had
+ * the id set cannot reach Account.
  */
 export const ACCOUNT_CLIENT_ID_PLACEHOLDER = 'set-magic-cli-client-id';
-export const DEFAULT_ACCOUNT_CLIENT_ID: string = ACCOUNT_CLIENT_ID_PLACEHOLDER;
+export const DEFAULT_ACCOUNT_CLIENT_ID = 'magic-cli';
 
 export interface CliOutput {
 	json: boolean;

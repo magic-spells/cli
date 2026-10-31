@@ -40,6 +40,11 @@ notes:
       through `rundll32 url.dll,FileProtocolHandler`: `cmd /c start` split the authorize URL at
       every `&`.
     sha: 9a25cf7
+  - kind: state
+    text: >-
+      2026-10-31: the compiled-in client id is the registered application's handle, magic-cli
+      (Account resolves client_id by handle or by id). The placeholder constant stays only as the
+      value login refuses; MAGIC_ACCOUNT_CLIENT_ID still overrides for staging.
 ---
 
 # Login

@@ -265,7 +265,10 @@ describe('magic login (loopback)', () => {
 		const opened: string[] = [];
 		const r = await magic(
 			['login'],
-			desktop({ env: env({ MAGIC_ACCOUNT_CLIENT_ID: '' }), openBrowser: fakeBrowser(opened) })
+			desktop({
+				env: env({ MAGIC_ACCOUNT_CLIENT_ID: 'set-magic-cli-client-id' }),
+				openBrowser: fakeBrowser(opened),
+			})
 		);
 		expect(r.code).toBe(2);
 		expect(errorOf(r.stderr).hint).toContain('MAGIC_ACCOUNT_CLIENT_ID');
