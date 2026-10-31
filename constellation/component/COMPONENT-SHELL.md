@@ -1,7 +1,7 @@
 ---
 name: 'Shell (packages/cli): the `magic` bin, global flags, product dispatch, login/logout/whoami/doctor/mcp/upgrade/telemetry'
 kind: cli
-status: planned
+status: building
 framework: typescript
 connections:
   - COMPONENT-KIT
@@ -20,6 +20,17 @@ connections:
   - FLOW-RUN-OPERATION
   - FEATURE-MONOREPO-SCAFFOLD
   - FEATURE-WHOAMI-DOCTOR
+notes:
+  - kind: state
+    text: >-
+      Built so far (packages/cli): bin/magic.js (plain JS Node >=24 check, then dist/main.js),
+      `magic version|--version`, `magic --help` (top level + products), lazy product dispatch
+      through src/products.ts (pyramid only) into the kit's runProductCli, exit codes via
+      process.exitCode. Global flags are parsed by the kit (--json --yes/-y --no-color/NO_COLOR
+      --quiet/-q --no-cache --workspace). Not built: login/logout/whoami/doctor
+      (FEATURE-WHOAMI-DOCTOR), mcp (FEATURE-MCP-AGGREGATOR), --product-key, upgrade, telemetry,
+      SIGINT -> OpContext.signal.
+    sha: 0304bf4
 ---
 
 # Shell

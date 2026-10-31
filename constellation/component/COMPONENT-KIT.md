@@ -1,7 +1,7 @@
 ---
 name: 'Kit (packages/kit): the shared core extracted from pyramid-cli — config, keychain, argv, render, errors, cache, MCP builder, doctor'
 kind: library
-status: planned
+status: building
 framework: typescript
 connections:
   - COMPONENT-KEYCHAIN

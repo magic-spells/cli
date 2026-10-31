@@ -7,6 +7,17 @@ connections:
   - COMPONENT-KIT
   - COMPONENT-MCP-AGGREGATOR
   - COMPONENT-SITES-ADAPTER
+notes:
+  - kind: deviation
+    text: >-
+      As built in packages/kit/src/errors.ts: `product` is a string; shell-raised errors (usage)
+      carry "magic". A 404 whose envelope names none of the product's declared nouns is `not_found`
+      with no details.kind. 400/422 put the rejected field in details.field as well as the hint.
+      Product-specific rule breaches without a family code map to validation_failed with
+      details.reason (Pyramid: status_not_in_stage, invalid_field_value, reply_depth_exceeded,
+      task_archived), done in packages/pyramid/src/errors.ts. MCP isError results carry the full `{
+      error: {...} }` envelope (pyramid-cli's toToolError returned the inner object).
+    sha: abf9d7d
 ---
 
 From pyramid-cli's `McpError.toJSON()` (`src/errors.ts`) with the product added and the not-found and ambiguous families collapsed. Printed to stderr by the CLI under `--json` and returned as the text of an `isError` MCP result.
