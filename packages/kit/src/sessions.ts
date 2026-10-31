@@ -158,9 +158,12 @@ export async function readSession(
 	}
 }
 
-/** `magic on <hostname>`: how the key is labelled in the product's key list. */
-export function sessionLabel(): string {
-	return `magic on ${hostname()}`;
+/**
+ * `magic on <hostname>`: how the key is labelled in the product's key list. Capped at
+ * 80 characters, the shortest label limit among the products (Marketing refuses longer).
+ */
+export function sessionLabel(host: string = hostname()): string {
+	return `magic on ${host}`.slice(0, 80);
 }
 
 export interface MintOptions {

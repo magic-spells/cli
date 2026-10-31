@@ -47,6 +47,26 @@ describe('startLoopback', () => {
 		await expect(lb.result).rejects.toMatchObject({ code: 'unknown', message: 'boom' });
 	});
 
+	it('an exchange under way is not cut off by the wait timeout', async () => {
+		const lb = await startLoopback({
+			state: 's',
+			timeoutMs: 20,
+			exchange: async (code) => {
+				await new Promise((r) => setTimeout(r, 60));
+				return `ok:${code}`;
+			},
+		});
+		expect((await fetch(`${lb.redirectUri}?code=c&state=s`)).status).toBe(200);
+		await expect(lb.result).resolves.toBe('ok:c');
+	});
+
+	it('a state of another length is refused like a wrong one', async () => {
+		const lb = await startLoopback({ state: 'state', exchange: exchangeTo('ok') });
+		expect((await fetch(`${lb.redirectUri}?code=c&state=stat`)).status).toBe(400);
+		expect((await fetch(`${lb.redirectUri}?code=c&state=state`)).status).toBe(200);
+		await expect(lb.result).resolves.toBe('ok:c');
+	});
+
 	it('times out as auth_expired with the --device hint', async () => {
 		const lb = await startLoopback({ state: 's', exchange: exchangeTo('ok'), timeoutMs: 20 });
 		const err = await lb.result.catch((e) => e);

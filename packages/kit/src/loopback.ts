@@ -9,6 +9,7 @@
 // with the right state is a cancel. Two minutes without a callback is auth_expired with
 // a hint to use the device flow; an abort (Ctrl-C) is auth_cancelled.
 
+import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
@@ -62,7 +63,7 @@ export async function startLoopback<T>(opts: LoopbackOptions<T>): Promise<Loopba
 		if (done || exchanging || req.method !== 'GET' || url.pathname !== '/callback') {
 			return reply(res, 400, 'Bad request.');
 		}
-		if (state !== opts.state) return reply(res, 400, 'Bad request.');
+		if (!sameState(state, opts.state)) return reply(res, 400, 'Bad request.');
 
 		const error = url.searchParams.get('error');
 		if (error) {
@@ -80,6 +81,9 @@ export async function startLoopback<T>(opts: LoopbackOptions<T>): Promise<Loopba
 		if (!code) return reply(res, 400, 'Bad request.');
 
 		exchanging = true;
+		// The code is spent once presented: the 2-minute wait must not end the login
+		// mid-exchange and orphan the grant Account is issuing.
+		clearTimeout(timer);
 		const signals = [AbortSignal.timeout(CODE_EXCHANGE_TIMEOUT_MS)];
 		if (opts.signal) signals.push(opts.signal);
 		try {
@@ -119,6 +123,14 @@ export async function startLoopback<T>(opts: LoopbackOptions<T>): Promise<Loopba
 	if (opts.signal?.aborted) onAbort();
 	else opts.signal?.addEventListener('abort', onAbort, { once: true });
 	return { redirectUri, result };
+}
+
+/** Constant-time state check (DOC-SECURITY "Loopback login"). */
+function sameState(got: string | null, want: string): boolean {
+	if (got === null) return false;
+	const a = Buffer.from(got);
+	const b = Buffer.from(want);
+	return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function reply(res: ServerResponse, status: number, text: string): void {

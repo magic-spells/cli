@@ -22,6 +22,7 @@ import {
 	readIndex,
 	revokeSessions,
 	saveGrant,
+	sessionLabel,
 	storeSessions,
 } from '../src/sessions.js';
 import { startFakeAccount, startFakeProduct, type FakeAccount, type FakeProduct } from './fakes.js';
@@ -103,6 +104,11 @@ async function loggedIn(store = memoryStore()) {
 }
 
 describe('mint and store', () => {
+	it('the label is magic on <host>, capped at 80 characters', () => {
+		expect(sessionLabel('box')).toBe('magic on box');
+		expect(sessionLabel('h'.repeat(200))).toHaveLength(80);
+	});
+
 	it('POSTs the grant as Bearer with { label }, stores one item per workspace', async () => {
 		const { store, grant } = await loggedIn();
 		const res = await mintSessions(demo(), {
