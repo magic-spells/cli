@@ -1,6 +1,6 @@
 {
 	"name": "magic-spells",
-	"version": "0.2.2",
+	"version": "0.3.0",
 	"description": "Magic CLI — one command line and MCP server for Magic Spells' hosted services.",
 	"license": "MIT",
 	"type": "module",
