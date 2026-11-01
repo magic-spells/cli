@@ -20,10 +20,12 @@ notes:
 
 ## Scope
 
-- [[COMPONENT-UPGRADE]] and [[FLOW-UPGRADE]]: cache, detached refresh, notice gating, install-method detection, `magic upgrade`.
+
+- [[COMPONENT-UPGRADE]] and [[FLOW-UPGRADE]]: cache, background refresh, notice gating, install-method detection, `magic update`.
 
 ## Acceptance
 
+
 - An older global install prints one notice line at most once per command and never under `--json` or `magic mcp`.
-- `magic upgrade` under global npm moves to the latest version and the engine package follows.
-- Under `npx`, `magic upgrade` prints the `@latest` form and changes nothing.
+- `magic update` under global npm moves to the latest version and the engine package follows.
+- Under `npx`, `magic update` says npx already fetches the latest version and changes nothing.

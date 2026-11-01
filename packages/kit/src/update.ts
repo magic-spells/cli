@@ -86,11 +86,18 @@ export function isNewer(latest: string, current: string): boolean {
 	return bPre && !aPre;
 }
 
+/**
+ * Windows global roots: npm's default (%AppData%\npm), the Node installer's own folder
+ * (nodejs), nvm-windows (nvm\v<version>) and Volta. A project's node_modules is not one.
+ */
+const WINDOWS_GLOBAL =
+	/\\(npm|nodejs|nvm\\v[^\\]+|volta\\tools\\image\\packages\\magic-spells)\\node_modules\\magic-spells\\/i;
+
 /** How the binary at `binPath` (its realpath) was installed. */
 export function installMethod(binPath: string): InstallMethod {
 	if (/[/\\]_npx[/\\]/.test(binPath)) return 'npx';
 	if (binPath.includes('/lib/node_modules/magic-spells/')) return 'npm-global';
-	if (binPath.includes('\\node_modules\\magic-spells\\')) return 'npm-global';
+	if (WINDOWS_GLOBAL.test(binPath)) return 'npm-global';
 	return 'other';
 }
 

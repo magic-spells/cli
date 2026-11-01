@@ -1,5 +1,7 @@
 ---
-name: 'R4: Marketing, telemetry and upgrade — packages/marketing moved in, consent-gated telemetry, magic upgrade, docs site'
+name: >-
+  R4: Marketing, telemetry and update — packages/marketing moved in, consent-gated telemetry, magic
+  update, docs site
 status: planned
 connections:
   - RELEASE-3-APP-SDK
@@ -18,13 +20,15 @@ Theme: finish the family and the CLI's own housekeeping. Later (not scheduled): 
 
 ## Scope
 
+
 - Marketing's CLI moved in as `packages/marketing`; **Lands in:** marketing — `POST /v1/cli/sessions` ([[FEATURE-MARKETING-MOVE]]).
 - Telemetry with an explicit consent prompt, off until answered ([[FEATURE-TELEMETRY]]).
-- The cached update notice and `magic upgrade` ([[FEATURE-UPGRADE]]).
+- The cached update notice and `magic update` ([[FEATURE-UPGRADE]]; shipped early in 0.3.0).
 - Public docs site (location open in [[DOC-OPEN-DECISIONS]]).
 
 ## Gate
 
+
 - `magic marketing contacts list` works with the key from `magic login`.
 - A fresh install asks about telemetry once, sends nothing before the answer, and `magic telemetry off` stops it.
-- An outdated install prints one notice line on stderr and `magic upgrade` updates it with the person's own package manager.
+- An outdated install prints one notice line on stderr and `magic update` updates a global npm install.

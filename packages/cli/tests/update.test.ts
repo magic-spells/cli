@@ -7,11 +7,16 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { installMethod } from '@magic-spells/kit';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { serveMcp } from '../src/commands/mcp.js';
 import type { UpdateDeps } from '../src/commands/update.js';
 import { version } from '../src/version.js';
 import { DEAD_URL, magic } from './helpers.js';
+
+// `magic mcp` without a stdio server: the shell's real mcp dispatch, a stubbed start.
+vi.mock('../src/commands/mcp.js', () => ({ serveMcp: vi.fn(async () => 0) }));
 
 const CURRENT = version();
 const NEWER = '99.0.0';
@@ -88,7 +93,41 @@ describe('magic update', () => {
 		expect(r.stderr).toContain('npm install -g magic-spells@latest');
 	});
 
-	it('through npx: nothing to upgrade', async () => {
+	it('install methods, including the Windows global roots and a project-local install', () => {
+		const cases: [string, string][] = [
+			[GLOBAL_BIN, 'npm-global'],
+			[
+				'C:\\Users\\ann\\AppData\\Roaming\\npm\\node_modules\\magic-spells\\bin\\magic.js',
+				'npm-global',
+			],
+			['C:\\Program Files\\nodejs\\node_modules\\magic-spells\\bin\\magic.js', 'npm-global'],
+			[
+				'C:\\Users\\ann\\AppData\\Roaming\\nvm\\v24.1.0\\node_modules\\magic-spells\\bin\\magic.js',
+				'npm-global',
+			],
+			[
+				'C:\\Users\\ann\\AppData\\Local\\Volta\\tools\\image\\packages\\magic-spells\\node_modules\\magic-spells\\bin\\magic.js',
+				'npm-global',
+			],
+			['C:\\proj\\node_modules\\magic-spells\\bin\\magic.js', 'other'],
+			['/home/ann/proj/node_modules/magic-spells/bin/magic.js', 'other'],
+			[NPX_BIN, 'npx'],
+			[
+				'C:\\Users\\ann\\AppData\\Local\\npm-cache\\_npx\\0a1b\\node_modules\\magic-spells\\bin\\magic.js',
+				'npx',
+			],
+			[CHECKOUT_BIN, 'other'],
+		];
+		for (const [path, method] of cases) expect([path, installMethod(path)]).toEqual([path, method]);
+	});
+
+	it('a project-local install on Windows prints the command instead of installing', async () => {
+		const r = await runUpdate([], 'C:\\proj\\node_modules\\magic-spells\\bin\\magic.js');
+		expect(r.installs).toEqual([]);
+		expect(r.stdout).toContain('npm install -g magic-spells@latest');
+	});
+
+	it('through npx: nothing to update', async () => {
 		const r = await runUpdate([], NPX_BIN);
 		expect(r.code).toBe(0);
 		expect(r.stdout).toContain("You're running magic through npx");
@@ -250,11 +289,19 @@ describe('the update notice', () => {
 			['--quiet', ['whoami', '--quiet'], {}],
 			['a non-TTY stderr', ['whoami'], { stderrIsTTY: false }],
 			['piped stdout', ['whoami'], { tty: false }],
-			['magic mcp', ['mcp', '--help'], {}],
 			['magic update', ['update', '--check'], {}],
 			['--help', ['whoami', '--help'], {}],
 			['--version', ['--version'], {}],
 		];
+		it('magic mcp (the real dispatch; the server start is stubbed)', async () => {
+			vi.mocked(serveMcp).mockClear();
+			const r = await run(['mcp']);
+			expect(vi.mocked(serveMcp)).toHaveBeenCalledTimes(1);
+			expect(r.stderr).toBe('');
+			expect(r.stdout).toBe('');
+			expect(registry.hits).toBe(0);
+		});
+
 		for (const [name, argv, opts] of cases) {
 			it(name, async () => {
 				const r = await run(argv, opts);

@@ -44,8 +44,9 @@ Today the family has a CLI per product, each built by copying the last (research
 
 ## Decision
 
+
 - One npm package `magic-spells`, one binary `magic`, one MCP server `magic mcp`. Public on npm, source public on GitHub, MIT like pyramid-cli.
-- The top level belongs to the person and the family: `magic login | logout | whoami | doctor | mcp | upgrade` (plus `magic telemetry on|off`).
+- The top level belongs to the person and the family: `magic login | logout | whoami | doctor | mcp | update` (plus `magic telemetry on|off`).
 - Each product is a namespace: `magic pyramid …`, `magic sites …`, `magic app …` (the Sites App SDK), `magic marketing …`. Later products (Reviews, Wishlist) arrive as further namespaces, not further binaries.
 - Product command packages are npm workspaces in this monorepo (`packages/pyramid`, `packages/sites`, `packages/app`, `packages/marketing`) bundled into the one published package. The only other published packages are the per-platform Sites engine binaries ([[DECISION-SITES-VIA-BINARY-ADAPTER]]).
 - `magic whoami` answers "who am I and what can I reach": the Account identity plus the workspaces reachable in each product. `magic pyramid whoami` keeps its product meaning.
