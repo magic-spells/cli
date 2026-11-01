@@ -28,6 +28,14 @@ notes:
       2026-10-31: shipped in magic-spells 0.2.0. Account's cli-kind loopback exception is merged and
       the application `magic-cli` is registered, so the flow runs against real Account rather than
       only the fake.
+  - kind: state
+    text: >-
+      2026-10-31, 0.2.2: the loopback's browser answers (signed in, cancelled, failed, and the 400
+      "Bad request.") are small static HTML pages from one template in packages/kit/src/loopback.ts:
+      `text/html; charset=utf-8`, `cache-control: no-store`, CSP `default-src 'none'; style-src
+      'unsafe-inline'`, no scripts or external assets, message centred, system fonts, light/dark via
+      prefers-color-scheme, 16px gutters. Heading + the unchanged sentence. Texts are constants; the
+      query string and errors are never interpolated (nothing is escaped, so keep it that way).
 ---
 
 # Login with a loopback callback

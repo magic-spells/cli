@@ -7,5 +7,5 @@ export const PYRAMID_CREDENTIAL = {
 	keyHelp: 'Pyramid → Settings → API Keys',
 } as const;
 
-/** The API lives at the `api.` subdomain; the bare host serves the web app. */
-export const DEFAULT_API_URL = 'https://api.pyramid.magicspells.io';
+/** Pyramid serves its API on the web host. */
+export const DEFAULT_API_URL = 'https://pyramid.magicspells.io';

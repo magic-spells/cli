@@ -13,14 +13,26 @@ describe('startLoopback', () => {
 		expect(lb.redirectUri).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/callback$/);
 		const res = await fetch(`${lb.redirectUri}?code=c1&state=s`);
 		expect(res.status).toBe(200);
-		expect(await res.text()).toContain('You can close this tab');
+		expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
+		expect(res.headers.get('content-security-policy')).toBe(
+			"default-src 'none'; style-src 'unsafe-inline'"
+		);
+		expect(res.headers.get('cache-control')).toBe('no-store');
+		const body = await res.text();
+		expect(body).toMatch(/^<!doctype html>/);
+		expect(body).toContain('<h1>Signed in</h1>');
+		expect(body).toContain('Signed in to Magic Spells. You can close this tab.');
+		expect(body).not.toContain('<script');
 		await expect(lb.result).resolves.toBe('ok:c1');
 	});
 
 	it('wrong path, method, state, or a missing code: 400 and still listening', async () => {
 		const lb = await startLoopback({ state: 's', exchange: exchangeTo('ok') });
 		const base = lb.redirectUri.replace('/callback', '');
-		expect((await fetch(`${base}/other?code=c&state=s`)).status).toBe(400);
+		const bad = await fetch(`${base}/other?code=c&state=s`);
+		expect(bad.status).toBe(400);
+		expect(bad.headers.get('content-type')).toBe('text/html; charset=utf-8');
+		expect(await bad.text()).toContain('Bad request.');
 		expect((await fetch(`${lb.redirectUri}?code=c&state=s`, { method: 'POST' })).status).toBe(400);
 		expect((await fetch(`${lb.redirectUri}?code=c&state=wrong`)).status).toBe(400);
 		expect((await fetch(`${lb.redirectUri}?state=s`)).status).toBe(400);
@@ -32,7 +44,11 @@ describe('startLoopback', () => {
 
 	it('error=access_denied with the right state is auth_cancelled', async () => {
 		const lb = await startLoopback({ state: 's', exchange: exchangeTo('ok') });
-		await fetch(`${lb.redirectUri}?error=access_denied&state=s`);
+		const res = await fetch(`${lb.redirectUri}?error=access_denied&state=s`);
+		expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
+		expect(await res.text()).toContain(
+			'Sign-in cancelled. You can close this tab and return to your terminal.'
+		);
 		await expect(lb.result).rejects.toMatchObject({ code: 'auth_cancelled' });
 	});
 
@@ -43,7 +59,10 @@ describe('startLoopback', () => {
 				throw new Error('boom');
 			},
 		});
-		expect((await fetch(`${lb.redirectUri}?code=c&state=s`)).status).toBe(400);
+		const res = await fetch(`${lb.redirectUri}?code=c&state=s`);
+		expect(res.status).toBe(400);
+		expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
+		expect(await res.text()).toContain('Sign-in failed. Return to your terminal for details.');
 		await expect(lb.result).rejects.toMatchObject({ code: 'unknown', message: 'boom' });
 	});
 

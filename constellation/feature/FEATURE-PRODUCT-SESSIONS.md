@@ -37,6 +37,11 @@ notes:
       `/internal/v1/cli-grants/introspect`; expired keys answer 401 `key_expired`. The CLI side
       shipped in magic-spells 0.2.0. The Lands-in line's `pk_` and "marketing in R4" are superseded
       (see Scope).
+  - kind: state
+    text: >-
+      2026-10-31, 0.2.2: hosts corrected. Pyramid https://pyramid.magicspells.io/v1/cli/sessions,
+      Sites https://sites-api.magicspells.io/v1/cli/sessions; the api.pyramid / api.sites hosts in
+      the earlier note were wrong (no certificate / no such host).
 ---
 
 # Product sessions

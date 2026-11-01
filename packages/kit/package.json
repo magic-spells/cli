@@ -1,6 +1,6 @@
 {
 	"name": "@magic-spells/kit",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"private": true,
 	"description": "The shared core every Magic CLI product package builds on. Never published on its own.",
 	"license": "MIT",

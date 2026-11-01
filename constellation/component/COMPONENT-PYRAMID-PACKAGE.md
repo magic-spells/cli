@@ -47,7 +47,7 @@ The whole current `pyramid` tree under `magic pyramid …`.
 ## Contents (from pyramid-cli)
 
 - `operations/` — the 16 operations (`whoami`, projects, workflow, tasks read and write, comments), renamed `pyramid.<noun>.<verb>` (`list_my_tasks` → `pyramid.task.list-mine`, CLI `magic pyramid task next|update|comment` unchanged in shape).
-- `client/` — `pyramid-client.ts` on the kit's HTTP client; base URL default `https://api.pyramid.magicspells.io`.
+- `client/` — `pyramid-client.ts` on the kit's HTTP client; base URL default `https://pyramid.magicspells.io` (the API is served on the web host; 0.2.2).
 - `resolver/` — `src/cache/resolver.ts` precedence (project handle → name → fuzzy; status key → name → category → stage; user email → display name → fuzzy; label) and its 60 s workflow cache.
 - `hydrate/` — the joins from `src/hydrate.ts` (status, stage, users, labels → names).
 - `mcp/` — the INSTRUCTIONS text, resources and prompts.

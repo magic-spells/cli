@@ -24,6 +24,13 @@ notes:
       resolved boolean gates it). The config file gained `updateCheck: { checkedAt, latest }`, the
       cached registry check, written by the CLI (kit update.ts writeUpdateCheck keeps every other
       key). It is the only value the CLI writes to config.json.
+  - kind: state
+    text: >-
+      2026-10-31, 0.2.2: product API defaults are pyramid `https://pyramid.magicspells.io`
+      (MAGIC_PYRAMID_URL), sites `https://sites-api.magicspells.io` (MAGIC_SITES_URL), marketing
+      `https://marketing.magicspells.io` (MAGIC_MARKETING_URL, not deployed yet). The
+      `api.pyramid.magicspells.io` default in the interface sketch above is superseded. Covered by
+      packages/cli/tests/hosts.test.ts (default + env override per product).
 ---
 
 Resolution order for every value: flag → environment → config file → default. Credentials: environment → store ([[DATATYPE-KEYCHAIN-ENTRY]]) → `not_logged_in`.
