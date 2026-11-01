@@ -118,6 +118,29 @@ describe('macOS keychain backend', () => {
 		]);
 	});
 
+	const readBack = async (printed: string) => {
+		const exec: ExecFile = (_file, args) =>
+			args[0] === 'find-generic-password' ? `${printed}\n` : '';
+		return createCredentialStore({ platform: 'darwin', env: {}, home: home(), exec }).get(
+			'demo:manual'
+		);
+	};
+
+	it('decodes the hex `security -w` prints for a non-ASCII value', async () => {
+		const json = '{"name":"José Café"}';
+		expect(await readBack(Buffer.from(json, 'utf8').toString('hex'))).toBe(json);
+	});
+
+	it('returns an ordinary ASCII value unchanged', async () => {
+		expect(await readBack('magic_abc123')).toBe('magic_abc123');
+		expect(await readBack('{"key":"k1"}')).toBe('{"key":"k1"}');
+	});
+
+	it('returns hex-looking output unchanged when it is not valid UTF-8', async () => {
+		expect(await readBack('ff00ab')).toBe('ff00ab');
+		expect(await readBack('abc')).toBe('abc');
+	});
+
 	it('falls back to the file when the keychain refuses, and get never throws', async () => {
 		const warn = vi.fn();
 		const exec: ExecFile = () => {
