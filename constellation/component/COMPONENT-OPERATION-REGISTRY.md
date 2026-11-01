@@ -1,7 +1,7 @@
 ---
 name: 'Operation registry: the per-product list of operations, and the shell''s merged view across products'
 kind: library
-status: planned
+status: built
 framework: typescript
 connections:
   - DATATYPE-OPERATION
@@ -32,6 +32,13 @@ notes:
       ProductModule for later non-operation product commands. ProductModule also gained `sessions: {
       path }` (FLOW-PRODUCT-SESSION-MINT).
     sha: 9a25cf7
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.1.0; `magic mcp` merges the products since 0.1.0 and
+      0.2.0 added the sign-in-only `sites` and `marketing` modules. The interface sketch's
+      credential union is stale: as built `credential` is a string and the live prefixes are
+      `pyramid_`, `sites_` and `marketing_` (not `pk_` / `pmk_`); `ak_` belongs to the unbuilt app
+      package.
 ---
 
 # Operation registry

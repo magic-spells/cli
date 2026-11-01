@@ -1,7 +1,7 @@
 ---
 name: 'Kit (packages/kit): the shared core extracted from pyramid-cli — config, keychain, argv, render, errors, cache, MCP builder, doctor'
 kind: library
-status: building
+status: built
 framework: typescript
 connections:
   - COMPONENT-KEYCHAIN
@@ -15,6 +15,13 @@ connections:
   - DATATYPE-OPERATION
   - FEATURE-KIT-EXTRACTION
   - DECISION-PYRAMID-CLI-IS-THE-BASE
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.1.0 and extended in 0.2.0 (account, loopback, sessions,
+      credentials modules) and 0.2.1 (zod 4). Every row of the table is built except `update,
+      telemetry`, which arrive with COMPONENT-UPGRADE / COMPONENT-TELEMETRY (R4, planned); the
+      keychain row is still the R0 backend (FEATURE-KEYRING planned).
 ---
 
 # Kit

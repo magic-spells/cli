@@ -37,6 +37,7 @@ function shell(env: NodeJS.ProcessEnv, store = memoryStore()): Shell {
 		confirm: null,
 		platform: process.platform,
 		login: {},
+		update: {},
 	};
 }
 

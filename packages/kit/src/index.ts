@@ -13,6 +13,7 @@ export * from './doctor.js';
 export * from './account.js';
 export * from './loopback.js';
 export * from './sessions.js';
+export * from './update.js';
 export { runProductCli, helpText, destructiveDisabled, type RunProductDeps } from './cli.js';
 export {
 	createMcpServer,

@@ -1,6 +1,6 @@
 ---
 name: 'One CLI for the hosted services: magic-spells, binary `magic`, products as namespaces'
-status: planned
+status: built
 connections:
   - DECISION-NOT-FOR-FRAMEWORKS
   - DECISION-PYRAMID-CLI-IS-THE-BASE
@@ -17,8 +17,14 @@ connections:
 notes:
   - kind: decision
     text: >-
-      2026-10-18 (MAGIC-CLI-BRIEF ruling 1): one published package, one binary, one MCP server; product
-      packages are npm workspaces inside this repo and are never published on their own.
+      2026-10-18 (MAGIC-CLI-BRIEF ruling 1): one published package, one binary, one MCP server;
+      product packages are npm workspaces inside this repo and are never published on their own.
+  - kind: state
+    text: >-
+      2026-10-31: implemented — one package `magic-spells`, binary `magic`, published as 0.1.0,
+      0.2.0 and 0.2.1, with `pyramid`, `sites` and `marketing` namespaces (the last two sign-in-only
+      until R2/R4). Product prefixes today: `sites_` (was `pk_`), `pyramid_`, `marketing_` (was
+      `pmk_`); the Context's prefixes are the 2026-10-18 baseline.
 ---
 
 # One CLI for the hosted services
@@ -38,8 +44,9 @@ Today the family has a CLI per product, each built by copying the last (research
 
 ## Decision
 
+
 - One npm package `magic-spells`, one binary `magic`, one MCP server `magic mcp`. Public on npm, source public on GitHub, MIT like pyramid-cli.
-- The top level belongs to the person and the family: `magic login | logout | whoami | doctor | mcp | upgrade` (plus `magic telemetry on|off`).
+- The top level belongs to the person and the family: `magic login | logout | whoami | doctor | mcp | update` (plus `magic telemetry on|off`).
 - Each product is a namespace: `magic pyramid …`, `magic sites …`, `magic app …` (the Sites App SDK), `magic marketing …`. Later products (Reviews, Wishlist) arrive as further namespaces, not further binaries.
 - Product command packages are npm workspaces in this monorepo (`packages/pyramid`, `packages/sites`, `packages/app`, `packages/marketing`) bundled into the one published package. The only other published packages are the per-platform Sites engine binaries ([[DECISION-SITES-VIA-BINARY-ADAPTER]]).
 - `magic whoami` answers "who am I and what can I reach": the Account identity plus the workspaces reachable in each product. `magic pyramid whoami` keeps its product meaning.

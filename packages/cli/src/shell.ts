@@ -11,6 +11,7 @@ import {
 	type RenderIO,
 } from '@magic-spells/kit';
 
+import type { UpdateDeps } from './commands/update.js';
 import type { ProductEntry } from './products.js';
 
 export interface Shell {
@@ -30,6 +31,8 @@ export interface Shell {
 	platform: NodeJS.Platform;
 	/** Login waits, injected by tests: Ctrl-C, the device-poll clock, the loopback timeout. */
 	login: LoginTiming;
+	/** `magic update` seams, injected by tests: registry, bin path, the npm install. */
+	update: UpdateDeps;
 }
 
 export interface LoginTiming {

@@ -1,6 +1,6 @@
 ---
 name: 'Mint product sessions from the Account grant (login, re-mint on expiry)'
-status: building
+status: built
 triggers:
   - kind: manual
 connections:
@@ -30,6 +30,13 @@ notes:
       an expired key with e.g. 401 `key_expired`. Re-mint is reactive only: an expired `expires_at`
       is not checked before the call.
     sha: 9d2583d
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.2.0. The server half is merged in all three products
+      (Sites/Pyramid `/v1/cli/sessions`, Marketing `/api/v1/cli/sessions`), each introspecting via
+      Account's `/internal/v1/cli-grants/introspect` (`grants.introspect_cli`) and answering expired
+      keys with 401 `key_expired`, which is what triggers the re-mint. Step 1's path is per product
+      (Marketing differs).
 ---
 
 # Mint product sessions

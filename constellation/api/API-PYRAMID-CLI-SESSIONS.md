@@ -2,7 +2,7 @@
 name: >-
   Pyramid CLI sessions: POST /v1/cli/sessions — Account cli grant in, workspace-scoped pyramid_ keys
   out
-status: planned
+status: built
 path: /v1/cli/sessions
 methods:
   POST:
@@ -17,6 +17,11 @@ connections:
   - COMPONENT-PYRAMID-PACKAGE
   - EXTERNAL-PYRAMID
 notes:
+  - kind: state
+    text: >-
+      2026-10-31: merged in Pyramid and used by magic-spells 0.2.0. Mints `pyramid_<8>_<32>` keys;
+      introspects through Account's `/internal/v1/cli-grants/introspect` with
+      `grants.introspect_cli`; expired keys answer 401 `key_expired` on every route.
   - kind: state
     text: >-
       2026-10-31, 0.2.2: the route is served on `https://pyramid.magicspells.io` (Pyramid's API

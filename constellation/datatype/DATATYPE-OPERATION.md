@@ -1,6 +1,6 @@
 ---
 name: 'Operation: name, summary, zod input, run, meta (cli shape, destructive, surfaces)'
-status: planned
+status: built
 connections:
   - DECISION-OPERATIONS-ARE-THE-CONTRACT
   - DECISION-OPERATION-CONTRACT
@@ -17,6 +17,10 @@ notes:
       JSON into one input key), generalising pyramid-cli's hard-coded --unarchive/--mine/--file.
       OpContext is generic over the client (`OpContext<C>`), and `cache` is a TtlCache<unknown>.
     sha: 5f84173
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.1.0 (packages/kit/src/operation.ts) with the deviations
+      noted above; 0.2.1 moved every workspace to zod 4 (^4.6.7).
 ---
 
 pyramid-cli's `Operation` (`src/operations/index.ts`) generalised. Sites' Go `ops.Operation` (`Name`, `Summary`, `Detail`, `Surfaces`, `Input`, `Run`) maps onto the same fields in the adapter.

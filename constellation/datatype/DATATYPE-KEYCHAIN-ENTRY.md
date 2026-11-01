@@ -1,11 +1,17 @@
 ---
 name: 'Keychain entry: one item per credential under service io.magicspells.cli'
-status: building
+status: built
 connections:
   - DECISION-KEYRING-DEFAULT
   - COMPONENT-KEYCHAIN
   - DATATYPE-ACCOUNT-CLI-GRANT
   - DATATYPE-PRODUCT-SESSION
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: the item layout (account:grant, account:sessions, <product>:<handle>,
+      <product>:manual) shipped in magic-spells 0.2.0, on the R0 store backend (macOS `security` or
+      the 0600 file).
 ---
 
 Service `io.magicspells.cli`. The item name is the keyring "account" field; the value is a JSON string.

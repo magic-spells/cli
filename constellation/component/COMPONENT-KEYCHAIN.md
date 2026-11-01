@@ -1,7 +1,7 @@
 ---
 name: 'Keychain: one cross-platform credential store (service io.magicspells.cli) with a 0600 file fallback'
 kind: library
-status: planned
+status: building
 framework: typescript
 connections:
   - DECISION-KEYRING-DEFAULT
@@ -19,6 +19,13 @@ notes:
       and is briefly visible to local processes. Inherited unchanged from pyramid-cli's keychain.ts
       and accepted for R0 (piping the password on stdin is unreliable: `security` prompts for it
       twice). FEATURE-KEYRING's binding closes it.
+  - kind: state
+    text: >-
+      2026-10-31: planned → building. Shipped since magic-spells 0.1.0
+      (packages/kit/src/keychain.ts): service `io.magicspells.cli`, macOS `/usr/bin/security`
+      backend, 0600 file fallback with a stderr warning, `MAGIC_CREDENTIALS_FILE=1`. Not built: the
+      cross-platform binding (Linux Secret Service, Windows Credential Manager) and
+      secrets-out-of-argv — FEATURE-KEYRING, still planned — so the card stays building, not built.
 ---
 
 # Keychain

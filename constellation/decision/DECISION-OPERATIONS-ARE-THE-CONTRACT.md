@@ -1,6 +1,6 @@
 ---
 name: 'Operations are the contract: each product exports an operation registry; CLI and MCP are two front-ends'
-status: planned
+status: built
 connections:
   - DECISION-OPERATION-CONTRACT
   - DECISION-ONE-MCP-SERVER
@@ -13,6 +13,12 @@ connections:
   - DOC-OPERATION-AUTHORING
   - FLOW-RUN-OPERATION
   - FLOW-MCP-TOOL-CALL
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: implemented since magic-spells 0.1.0 — each product exports a ProductModule; the
+      shell and `magic mcp` derive from the same operation list. Only the native adapter kind exists
+      so far; the binary-backed kind arrives with the Sites adapter (R2).
 ---
 
 # Operations are the contract

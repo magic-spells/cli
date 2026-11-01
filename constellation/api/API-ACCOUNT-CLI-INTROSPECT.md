@@ -1,7 +1,9 @@
 ---
-name: 'Account identity-only introspection of cli grants: POST /internal/v1/grants/introspect, callable by every product'
-status: planned
-path: /internal/v1/grants/introspect
+name: >-
+  Account identity-only introspection of cli grants: POST /internal/v1/cli-grants/introspect,
+  callable by every product
+status: built
+path: /internal/v1/cli-grants/introspect
 methods:
   POST: {}
 connections:
@@ -13,6 +15,16 @@ connections:
   - API-PYRAMID-CLI-SESSIONS
   - API-MARKETING-CLI-SESSIONS
   - EXTERNAL-ACCOUNT
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: shipped in Account (used by magic-spells 0.2.0). As built it is NOT the generic
+      route with a cli exception: it is a dedicated route, `POST /internal/v1/cli-grants/introspect`
+      (SDK 0.8.0 `IntrospectCLIGrant`), on the internal host, and the caller's server credential
+      needs the operation `grants.introspect_cli` (not `grants.introspect`). The generic
+      `/internal/v1/grants/introspect` answers `{active:false}` for cli grants. Read the body's
+      "existing route ... with one change" and `grants.introspect` wording with that correction; the
+      identity-only answer shape is unchanged.
 ---
 
 # Account CLI grant introspection

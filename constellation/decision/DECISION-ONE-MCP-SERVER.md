@@ -1,6 +1,6 @@
 ---
 name: 'One MCP server: `magic mcp` aggregates every product over stdio with product-prefixed tools and a --products filter'
-status: planned
+status: built
 connections:
   - DECISION-OPERATIONS-ARE-THE-CONTRACT
   - DECISION-ONE-CLI-FOR-HOSTED-SERVICES
@@ -10,6 +10,12 @@ connections:
   - ROLE-AGENT
   - ROLE-MERCHANT-OPERATOR
   - DOC-OPEN-DECISIONS
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: implemented since magic-spells 0.1.0 — `magic mcp [--products a,b]` with
+      product-prefixed tools (Pyramid today); 0.2.0 added re-mint inside tool calls. Sign-in-only
+      products (sites, marketing in 0.2.x) list no tools until their commands land.
 ---
 
 # One MCP server

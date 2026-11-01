@@ -1,6 +1,6 @@
 ---
 name: 'Operation contract: product.noun.verb names, one error envelope, exit codes by class, destructive gate, --json shape, cursor pagination'
-status: planned
+status: built
 connections:
   - DECISION-OPERATIONS-ARE-THE-CONTRACT
   - DATATYPE-OPERATION
@@ -15,9 +15,14 @@ connections:
 notes:
   - kind: gotcha
     text: >-
-      Sites' own exit codes are 0 / 1 (theme diagnostics, API 404/422) / 2 (everything else); pyramid-cli uses
-      2 for usage errors and 3–10 by class. The adapter maps Sites error codes into the envelope, so `magic sites`
-      exits by the table below, not by the child's exit status.
+      Sites' own exit codes are 0 / 1 (theme diagnostics, API 404/422) / 2 (everything else);
+      pyramid-cli uses 2 for usage errors and 3–10 by class. The adapter maps Sites error codes into
+      the envelope, so `magic sites` exits by the table below, not by the child's exit status.
+  - kind: state
+    text: >-
+      2026-10-31: implemented in the kit since magic-spells 0.1.0 (names, envelope, exit table,
+      destructive gate, JSON output, cursor pagination) and applied to the Pyramid operations; the
+      Sites code map waits for the R2 adapter.
 ---
 
 # Operation contract

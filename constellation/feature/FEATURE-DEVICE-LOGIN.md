@@ -1,6 +1,6 @@
 ---
 name: 'magic login and logout through Account: device flow, loopback, product session mint, whoami across products'
-status: building
+status: built
 release: RELEASE-1-LOGIN
 change: feature
 connections:
@@ -47,6 +47,13 @@ notes:
       stored. (7) Sign-in-only products (no operations, no MCP register) are left out of `magic
       mcp`. (8) `WAYLAND_DISPLAY` counts as a display on Linux alongside `DISPLAY`.
     sha: 9d2583d
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.2.0 (tagged, on npm; 0.2.1 is the zod 4 bump). The
+      earlier "not merged / server routes do not exist" note is history: feat/r1-login merged (PR
+      #5), the compiled-in client id is `magic-cli`, and Account (device flow, revoke, cli-grants
+      introspect) plus the Sites, Pyramid and Marketing session routes are all merged. `POST
+      /auth/revoke` now exists, so the "unsupported" logout path is only a fallback.
 ---
 
 # Device login
@@ -61,7 +68,6 @@ notes:
 
 ## Acceptance
 
-
 - The R1 gate: one `magic login` yields working Sites and Pyramid keys.
 - `magic login --device` over SSH works with the code typed on a phone.
-- After `magic logout`, `magic whoami` shows no identity and the old `pk_` and `pyramid_` keys return 401.
+- After `magic logout`, `magic whoami` shows no identity and the old `sites_` and `pyramid_` keys return 401.

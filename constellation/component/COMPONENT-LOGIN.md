@@ -1,7 +1,7 @@
 ---
 name: 'Login: magic login | logout — Account device flow or loopback, product session mint, product-key fallback'
 kind: library
-status: building
+status: built
 framework: typescript
 connections:
   - DECISION-ACCOUNT-IDENTITY-PRODUCT-AUTHORITY
@@ -45,6 +45,11 @@ notes:
       2026-10-31: the compiled-in client id is the registered application's handle, magic-cli
       (Account resolves client_id by handle or by id). The placeholder constant stays only as the
       value login refuses; MAGIC_ACCOUNT_CLIENT_ID still overrides for staging.
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.2.0 (on npm, tagged; 0.2.1 adds zod 4). login (loopback
+      or --device), --product, --yes, --product-key and logout are live against the merged Account
+      and product routes; client id `magic-cli`.
 ---
 
 # Login
@@ -71,4 +76,4 @@ Code: `packages/cli/src/commands/login.ts` (login, logout), `packages/cli/src/br
 - Ctrl-C during sign-in stores nothing (auth_cancelled, exit 3).
 - Product keys are re-minted silently when a call returns `auth_expired` for an account session and the grant is live; a dead grant becomes not_logged_in "Run `magic login`".
 - Nothing secret is printed; keys show masked (`maskKey`). The device user code is printed even with `--quiet`.
-- The Account client id comes from `MAGIC_ACCOUNT_CLIENT_ID` or `DEFAULT_ACCOUNT_CLIENT_ID` in kit config (a placeholder until the production application is registered; login refuses it with a usage error before opening a browser).
+- The Account client id comes from `MAGIC_ACCOUNT_CLIENT_ID` or `DEFAULT_ACCOUNT_CLIENT_ID` in kit config, which is `magic-cli`, the registered Account application's handle. Login still refuses the placeholder constant with a usage error before opening a browser, so a build without the id cannot reach Account.

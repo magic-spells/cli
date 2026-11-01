@@ -1,6 +1,6 @@
 ---
 name: 'Error envelope: { error: { code, message, hint?, candidates?, product, details? } } and the code → exit class table'
-status: planned
+status: built
 connections:
   - DECISION-OPERATION-CONTRACT
   - COMPONENT-RENDER
@@ -18,6 +18,10 @@ notes:
       task_archived), done in packages/pyramid/src/errors.ts. MCP isError results carry the full `{
       error: {...} }` envelope (pyramid-cli's toToolError returned the inner object).
     sha: abf9d7d
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.1.0 (packages/kit/src/errors.ts, exitCodeFor); 0.2.0
+      added `auth_cancelled` (exit 3) and the `account` product for Account failures.
 ---
 
 From pyramid-cli's `McpError.toJSON()` (`src/errors.ts`) with the product added and the not-found and ambiguous families collapsed. Printed to stderr by the CLI under `--json` and returned as the text of an `isError` MCP result.

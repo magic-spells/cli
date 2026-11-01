@@ -1,7 +1,7 @@
 ---
 name: 'Render: table / JSON / quiet output and error printing, from pyramid-cli''s render.ts'
 kind: library
-status: planned
+status: built
 framework: typescript
 connections:
   - COMPONENT-KIT
@@ -9,6 +9,11 @@ connections:
   - DATATYPE-ERROR-ENVELOPE
   - DECISION-OPERATION-CONTRACT
   - FLOW-RUN-OPERATION
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.1.0 (packages/kit/src/render.ts): JSON vs TTY output,
+      next_cursor hint, error rendering, --quiet and --no-color.
 ---
 
 # Render
