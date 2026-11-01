@@ -4,6 +4,12 @@ status: planned
 connections:
   - RELEASE-3-APP-SDK
   - DECISION-PUBLIC-NPM-RELEASE-ON-TAG
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: the update notice and the CLI's self-update shipped early on release/0.3.0 as
+      `magic update` (no alias; FEATURE-UPGRADE, COMPONENT-UPGRADE). Read `magic upgrade` in this
+      card as `magic update`.
 ---
 
 # R4: Marketing, telemetry and upgrade

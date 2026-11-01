@@ -48,12 +48,18 @@ wins over a stored one; pasted keys are never re-minted.
 | `magic logout [--product <p>]` | revoke and forget credentials |
 | `magic whoami [--json]` | your account (name, email, sign-in expiry) and per product: key source (env, account, manual, none), workspaces, default, masked keys |
 | `magic doctor [--json]` | Node, credential store, Account and your sign-in, and per product: API reachable, key present, product checks |
+| `magic update [--check] [--json]` | update magic to the latest version: runs `npm install -g magic-spells@<latest>` for a global npm install; `--check` and `--json` only report |
 | `magic mcp [--products a,b]` | the MCP server over stdio: every product's tools, prefixed (`pyramid_*`) |
 | `magic pyramid <noun> <verb>` | Pyramid: `task next`, `task move WEB-42 --status "In Review"`, `task comment`, `project list`, `whoami`, … (`magic pyramid --help`) |
 
 Global flags: `--json`, `--yes/-y`, `--no-color`, `--quiet/-q`, `--workspace <handle>`.
 Output is JSON whenever stdout is not a terminal; errors go to stderr as
 `{ "error": { "code", "message", "hint", "product" } }`.
+
+Once a day `magic` asks the npm registry for the latest version in the background
+(cached under `updateCheck` in `config.json`) and, when a newer one exists, prints one
+line to stderr after the command. Never under `--json`, `--quiet`, `magic mcp` or when
+stdout or stderr is not a terminal.
 
 ## MCP
 
@@ -77,6 +83,7 @@ stored, without restarting the server. With several workspaces in a product, set
 | `MAGIC_ALLOW_DESTRUCTIVE=1` | allow destructive operations (with `--yes`, or `yes: true` in MCP) |
 | `MAGIC_CREDENTIALS_FILE=1` | store keys in the 0600 file instead of the OS keychain |
 | `XDG_CONFIG_HOME` | where `magic/` (config and credentials file) lives |
+| `MAGIC_NO_UPDATE_CHECK=1` | no update notice (also off under `CI`) |
 | `NO_COLOR` | no colour |
 
 ## Exit codes

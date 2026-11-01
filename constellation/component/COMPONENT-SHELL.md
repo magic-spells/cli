@@ -1,5 +1,7 @@
 ---
-name: 'Shell (packages/cli): the `magic` bin, global flags, product dispatch, login/logout/whoami/doctor/mcp/upgrade/telemetry'
+name: >-
+  Shell (packages/cli): the `magic` bin, global flags, product dispatch,
+  login/logout/whoami/doctor/mcp/update/telemetry
 kind: cli
 status: built
 framework: typescript
@@ -47,6 +49,13 @@ notes:
       sites` / `magic marketing` sign-in-only namespaces added in 0.2.0 (0.2.1: zod 4). `upgrade`,
       `telemetry` and their start-up checks are not built; they ship with COMPONENT-UPGRADE /
       COMPONENT-TELEMETRY in R4.
+  - kind: state
+    text: >-
+      2026-10-31 (feat/upgrade, release/0.3.0): `update` is a top-level command
+      (commands/update.ts). run() starts the update notice before dispatching any command and prints
+      it after (skipped for version, help, update, mcp, --json, --quiet, --help, non-TTY stdout or
+      stderr). ShellDeps gained `update` (test seams: registry URL, bin path, npm install, clock)
+      and `stderrIsTTY`; Shell gained `update`.
 ---
 
 # Shell
@@ -56,8 +65,9 @@ notes:
 ## Responsibilities
 
 
+
 - **Global flags**, parsed anywhere in argv (pyramid-cli's `parseGlobals`): `--json`, `--yes/-y`, `--no-color` (and `NO_COLOR`), `--quiet/-q`, `--workspace <handle>`, `--product-key` (reads the key from a prompt or stdin, never from the argv value — see [[DOC-SECURITY]]), `--version`, `--help`.
-- **Top-level commands:** `login`, `logout`, `whoami`, `doctor`, `mcp`, `upgrade`, `telemetry on|off|status`, `version`.
+- **Top-level commands:** `login`, `logout`, `whoami`, `doctor`, `mcp`, `update`, `telemetry on|off|status`, `version`.
 - **Product dispatch:** the first token that names a product loads that product's registry ([[COMPONENT-OPERATION-REGISTRY]]) lazily, so `magic pyramid …` never spawns the Sites engine.
 - **Help:** `magic --help` lists top-level commands and products; `magic <product> --help` lists nouns and verbs derived from the registry.
 - **Exit:** maps the error envelope to the exit table ([[DECISION-OPERATION-CONTRACT]]); usage errors exit 2.

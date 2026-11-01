@@ -18,6 +18,12 @@ notes:
       2026-10-31 correction to the note above: `updateCheck` IS resolved in config.ts (false under
       CI or MAGIC_NO_UPDATE_CHECK); only its consumer, the update notice, is unbuilt (R4). The Sites
       `engine` path is the field still missing.
+  - kind: state
+    text: >-
+      2026-10-31 (feat/upgrade, release/0.3.0): the update notice now consumes `updateCheck` (the
+      resolved boolean gates it). The config file gained `updateCheck: { checkedAt, latest }`, the
+      cached registry check, written by the CLI (kit update.ts writeUpdateCheck keeps every other
+      key). It is the only value the CLI writes to config.json.
 ---
 
 Resolution order for every value: flag → environment → config file → default. Credentials: environment → store ([[DATATYPE-KEYCHAIN-ENTRY]]) → `not_logged_in`.

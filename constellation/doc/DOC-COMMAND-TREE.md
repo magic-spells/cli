@@ -24,7 +24,7 @@ Product commands are derived from each registry; this card is the intended shape
 | `magic whoami` | R0, R1 | Account identity + workspaces per product |
 | `magic doctor` | R0, R1 | Environment, Account and sign-in, credentials, product reachability, engine |
 | `magic mcp [--products a,b]` | R0 | The MCP server |
-| `magic upgrade` | R4 | Update the CLI |
+| `magic update [--check] [--json]` | R4 (built in 0.3.0) | Update the CLI; plus the daily update notice |
 | `magic telemetry on\|off\|status` | R4 | Consent |
 | `magic version` / `--version` | R0 | Version |
 

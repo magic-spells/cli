@@ -1,11 +1,19 @@
 ---
-name: 'Upgrade: cached update notice and magic upgrade'
+name: 'Upgrade: cached update notice and magic update'
 status: planned
 release: RELEASE-4-MARKETING-TELEMETRY-UPGRADE
 change: feature
 connections:
   - COMPONENT-UPGRADE
   - FLOW-UPGRADE
+notes:
+  - kind: deviation
+    text: >-
+      2026-10-31 (feat/upgrade, release/0.3.0): the command is `magic update` only, no alias; read
+      every `magic upgrade` in this card as `magic update`. Built as COMPONENT-UPGRADE describes:
+      npm global installs only, npx prints that it already fetches the latest, anything else prints
+      the install command. The engine-follows criterion is untestable until the Sites engine ships
+      (R2).
 ---
 
 # Upgrade
