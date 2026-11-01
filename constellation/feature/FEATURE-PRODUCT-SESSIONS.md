@@ -29,6 +29,11 @@ notes:
       be answered with 401 and an error code containing `expired` (e.g. `key_expired`) to trigger
       the re-mint.
     sha: 09b2af0
+  - kind: state
+    text: >-
+      2026-10-31, 0.2.2: hosts corrected. Pyramid https://pyramid.magicspells.io/v1/cli/sessions,
+      Sites https://sites-api.magicspells.io/v1/cli/sessions; the api.pyramid / api.sites hosts in
+      the earlier note were wrong (no certificate / no such host).
 ---
 
 # Product sessions

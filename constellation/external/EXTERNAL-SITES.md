@@ -13,6 +13,13 @@ connections:
   - FEATURE-SITES-ENGINE-CHANGES
   - FEATURE-PRODUCT-SESSIONS
   - DIAGRAM-ARCHITECTURE
+notes:
+  - kind: state
+    text: >-
+      2026-10-31, 0.2.2: the Sites API host is `https://sites-api.magicspells.io` (answers
+      /v1/cli/sessions today). The CLI default `apiUrl` was `https://api.sites.magicspells.io`,
+      which does not exist; it is now `https://sites-api.magicspells.io`. `MAGIC_SITES_URL` still
+      overrides.
 ---
 
 # Magic Spells Sites

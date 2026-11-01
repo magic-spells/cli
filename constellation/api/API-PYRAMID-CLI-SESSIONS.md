@@ -16,6 +16,11 @@ connections:
   - COMPONENT-LOGIN
   - COMPONENT-PYRAMID-PACKAGE
   - EXTERNAL-PYRAMID
+notes:
+  - kind: state
+    text: >-
+      2026-10-31, 0.2.2: the route is served on `https://pyramid.magicspells.io` (Pyramid's API
+      lives on the web host); the `api.pyramid.magicspells.io` host named above has no certificate.
 ---
 
 # Pyramid CLI sessions

@@ -43,7 +43,7 @@ function callArg(fn: { mock: { calls: unknown[][] } }, i: number): any {
 }
 
 const CONFIG_SAFE: CliConfig = loadCliConfig({
-	products: [{ id: 'pyramid', apiUrl: 'https://api.pyramid.magicspells.io' }],
+	products: [{ id: 'pyramid', apiUrl: 'https://pyramid.magicspells.io' }],
 	env: {},
 });
 const CONFIG_DESTRUCTIVE: CliConfig = { ...CONFIG_SAFE, allowDestructive: true };
