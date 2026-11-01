@@ -4,7 +4,7 @@ kind: external-microservice
 status: planned
 vendor: Magic Spells
 purpose: Pyramid operations over HTTP with a workspace-scoped pyramid_ key; the CLI session route
-docs_url: https://api.pyramid.magicspells.io
+docs_url: https://pyramid.magicspells.io
 credentials_envs:
   - MAGIC_PYRAMID_KEY
 connections:
@@ -14,6 +14,14 @@ connections:
   - FEATURE-PYRAMID-MOVE
   - FEATURE-PRODUCT-SESSIONS
   - DIAGRAM-ARCHITECTURE
+notes:
+  - kind: state
+    text: >-
+      2026-10-31, 0.2.2: Pyramid's API is served on the web host `https://pyramid.magicspells.io`;
+      `api.pyramid.magicspells.io` has no certificate and made the first real `magic login` skip
+      Pyramid. The CLI default (`DEFAULT_API_URL`) is now `https://pyramid.magicspells.io`;
+      `MAGIC_PYRAMID_URL` still overrides. The "API host" in the intro above is superseded by this
+      note.
 ---
 
 # Pyramid

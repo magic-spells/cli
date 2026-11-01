@@ -61,13 +61,18 @@ export async function startLoopback<T>(opts: LoopbackOptions<T>): Promise<Loopba
 		const url = new URL(req.url ?? '/', 'http://127.0.0.1');
 		const state = url.searchParams.get('state');
 		if (done || exchanging || req.method !== 'GET' || url.pathname !== '/callback') {
-			return reply(res, 400, 'Bad request.');
+			return reply(res, 400, 'Bad request', 'Bad request.');
 		}
-		if (!sameState(state, opts.state)) return reply(res, 400, 'Bad request.');
+		if (!sameState(state, opts.state)) return reply(res, 400, 'Bad request', 'Bad request.');
 
 		const error = url.searchParams.get('error');
 		if (error) {
-			reply(res, 200, 'Sign-in cancelled. You can close this tab and return to your terminal.');
+			reply(
+				res,
+				200,
+				'Sign-in cancelled',
+				'Sign-in cancelled. You can close this tab and return to your terminal.'
+			);
 			return finish({
 				error:
 					error === 'access_denied'
@@ -78,7 +83,7 @@ export async function startLoopback<T>(opts: LoopbackOptions<T>): Promise<Loopba
 			});
 		}
 		const code = url.searchParams.get('code');
-		if (!code) return reply(res, 400, 'Bad request.');
+		if (!code) return reply(res, 400, 'Bad request', 'Bad request.');
 
 		exchanging = true;
 		// The code is spent once presented: the 2-minute wait must not end the login
@@ -88,10 +93,10 @@ export async function startLoopback<T>(opts: LoopbackOptions<T>): Promise<Loopba
 		if (opts.signal) signals.push(opts.signal);
 		try {
 			const value = await opts.exchange(code, redirectUri, AbortSignal.any(signals));
-			reply(res, 200, 'Signed in to Magic Spells. You can close this tab.');
+			reply(res, 200, 'Signed in', 'Signed in to Magic Spells. You can close this tab.');
 			finish({ value });
 		} catch (err) {
-			reply(res, 400, 'Sign-in failed. Return to your terminal for details.');
+			reply(res, 400, 'Sign-in failed', 'Sign-in failed. Return to your terminal for details.');
 			finish({ error: toMagicError(err, { product: ACCOUNT_PRODUCT }) });
 		}
 	};
@@ -133,11 +138,40 @@ function sameState(got: string | null, want: string): boolean {
 	return a.length === b.length && timingSafeEqual(a, b);
 }
 
-function reply(res: ServerResponse, status: number, text: string): void {
+// The browser's answer: a small static page. `heading` and `text` are constants at every
+// call site; never pass the query string or an error into it (nothing here is escaped).
+function reply(res: ServerResponse, status: number, heading: string, text: string): void {
 	res.writeHead(status, {
-		'content-type': 'text/plain; charset=utf-8',
+		'content-type': 'text/html; charset=utf-8',
 		'cache-control': 'no-store',
+		'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
 		connection: 'close',
 	});
-	res.end(`${text}\n`);
+	res.end(page(heading, text));
+}
+
+function page(heading: string, text: string): string {
+	return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Magic Spells</title>
+<style>
+:root { color-scheme: light dark; --bg: #ffffff; --fg: #111111; --muted: #555555; }
+@media (prefers-color-scheme: dark) { :root { --bg: #111111; --fg: #f2f2f2; --muted: #a0a0a0; } }
+html, body { height: 100%; margin: 0; }
+body { display: flex; align-items: center; justify-content: center; padding: 0 16px; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center; }
+h1 { margin: 0 0 8px; font-size: 1.5rem; font-weight: 600; }
+p { margin: 0; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+<h1>${heading}</h1>
+<p>${text}</p>
+</main>
+</body>
+</html>
+`;
 }

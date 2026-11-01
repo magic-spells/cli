@@ -20,7 +20,7 @@ With more than one Pyramid workspace, pick one with `--workspace <handle>` (or s
 | Variable | Meaning |
 |---|---|
 | `MAGIC_PYRAMID_KEY` | `pyramid_` key (was `PYRAMID_API_KEY`) |
-| `MAGIC_PYRAMID_URL` | API base URL, default `https://api.pyramid.magicspells.io` (was `PYRAMID_BASE_URL`) |
+| `MAGIC_PYRAMID_URL` | API base URL, default `https://pyramid.magicspells.io` (was `PYRAMID_BASE_URL`) |
 | `MAGIC_ALLOW_DESTRUCTIVE=1` | with `--yes`, allows `task delete` (was `PYRAMID_ALLOW_DESTRUCTIVE`) |
 
 Layout: `src/operations` (the registry), `src/client` (HTTP), `src/cache/resolver.ts`

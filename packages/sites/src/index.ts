@@ -9,7 +9,7 @@ export const sites: ProductModule<null> = {
 	id: 'sites',
 	title: 'Sites',
 	credential: 'sites_',
-	apiUrl: 'https://api.sites.magicspells.io',
+	apiUrl: 'https://sites-api.magicspells.io',
 	keyHelp: 'Sites → Settings → Access keys',
 	sessions: { path: '/v1/cli/sessions' },
 	load: async () => [],
