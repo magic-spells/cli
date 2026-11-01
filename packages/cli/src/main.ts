@@ -21,6 +21,7 @@ import { confirmOnTty, openBrowser } from './browser.js';
 import { doctor } from './commands/doctor.js';
 import { login, logout } from './commands/login.js';
 import { serveMcp } from './commands/mcp.js';
+import { startUpdateNotice, update, type UpdateDeps } from './commands/update.js';
 import { whoami } from './commands/whoami.js';
 import { PRODUCTS, type ProductEntry } from './products.js';
 import { readSecret } from './secret.js';
@@ -39,6 +40,9 @@ export interface ShellDeps {
 	confirm?: ((question: string) => Promise<boolean>) | null;
 	platform?: NodeJS.Platform;
 	login?: LoginTiming;
+	update?: UpdateDeps;
+	/** Whether stderr is a terminal (the update notice's gate); process.stderr by default. */
+	stderrIsTTY?: boolean;
 }
 
 const COMMANDS: Record<
@@ -50,6 +54,7 @@ const COMMANDS: Record<
 	whoami: { summary: 'your account and your workspaces in each product', run: whoami },
 	doctor: { summary: 'check the install, the sign-in and each product', run: doctor },
 	mcp: { summary: 'serve every product’s tools over stdio: mcp [--products a,b]', run: serveMcp },
+	update: { summary: 'update magic to the latest version: update [--check]', run: update },
 };
 
 function help(products: ProductEntry[]): string {
@@ -90,36 +95,54 @@ export async function run(argv: string[], deps: ShellDeps = {}): Promise<number>
 	}
 
 	const store = (): CredentialStore => deps.store ?? createCredentialStore({ env });
-	const readConfig = () => readConfigFile(configFilePath({ env }));
+	const configPath = configFilePath({ env });
+	const readConfig = () => readConfigFile(configPath);
+	const updateDeps = deps.update ?? {};
 
-	const entry = products.find((p) => p.id === cmd);
-	if (entry) {
-		const product = await entry.load();
-		return runProductCli(product, rest, { io, env, store: store(), readConfig });
-	}
+	const notice = startUpdateNotice({
+		cmd,
+		argv,
+		io,
+		env,
+		stderrIsTTY: deps.stderrIsTTY ?? process.stderr.isTTY === true,
+		configPath,
+		deps: updateDeps,
+	});
+	const code = await dispatch();
+	notice();
+	return code;
 
-	let opts: CliGlobalOptions = { json: argv.includes('--json'), yes: false, quiet: false };
-	try {
-		const command = COMMANDS[cmd];
-		if (!command) throw usage(`unknown command "${cmd}"`, 'Run `magic --help` for usage.');
-		const parsed = parseGlobals(rest, [], env);
-		opts = parsed.opts;
-		const shell: Shell = {
-			io,
-			env,
-			store: store(),
-			entries: products,
-			opts,
-			readConfig,
-			readSecret: deps.readSecret ?? readSecret,
-			openBrowser: deps.openBrowser ?? openBrowser,
-			confirm:
-				deps.confirm !== undefined ? deps.confirm : process.stdin.isTTY ? confirmOnTty : null,
-			platform: deps.platform ?? process.platform,
-			login: deps.login ?? {},
-		};
-		return await command.run(shell, parsed.rest);
-	} catch (err) {
-		return renderError(toMagicError(err), opts, io);
+	async function dispatch(): Promise<number> {
+		const entry = products.find((p) => p.id === cmd);
+		if (entry) {
+			const product = await entry.load();
+			return runProductCli(product, rest, { io, env, store: store(), readConfig });
+		}
+
+		let opts: CliGlobalOptions = { json: argv.includes('--json'), yes: false, quiet: false };
+		try {
+			const command = COMMANDS[cmd];
+			if (!command) throw usage(`unknown command "${cmd}"`, 'Run `magic --help` for usage.');
+			const parsed = parseGlobals(rest, [], env);
+			opts = parsed.opts;
+			const shell: Shell = {
+				io,
+				env,
+				store: store(),
+				entries: products,
+				opts,
+				readConfig,
+				readSecret: deps.readSecret ?? readSecret,
+				openBrowser: deps.openBrowser ?? openBrowser,
+				confirm:
+					deps.confirm !== undefined ? deps.confirm : process.stdin.isTTY ? confirmOnTty : null,
+				platform: deps.platform ?? process.platform,
+				login: deps.login ?? {},
+				update: updateDeps,
+			};
+			return await command.run(shell, parsed.rest);
+		} catch (err) {
+			return renderError(toMagicError(err), opts, io);
+		}
 	}
 }

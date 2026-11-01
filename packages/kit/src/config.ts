@@ -48,6 +48,8 @@ export interface ConfigFile {
 	products?: Record<string, { apiUrl?: string }>;
 	defaultWorkspace?: Record<string, string>;
 	telemetry?: 'on' | 'off';
+	/** The update notice's cached registry check (kit update.ts). */
+	updateCheck?: { checkedAt?: string; latest?: string };
 }
 
 export interface ProductUrlSpec {

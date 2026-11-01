@@ -478,6 +478,7 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 				confirm: null,
 				platform: 'darwin',
 				login: {},
+				update: {},
 			},
 			[],
 			new AbortController().signal

@@ -49,6 +49,7 @@ export async function magic(
 		store: memoryStore(),
 		openBrowser: async () => false,
 		confirm: null,
+		stderrIsTTY: false,
 		...deps,
 		env: {
 			XDG_CONFIG_HOME: '/nonexistent',
