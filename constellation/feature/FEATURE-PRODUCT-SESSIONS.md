@@ -42,6 +42,13 @@ notes:
       2026-10-31, 0.2.2: hosts corrected. Pyramid https://pyramid.magicspells.io/v1/cli/sessions,
       Sites https://sites-api.magicspells.io/v1/cli/sessions; the api.pyramid / api.sites hosts in
       the earlier note were wrong (no certificate / no such host).
+  - kind: verified
+    text: >-
+      2026-11-01: first real end-to-end login on magic-spells 0.3.0 against production. Account
+      grant minted (60-day absolute, 14-day idle); Pyramid minted keys for both of Cory's workspaces
+      (no default, two workspaces), Sites minted one key with that workspace as default, both stored
+      in the keychain, keys expire 24h out; Marketing skipped (not deployed). whoami shows the user
+      from the products' answers.
 ---
 
 # Product sessions
