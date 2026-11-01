@@ -111,6 +111,19 @@ export function createFileStore(path: string, warn: (line: string) => void): Cre
 
 // ============ macOS Keychain backend ============
 
+// `security -w` prints the value as lowercase hex when it holds any non-ASCII byte.
+// None of our stored values is pure hex (keys carry a product prefix, JSON starts with `{`).
+function decodeHexOutput(v: string): string {
+	if (v.length % 2 !== 0 || !/^[0-9a-f]+$/.test(v)) return v;
+	const buf = Buffer.from(v, 'hex');
+	if (buf.toString('hex') !== v) return v;
+	try {
+		return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+	} catch {
+		return v;
+	}
+}
+
 function createMacStore(exec: ExecFile, file: CredentialStore): CredentialStore {
 	const fromKeychain = (item: string): string | null => {
 		try {
@@ -122,7 +135,7 @@ function createMacStore(exec: ExecFile, file: CredentialStore): CredentialStore 
 				item,
 				'-w',
 			]).trim();
-			return v.length > 0 ? v : null;
+			return v.length > 0 ? decodeHexOutput(v) : null;
 		} catch {
 			// Missing item or locked keychain.
 			return null;

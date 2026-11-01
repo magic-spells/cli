@@ -26,6 +26,16 @@ notes:
       backend, 0600 file fallback with a stderr warning, `MAGIC_CREDENTIALS_FILE=1`. Not built: the
       cross-platform binding (Linux Secret Service, Windows Credential Manager) and
       secrets-out-of-argv — FEATURE-KEYRING, still planned — so the card stays building, not built.
+  - kind: gotcha
+    text: >-
+      `security find-generic-password -w` prints the stored value as a lowercase hex string (not the
+      text) whenever it contains any non-ASCII byte, e.g. a grant whose user.display_name is "José"
+      or a workspace named "Café". Before 0.3.1 the reader returned that hex as-is, so JSON.parse
+      failed and the user looked logged out right after `magic login`. The macOS reader now decodes
+      output that is even-length lowercase hex, round-trips through Buffer, and is valid UTF-8
+      (fatal TextDecoder); anything else is returned unchanged. Safe because none of our stored
+      values is itself pure hex (product keys carry a prefix, the grant starts with `magic_`, JSON
+      starts with `{`). Verified against the real `security` binary with a throwaway service.
 ---
 
 # Keychain
