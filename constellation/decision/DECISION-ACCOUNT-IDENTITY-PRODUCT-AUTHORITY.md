@@ -1,6 +1,6 @@
 ---
 name: 'Login: Account identity, product authority — a `cli` application kind with device flow and identity-only grants; each product mints its own key'
-status: planned
+status: built
 connections:
   - DECISION-KEYRING-DEFAULT
   - DECISION-ONE-CLI-FOR-HOSTED-SERVICES
@@ -23,6 +23,15 @@ connections:
   - DOC-SECURITY
   - EXTERNAL-ACCOUNT
   - RELEASE-1-LOGIN
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: implemented end to end; the CLI side shipped in magic-spells 0.2.0. One deviation
+      from the original wording, now folded into the Decision section: cli grants are introspected
+      through a dedicated route `/internal/v1/cli-grants/introspect` with `grants.introspect_cli`,
+      not the generic route. The Context section is the 2026-10-18 baseline and keeps the old
+      `pk_`/`pmk_` prefixes and the old generic-route fact on purpose; current prefixes are
+      `sites_`, `pyramid_`, `marketing_`.
 ---
 
 # Account identity, product authority
@@ -40,13 +49,12 @@ Facts (research §3):
 
 ## Decision
 
-
 1. **Account adds a `cli` application kind**: public, PKCE only, no secret. It supports the **device-code flow** (RFC 8628) for SSH, containers and headless use, and a **loopback callback exception** (`http://127.0.0.1:{any port}/callback`, port-agnostic) for the desktop case. The exception applies to the `cli` kind only.
-2. `magic` is registered as one application of kind `cli` under a new Account product `magic`.
-3. **Identity-only grants.** A `cli`-kind grant carries the person only (user id, display name, email). Every product's server credential may introspect it — a bounded exception to the trust boundary for the `cli` kind alone. The answer has no entitlements and no `paid` ([[API-ACCOUNT-CLI-INTROSPECT]]).
-4. **Product authority.** Each product adds `POST /v1/cli/sessions`: it introspects the Account grant, resolves the person's workspaces and roles **in that product**, and mints a product-local key bound to the person's live authority (Sites `pk_`, Pyramid `pyramid_`, Marketing `pmk_`) — [[API-SITES-CLI-SESSIONS]], [[API-PYRAMID-CLI-SESSIONS]], [[API-MARKETING-CLI-SESSIONS]].
-5. The CLI stores the Account grant plus one key per product in the keyring and re-mints a product key when it expires ([[DATATYPE-PRODUCT-SESSION]]). `magic logout` revokes every product key and the grant.
-6. **Until Account ships the `cli` kind** (R0), `magic login --product-key` stores a pasted product key, `magic pyramid login` keeps Pyramid's existing browser mint, and `magic whoami` reports per product.
+2. `magic` is registered as one application of kind `cli` (handle `magic-cli`) under a new Account product `magic`.
+3. **Identity-only grants.** A `cli`-kind grant carries the person only (user id, display name, email). Every product's server credential holding `grants.introspect_cli` may introspect it through a dedicated route, `POST /internal/v1/cli-grants/introspect` — a bounded exception to the trust boundary for the `cli` kind alone; the generic `/internal/v1/grants/introspect` answers inactive for cli grants. The answer has no entitlements and no `paid` ([[API-ACCOUNT-CLI-INTROSPECT]]).
+4. **Product authority.** Each product adds a CLI sessions route (Sites and Pyramid `POST /v1/cli/sessions`, Marketing `POST /api/v1/cli/sessions`): it introspects the Account grant, resolves the person's workspaces and roles **in that product**, and mints a product-local key bound to the person's live authority (Sites `sites_`, Pyramid `pyramid_`, Marketing `marketing_live_`/`marketing_test_`) — [[API-SITES-CLI-SESSIONS]], [[API-PYRAMID-CLI-SESSIONS]], [[API-MARKETING-CLI-SESSIONS]].
+5. The CLI stores the Account grant plus one key per product in the keyring and re-mints a product key when it expires (401 `key_expired`) ([[DATATYPE-PRODUCT-SESSION]]). `magic logout` revokes every product key and the grant.
+6. **Until Account shipped the `cli` kind** (R0), `magic login --product-key` stored a pasted product key, `magic pyramid login` kept Pyramid's existing browser mint, and `magic whoami` reported per product. R1 removed `magic pyramid login`; `--product-key` stays as the CI escape hatch.
 
 ## Alternatives
 

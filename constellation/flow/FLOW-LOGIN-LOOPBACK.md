@@ -1,6 +1,6 @@
 ---
 name: 'magic login with a loopback browser callback (desktop)'
-status: building
+status: built
 triggers:
   - kind: manual
 connections:
@@ -23,6 +23,11 @@ notes:
       the browser does not open, the authorize URL is printed to stderr and the listener keeps
       waiting. Other query params (e.g. a future `iss`) are ignored rather than refused.
     sha: 9d2583d
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.2.0. Account's cli-kind loopback exception is merged and
+      the application `magic-cli` is registered, so the flow runs against real Account rather than
+      only the fake.
 ---
 
 # Login with a loopback callback

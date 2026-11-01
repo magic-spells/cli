@@ -1,7 +1,7 @@
 ---
 name: 'Shell (packages/cli): the `magic` bin, global flags, product dispatch, login/logout/whoami/doctor/mcp/upgrade/telemetry'
 kind: cli
-status: building
+status: built
 framework: typescript
 connections:
   - COMPONENT-KIT
@@ -41,6 +41,12 @@ notes:
       wired for `magic mcp`). The published bin runs the esbuild bundle that `prepack` writes into
       dist/.
     sha: '2952966'
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.1.0, with full Account `login`/`logout` and `magic
+      sites` / `magic marketing` sign-in-only namespaces added in 0.2.0 (0.2.1: zod 4). `upgrade`,
+      `telemetry` and their start-up checks are not built; they ship with COMPONENT-UPGRADE /
+      COMPONENT-TELEMETRY in R4.
 ---
 
 # Shell

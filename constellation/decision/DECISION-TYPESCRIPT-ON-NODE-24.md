@@ -1,12 +1,19 @@
 ---
 name: 'TypeScript on Node 24: ESM, engines >=24, .nvmrc 24, zod schemas'
-status: planned
+status: built
 connections:
   - DECISION-ONE-CLI-FOR-HOSTED-SERVICES
   - DECISION-PYRAMID-CLI-IS-THE-BASE
   - FEATURE-MONOREPO-SCAFFOLD
   - COMPONENT-KIT
   - DATATYPE-OPERATION
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: implemented since magic-spells 0.1.0 (ESM, engines >=24, .nvmrc 24). The "one zod
+      major" rule was applied in 0.2.1: every workspace moved to zod 4 (^4.6.7) at once, so the
+      body's "zod 3 today" is history. The keyring-binding consequence is still pending with
+      FEATURE-KEYRING.
 ---
 
 # TypeScript on Node 24

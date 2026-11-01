@@ -1,6 +1,6 @@
 ---
 name: 'magic login with the device flow'
-status: building
+status: built
 triggers:
   - kind: manual
 connections:
@@ -27,6 +27,11 @@ notes:
       Account's error body is read as either `{error:"code"}` (RFC) or `{error:{code}}` (Account's
       existing jsonError shape) because the device handler is not built yet.
     sha: 9d2583d
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.2.0. Account's device handler is now merged (`POST
+      /auth/device`, `/device`, lookup/confirm, device_code grant), so the flow no longer depends on
+      the fake Account; the dual error-body parsing stays as a harmless tolerance.
 ---
 
 # Login with the device flow

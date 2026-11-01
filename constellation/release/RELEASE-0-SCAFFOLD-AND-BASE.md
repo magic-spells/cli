@@ -1,6 +1,6 @@
 ---
 name: 'R0: Scaffold and base — monorepo, kit from pyramid-cli, magic pyramid, whoami/doctor/mcp with product keys, CI, npm on tag'
-status: planned
+status: built
 connections:
   - DECISION-PYRAMID-CLI-IS-THE-BASE
   - DECISION-TYPESCRIPT-ON-NODE-24
@@ -29,6 +29,13 @@ notes:
       key, a GET carrying the key gets 405 without ending the login, and an empty state is a
       mismatch.
     sha: d8db6ba
+  - kind: state
+    text: >-
+      2026-10-31: R0 shipped as magic-spells 0.1.0 (tagged v0.1.0, on npm): scaffold, kit, Pyramid
+      move, login --product-key, logout, whoami, doctor, magic mcp, keychain with file fallback,
+      release workflow (verify-only; Cory publishes locally). One scope row is outstanding:
+      `@magic-spells/pyramid` is not yet deprecated and pyramid-cli not archived
+      (FEATURE-DEPRECATE-PYRAMID-CLI, Cory's step, still planned).
 ---
 
 # R0: Scaffold and base

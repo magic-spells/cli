@@ -1,6 +1,6 @@
 ---
 name: 'Login: Account identity, product authority (device flow and session mint)'
-status: planned
+status: built
 connections:
   - DECISION-ACCOUNT-IDENTITY-PRODUCT-AUTHORITY
   - FLOW-LOGIN-DEVICE
@@ -11,6 +11,13 @@ connections:
   - API-SITES-CLI-SESSIONS
   - API-PYRAMID-CLI-SESSIONS
   - EXTERNAL-ACCOUNT
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: the flow drawn here shipped in magic-spells 0.2.0. Two labels are out of date and
+      live outside any section: Sites now answers `sites_` keys per workspace (not `pk_`), and the
+      introspection is Account's dedicated `/internal/v1/cli-grants/introspect`. Marketing
+      (`/api/v1/cli/sessions`, `marketing_` keys) joins the parallel block in the shipped code.
 ---
 
 # Login

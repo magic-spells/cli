@@ -1,6 +1,6 @@
 ---
 name: 'Account CLI grant: the identity-only opaque grant from the cli application kind'
-status: building
+status: built
 connections:
   - DECISION-ACCOUNT-IDENTITY-PRODUCT-AUTHORITY
   - API-ACCOUNT-DEVICE-AUTHORIZATION
@@ -8,6 +8,13 @@ connections:
   - COMPONENT-LOGIN
   - COMPONENT-KEYCHAIN
   - DATATYPE-KEYCHAIN-ENTRY
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.2.0 (packages/kit/src/sessions.ts). Product session
+      answers may now carry a top-level `user`, which fills the grant's user ahead of a product
+      whoami (see DATATYPE-PRODUCT-SESSION), so the "user cannot come from the mint" paragraph is
+      only the fallback case.
 ---
 
 What the CLI stores after a device or loopback login, as the `account:grant` item. The token is Account's opaque grant (no JWT; DECISION-OPAQUE-SESSIONS, account plan), prefixed `magic_`; the CLI never inspects it beyond that prefix.

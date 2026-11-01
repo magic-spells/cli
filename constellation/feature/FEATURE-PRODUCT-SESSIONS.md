@@ -1,6 +1,6 @@
 ---
-name: 'Product sessions: POST /v1/cli/sessions in Sites and Pyramid (Marketing in R4)'
-status: planned
+name: 'Product sessions: CLI session routes in Sites, Pyramid and Marketing'
+status: built
 release: RELEASE-1-LOGIN
 change: feature
 connections:
@@ -29,6 +29,14 @@ notes:
       be answered with 401 and an error code containing `expired` (e.g. `key_expired`) to trigger
       the re-mint.
     sha: 09b2af0
+  - kind: state
+    text: >-
+      2026-10-31: all three server routes are merged — Sites and Pyramid `POST/DELETE
+      /v1/cli/sessions` (`sites_`, `pyramid_`), Marketing `POST/DELETE /api/v1/cli/sessions`
+      (`marketing_live_`/`marketing_test_`) — each introspecting through
+      `/internal/v1/cli-grants/introspect`; expired keys answer 401 `key_expired`. The CLI side
+      shipped in magic-spells 0.2.0. The Lands-in line's `pk_` and "marketing in R4" are superseded
+      (see Scope).
 ---
 
 # Product sessions
@@ -37,9 +45,10 @@ notes:
 
 ## Scope
 
-- Each product: add `grants.introspect` to its Account server credential; the route per its API card; person lookup by Account user id; mint per workspace with a 24 h expiry and a label; `DELETE` revoking keys from the same grant; an audit line per mint.
-- Sites: the minted `pk_` is person-bound so it carries the person's live role (the access-keys model in the sites server plan).
-- Pyramid: keys appear in Settings → API Keys labelled "magic on <host>" and can be revoked there.
+- Each product: add `grants.introspect_cli` to its Account server credential and introspect through `POST /internal/v1/cli-grants/introspect` (the generic `/internal/v1/grants/introspect` answers inactive for cli grants); the route per its API card; person lookup by Account user id; mint per workspace with a 24 h expiry and a label; `DELETE` revoking keys from the same grant; an audit line per mint; an expired key answers 401 `key_expired` on every route.
+- Sites (`/v1/cli/sessions`): the minted `sites_` key is person-bound so it carries the person's live role (the access-keys model in the sites server plan).
+- Pyramid (`/v1/cli/sessions`): `pyramid_` keys appear in Settings → API Keys labelled "magic on <host>" and can be revoked there.
+- Marketing (`/api/v1/cli/sessions`): `marketing_live_` keys (`marketing_test_` on request); shipped in R1 alongside the others, ahead of the R4 Marketing move.
 
 ## Acceptance
 

@@ -1,6 +1,8 @@
 ---
-name: 'R1: Login — Account cli kind, device flow, identity-only introspection, /v1/cli/sessions in Sites and Pyramid, keyring on three OSes'
-status: building
+name: >-
+  R1: Login — Account cli kind, device flow, identity-only introspection, CLI sessions in Sites,
+  Pyramid and Marketing (keyring binding deferred)
+status: built
 connections:
   - DECISION-ACCOUNT-IDENTITY-PRODUCT-AUTHORITY
   - DECISION-KEYRING-DEFAULT
@@ -15,6 +17,13 @@ notes:
       release/0.2.0. Still outstanding before the first real login: the loopback callback
       http://127.0.0.1/callback on that application, Pyramid and Sites server credentials reissued
       with grants.introspect_cli, and Pyramid 0.8.0 / Sites 0.4.1 shipped to main.
+  - kind: state
+    text: >-
+      2026-10-31: R1 shipped as magic-spells 0.2.0 (tagged, on npm), followed by 0.2.1 (zod 4).
+      Every server dependency is merged: Account cli kind, device flow, revoke and
+      `/internal/v1/cli-grants/introspect`; Sites, Pyramid and Marketing CLI sessions routes. Gate
+      rows 1-2 are covered; row 3 (keyring binding on three OSes) did not ship and stays with
+      FEATURE-KEYRING (planned) — the store is still macOS `security` + 0600 file.
 ---
 
 # R1: Login
@@ -25,8 +34,8 @@ Theme: one `magic login` for every product. Most of the work lands outside this 
 
 - **Lands in:** account — the `cli` application kind, the device-authorization grant, the loopback exception, identity-only introspection across products ([[FEATURE-ACCOUNT-CLI-KIND]]).
 - `magic login` (device flow by default, loopback when a browser is local), `magic logout`, `magic whoami` across products ([[FEATURE-DEVICE-LOGIN]]).
-- **Lands in:** sites/server and pyramid/server — `POST /v1/cli/sessions` ([[FEATURE-PRODUCT-SESSIONS]]). Marketing's route waits for R4.
-- The cross-platform keyring with one service `io.magicspells.cli` ([[FEATURE-KEYRING]]).
+- **Lands in:** sites/server and pyramid/server — `POST /v1/cli/sessions`; marketing — `POST /api/v1/cli/sessions`, which shipped in R1 too ([[FEATURE-PRODUCT-SESSIONS]]).
+- The cross-platform keyring with one service `io.magicspells.cli` ([[FEATURE-KEYRING]]) — not shipped in 0.2.x; still planned.
 
 ## Gate
 
@@ -39,7 +48,6 @@ Status (2026-10-31, feat/r1-login at 9a25cf7 after review; release/0.2.0 at cdc1
 
 ## Lead-time items (Cory)
 
-
-- Approve the Account trust-boundary exception for the `cli` kind (identity only).
-- Register the `magic` product and application in Account production, then put its client_id in `DEFAULT_ACCOUNT_CLIENT_ID` (packages/kit/src/config.ts; a placeholder that login refuses until then, `MAGIC_ACCOUNT_CLIENT_ID` overrides).
-- `POST /auth/revoke` (form `token`, 200 empty) is in Account's cli-kind branch as of 2026-10-31; until it deploys, logout reports `unsupported` (Account's JSON 404) and forgets locally.
+- Done: the Account trust-boundary exception for the `cli` kind (identity only, through `/internal/v1/cli-grants/introspect`).
+- Done: the `magic` product and the application `magic-cli` registered in Account production; `DEFAULT_ACCOUNT_CLIENT_ID` is `magic-cli` (packages/kit/src/config.ts; `MAGIC_ACCOUNT_CLIENT_ID` overrides).
+- Done: `POST /auth/revoke` (form `token`, 200 empty) is merged in Account; logout still reports `unsupported` on a 404/405 and forgets locally.

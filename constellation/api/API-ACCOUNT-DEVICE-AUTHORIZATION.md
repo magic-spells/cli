@@ -1,6 +1,6 @@
 ---
 name: 'Account device authorization (RFC 8628): POST /auth/device, the /device verification page, device_code grant on POST /auth/token'
-status: planned
+status: built
 path: /auth/device
 methods:
   POST: {}
@@ -13,6 +13,14 @@ connections:
   - FLOW-LOGIN-LOOPBACK
   - COMPONENT-LOGIN
   - EXTERNAL-ACCOUNT
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: shipped in Account and used by magic-spells 0.2.0 (`magic login --device`).
+      Besides `POST /auth/device`, the `/device` page and the device_code grant on `POST
+      /auth/token`, Account added `GET /auth/device/lookup` and `POST /auth/device/confirm` (backing
+      the page) and `POST /auth/revoke` (logout). The body's "Today Account has no device grant and
+      refuses loopback callbacks" is history; the cli-kind loopback exception is live.
 ---
 
 # Account device authorization

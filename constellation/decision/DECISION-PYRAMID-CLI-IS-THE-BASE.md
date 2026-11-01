@@ -1,6 +1,6 @@
 ---
 name: 'The Pyramid CLI is the base: its modules become the kit and packages/pyramid; @magic-spells/pyramid is deprecated and its repo archived'
-status: planned
+status: built
 connections:
   - DECISION-ONE-CLI-FOR-HOSTED-SERVICES
   - DECISION-OPERATIONS-ARE-THE-CONTRACT
@@ -25,6 +25,11 @@ notes:
       2026-10-31: the `pyk_` in the gotcha above is history. Pyramid now mints `pyramid_<8>_<32>`
       keys and `/auth/cli` POSTs the key in a urlencoded body to the loopback listener (`magic
       pyramid login`), never in the URL; `pyk_` is not accepted.
+  - kind: state
+    text: >-
+      2026-10-31: implemented — pyramid-cli became packages/kit and packages/pyramid, shipped in
+      magic-spells 0.1.0. The deprecation half is not done: `@magic-spells/pyramid` shows no npm
+      deprecation and FEATURE-DEPRECATE-PYRAMID-CLI stays planned (Cory's step).
 ---
 
 # The Pyramid CLI is the base

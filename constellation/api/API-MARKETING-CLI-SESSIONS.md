@@ -1,7 +1,7 @@
 ---
-name: 'Marketing CLI sessions: POST /v1/cli/sessions — Account cli grant in, pmk_ keys out'
-status: planned
-path: /v1/cli/sessions
+name: 'Marketing CLI sessions: POST /api/v1/cli/sessions — Account cli grant in, marketing_ keys out'
+status: built
+path: /api/v1/cli/sessions
 methods:
   POST:
     response_schema: DATATYPE-PRODUCT-SESSION
@@ -14,6 +14,15 @@ connections:
   - FLOW-PRODUCT-SESSION-MINT
   - COMPONENT-MARKETING-PACKAGE
   - EXTERNAL-MARKETING
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: merged in Marketing and used by magic-spells 0.2.0 (packages/marketing declares
+      it). As built: the path is `/api/v1/cli/sessions` (POST and DELETE); keys are
+      `marketing_live_…` (`marketing_test_…` on request), not `pmk_`; introspection goes through
+      Account's `/internal/v1/cli-grants/introspect` with `grants.introspect_cli`; an expired key
+      answers 401 `key_expired`; labels over 80 characters are refused. It shipped in R1, not R4 —
+      the body's `pmk_` and "Ships in R4" lines are superseded.
 ---
 
 # Marketing CLI sessions

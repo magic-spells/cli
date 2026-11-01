@@ -1,11 +1,23 @@
 ---
 name: 'CLI config: environment variables, ~/.config/magic/config.json, and the resolved CliConfig'
-status: planned
+status: built
 connections:
   - COMPONENT-KIT
   - COMPONENT-SHELL
   - COMPONENT-TELEMETRY
   - DECISION-KEYRING-DEFAULT
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.1.0 (packages/kit/src/config.ts), extended in 0.2.0 with
+      `accountClientId` (MAGIC_ACCOUNT_CLIENT_ID, default `magic-cli`). As built `products` is a map
+      keyed by product id; `updateCheck` and the Sites `engine` path are not built yet (R4 upgrade,
+      R2 Sites adapter).
+  - kind: state
+    text: >-
+      2026-10-31 correction to the note above: `updateCheck` IS resolved in config.ts (false under
+      CI or MAGIC_NO_UPDATE_CHECK); only its consumer, the update notice, is unbuilt (R4). The Sites
+      `engine` path is the field still missing.
 ---
 
 Resolution order for every value: flag → environment → config file → default. Credentials: environment → store ([[DATATYPE-KEYCHAIN-ENTRY]]) → `not_logged_in`.

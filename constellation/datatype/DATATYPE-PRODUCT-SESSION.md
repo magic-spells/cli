@@ -1,6 +1,6 @@
 ---
 name: 'Product session: a product-local key minted from the Account grant, scoped to one workspace'
-status: building
+status: built
 connections:
   - DECISION-ACCOUNT-IDENTITY-PRODUCT-AUTHORITY
   - API-SITES-CLI-SESSIONS
@@ -10,6 +10,12 @@ connections:
   - COMPONENT-LOGIN
   - COMPONENT-KEYCHAIN
   - DATATYPE-KEYCHAIN-ENTRY
+notes:
+  - kind: state
+    text: >-
+      2026-10-31: shipped in magic-spells 0.2.0; matches the merged Sites, Pyramid and Marketing
+      routes (`sites_`, `pyramid_`, `marketing_live_`/`marketing_test_` keys; 401 `key_expired` for
+      expired keys).
 ---
 
 The response body of every product's `POST /v1/cli/sessions` (Marketing: `/api/v1/cli/sessions`), checked and stored per workspace as `<product>:<handle>` with `source: "account"`.
