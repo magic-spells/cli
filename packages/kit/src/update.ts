@@ -2,7 +2,7 @@
 // latest version on the npm registry, how this binary was installed, and the
 // once-a-day check cached in config.json under `updateCheck`.
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { get as httpGet, type IncomingMessage } from 'node:http';
 import { get as httpsGet } from 'node:https';
 import { dirname } from 'node:path';
@@ -107,19 +107,33 @@ export function updateCheckDue(check: UpdateCheck | null, now: number): boolean 
 	return !check || now - Date.parse(check.checkedAt) >= UPDATE_CHECK_INTERVAL_MS;
 }
 
-/** Store the check in config.json, keeping every other key the file holds. */
+/**
+ * Store the check in config.json, keeping every other key the file holds. A file that
+ * exists but does not parse is the person's to fix: it is left alone, never replaced.
+ * Written to a temp file and renamed so a concurrent reader never sees half a file.
+ */
 export function writeUpdateCheck(path: string, check: UpdateCheck): void {
-	let file: Record<string, unknown> = {};
+	let text: string | null = null;
 	try {
-		const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
-		if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-			file = parsed as Record<string, unknown>;
-		}
+		text = readFileSync(path, 'utf8');
 	} catch {
-		// No file yet (or unreadable): start a fresh one.
+		// No file yet: start a fresh one.
+	}
+	let file: Record<string, unknown> = {};
+	if (text !== null) {
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(text);
+		} catch {
+			return;
+		}
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+		file = parsed as Record<string, unknown>;
 	}
 	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-	writeFileSync(path, `${JSON.stringify({ ...file, updateCheck: check }, null, 2)}\n`);
+	const tmp = `${path}.${process.pid}.tmp`;
+	writeFileSync(tmp, `${JSON.stringify({ ...file, updateCheck: check }, null, 2)}\n`);
+	renameSync(tmp, path);
 }
 
 /** The notice line, or null when `latest` is not newer. */

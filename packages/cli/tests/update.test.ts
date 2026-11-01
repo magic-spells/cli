@@ -221,6 +221,14 @@ describe('the update notice', () => {
 		expect(registry.hits).toBe(0);
 	});
 
+	it('a config.json that does not parse is never replaced', async () => {
+		mkdirSync(join(dir, 'magic'), { recursive: true });
+		writeFileSync(configPath(), '{ "accountUrl": "https://example.test", }');
+		await run(['whoami']);
+		expect(registry.hits).toBe(1);
+		expect(readFileSync(configPath(), 'utf8')).toBe('{ "accountUrl": "https://example.test", }');
+	});
+
 	it('registry failures are silent', async () => {
 		const r = await magic(['whoami'], {
 			tty: true,
