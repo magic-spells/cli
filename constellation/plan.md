@@ -33,8 +33,8 @@ connected_repos:
 `magic` (repo `magic-spells/cli`, npm `magic-spells`, product name "Magic CLI") is the one public
 command line and MCP server for Magic Spells' hosted services: Sites, Pyramid, Marketing, the Sites App SDK
 and Account. One TypeScript package on Node 24, one binary, one `magic mcp` server. The top level belongs to
-the person and the family (`magic login | logout | whoami | doctor | mcp | upgrade`); each product is a
-namespace (`magic pyramid …`, `magic sites …`, `magic app …`, `magic marketing …`). It is not for the
+the person and the family (`magic login | logout | whoami | doctor | mcp | update`); each product is a
+namespace (`magic pyramid …`, `magic sites …` with the App SDK under `magic sites app …`, `magic marketing …`). It is not for the
 open-source frameworks: Puzzle, puzzle-pieces and the Open Sourcery components keep their own CLIs
 ([[DECISION-NOT-FOR-FRAMEWORKS]], [[DECISION-ONE-CLI-FOR-HOSTED-SERVICES]]).
 
