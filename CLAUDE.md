@@ -8,14 +8,14 @@ better to have one CLI that does everything than have 4 CLIs for each project."
 
 ## Shape (decided 2026-10-18)
 - One published package `magic-spells`, one binary `magic`, one MCP server `magic mcp`. Product packages
-  live in this monorepo and are never published on their own. The Pyramid CLI moves in as the base and the old
-  `@magic-spells/pyramid` package is deprecated on npm and its repo archived — no migration period, Pyramid has not
-  launched (Cory 2026-10-18: "we can deprecate and archive pyramid CLI after this, pyramid isn't even launched yet").
+  live in this monorepo and are never published on their own. The old Pyramid CLI (`@magic-spells/pyramid`, binary
+  `pyramid`) moved in as the base and is deprecated; Cory runs the npm deprecation and repo archive — no migration
+  period, Pyramid has not launched (Cory 2026-10-18: "we can deprecate and archive pyramid CLI after this, pyramid isn't even launched yet").
 - TypeScript, Node 24 (`engines >=24`, `.nvmrc`), public on npm. Reference: Shopify/cli (MIT, oclif).
 - Top level = the person and the family: `magic login | logout | whoami | doctor | mcp`. Products are namespaces:
   `magic pyramid …`, `magic sites …`, `magic app …`, `magic marketing …`.
-- Base = the Pyramid CLI (`pyramid/pyramid-cli`, `@magic-spells/pyramid`): its operations layer, config, keychain,
-  errors, render, hydrate and cache modules become the shared core. CLI and MCP are two front-ends over one
+- Base = the old Pyramid CLI: its operations layer, config, keychain, errors, render, hydrate and cache modules
+  became the shared core (`packages/kit`, `packages/pyramid`). CLI and MCP are two front-ends over one
   operations list per product; the operations layer knows nothing about either front-end.
 - The Go Sites engine ships as per-platform binary dependencies (the esbuild/wrangler pattern) for `magic sites
   dev|check`; everything else talks to each product's HTTP API with an Account-issued token from `magic login`.

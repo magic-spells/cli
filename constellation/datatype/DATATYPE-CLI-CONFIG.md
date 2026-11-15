@@ -24,13 +24,6 @@ notes:
       resolved boolean gates it). The config file gained `updateCheck: { checkedAt, latest }`, the
       cached registry check, written by the CLI (kit update.ts writeUpdateCheck keeps every other
       key). It is the only value the CLI writes to config.json.
-  - kind: state
-    text: >-
-      2026-10-31, 0.2.2: product API defaults are pyramid `https://pyramid.magicspells.io`
-      (MAGIC_PYRAMID_URL), sites `https://sites-api.magicspells.io` (MAGIC_SITES_URL), marketing
-      `https://marketing.magicspells.io` (MAGIC_MARKETING_URL, not deployed yet). The
-      `api.pyramid.magicspells.io` default in the interface sketch above is superseded. Covered by
-      packages/cli/tests/hosts.test.ts (default + env override per product).
 ---
 
 Resolution order for every value: flag → environment → config file → default. Credentials: environment → store ([[DATATYPE-KEYCHAIN-ENTRY]]) → `not_logged_in`.
@@ -39,9 +32,9 @@ Resolution order for every value: flag → environment → config file → defau
 interface CliConfig {
   accountUrl: string;               // MAGIC_ACCOUNT_URL, default https://account.magicspells.io
   products: {
-    pyramid:   { apiUrl: string };  // MAGIC_PYRAMID_URL, default https://api.pyramid.magicspells.io
-    sites:     { apiUrl: string; engine?: string };  // MAGIC_SITES_URL (passed to the child as SITES_API), MAGIC_SITES_ENGINE
-    marketing: { apiUrl: string };  // MAGIC_MARKETING_URL
+    pyramid:   { apiUrl: string };  // MAGIC_PYRAMID_URL, default https://pyramid.magicspells.io
+    sites:     { apiUrl: string; engine?: string };  // MAGIC_SITES_URL, default https://sites-api.magicspells.io (passed to the child as SITES_API), MAGIC_SITES_ENGINE
+    marketing: { apiUrl: string };  // MAGIC_MARKETING_URL, default https://marketing.magicspells.io
   };
   defaultWorkspace: Partial<Record<ProductId, string>>;  // handle per product; --workspace wins
   allowDestructive: boolean;        // MAGIC_ALLOW_DESTRUCTIVE === '1', env only, never in the file

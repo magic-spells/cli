@@ -22,17 +22,13 @@ notes:
       2026-10-31: merged in Pyramid and used by magic-spells 0.2.0. Mints `pyramid_<8>_<32>` keys;
       introspects through Account's `/internal/v1/cli-grants/introspect` with
       `grants.introspect_cli`; expired keys answer 401 `key_expired` on every route.
-  - kind: state
-    text: >-
-      2026-10-31, 0.2.2: the route is served on `https://pyramid.magicspells.io` (Pyramid's API
-      lives on the web host); the `api.pyramid.magicspells.io` host named above has no certificate.
 ---
 
 # Pyramid CLI sessions
 
-**Lands in:** pyramid/server (on the API host `api.pyramid.magicspells.io`)
+**Lands in:** pyramid/server, served on `https://pyramid.magicspells.io` (Pyramid's API lives on the web host)
 
-Pyramid already mints a workspace-scoped `pyramid_` key for its CLI from a signed-in web session (`/auth/cli` page reusing `POST /api-keys`, delivering the key in a POST body to the CLI's loopback listener; FLOW-CLI-BROWSER-LOGIN in the pyramid-cli plan). This route does the same from an Account `cli` grant, with no browser.
+Mints workspace-scoped `pyramid_` keys from an Account `cli` grant, with no browser, through the same key path as `POST /api-keys`.
 
 ## `POST /v1/cli/sessions`
 

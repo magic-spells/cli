@@ -1,7 +1,7 @@
 ---
 name: 'Pyramid: the project tracker API'
 kind: external-microservice
-status: planned
+status: built
 vendor: Magic Spells
 purpose: Pyramid operations over HTTP with a workspace-scoped pyramid_ key; the CLI session route
 docs_url: https://pyramid.magicspells.io
@@ -14,20 +14,11 @@ connections:
   - FEATURE-PYRAMID-MOVE
   - FEATURE-PRODUCT-SESSIONS
   - DIAGRAM-ARCHITECTURE
-notes:
-  - kind: state
-    text: >-
-      2026-10-31, 0.2.2: Pyramid's API is served on the web host `https://pyramid.magicspells.io`;
-      `api.pyramid.magicspells.io` has no certificate and made the first real `magic login` skip
-      Pyramid. The CLI default (`DEFAULT_API_URL`) is now `https://pyramid.magicspells.io`;
-      `MAGIC_PYRAMID_URL` still overrides. The "API host" in the intro above is superseded by this
-      note.
 ---
 
 # Pyramid
 
-Repo `pyramid` (`server/`, `pyramid/` web, `pyramid-cli/`, mobile apps). API host `https://api.pyramid.magicspells.io`; web `https://pyramid.magicspells.io`.
+Repo `magic-spells/pyramid` (`server/`, `web/`, `admin/`). API and web share one host, `https://pyramid.magicspells.io`; `MAGIC_PYRAMID_URL` overrides.
 
-- Auth: `Authorization: Bearer pyramid_<8>_<32>`, workspace-pinned; keys from Settings → API Keys or the web `/auth/cli` page, which POSTs the key in a urlencoded body to the CLI's loopback listener (never in the URL).
+- Auth: `Authorization: Bearer pyramid_<8>_<32>`, workspace-pinned; `magic login` mints keys through [[API-PYRAMID-CLI-SESSIONS]], or a key from Settings → API Keys is pasted with `--product-key` or set as `MAGIC_PYRAMID_KEY`.
 - Error envelope `{ "error": { code, message, details } }`; 409 `conflict` for stale `If-Match`.
-- `magic` needs the Pyramid half of [[FEATURE-PRODUCT-SESSIONS]].

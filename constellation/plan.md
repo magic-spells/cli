@@ -1,21 +1,31 @@
 ---
 name: Magic CLI
 connected_repos:
-  - name: sites
-    path: ../sites
-    description: "Magic Spells Sites — Go engine (`sites` binary, engine/ops registry, `sites mcp`), server (`/v1` API, pk_ keys), web and admin"
-  - name: pyramid
-    path: ../pyramid
-    description: "Pyramid — project tracker; pyramid-cli (@magic-spells/pyramid 0.1.1) is this CLI's base and moves in; server gains the CLI session route"
   - name: marketing
     path: ../marketing
-    description: "Marketing — email and events product; its unpublished TypeScript CLI (marketing/cli) moves in as packages/marketing"
+    description: >-
+      Marketing — email and events product; its unpublished TypeScript CLI (marketing/cli) moves in
+      as packages/marketing
   - name: sites-app-sdk
     path: ../sites-app-sdk
-    description: "Sites App SDK — app framework for Sites; its developer commands ship here as `magic app …` (COMPONENT-SITES-APP-CLI there)"
+    description: >-
+      Sites App SDK — app framework for Sites; its developer commands ship here as `magic app …`
+      (COMPONENT-SITES-APP-CLI there)
   - name: account
     path: ../org/admin
-    description: "Magic Spells Account — identity and billing; gains the `cli` application kind, device flow and identity-only introspection"
+    description: >-
+      Magic Spells Account — identity and billing; gains the `cli` application kind, device flow and
+      identity-only introspection
+  - name: pyramid
+    path: ../pyramid
+    description: >-
+      Pyramid — project tracker; API and web on pyramid.magicspells.io, with the CLI session route;
+      the old pyramid-cli (@magic-spells/pyramid) moved in as this CLI's base
+  - name: sites
+    path: ../sites
+    description: >-
+      Magic Spells Sites — Go engine (`sites` binary, engine/ops registry, `sites mcp`), server
+      (`/v1` API on sites-api.magicspells.io, sites_ keys), web and admin
 ---
 
 # Magic CLI
