@@ -38,6 +38,12 @@ notes:
       kit re-mints them on auth_expired. The grant's `user` comes from an optional top-level `user`
       in a sessions answer, else from `pyramid.whoami`. No `commands` map remains.
     sha: 09b2af0
+  - kind: decision
+    text: >-
+      2026-11-15: replaced "`magic pyramid whoami` keeps its product meaning". The operation stays,
+      MCP-only; the CLI command is planned to go (one line in src/operations/index.ts, not made in
+      0.3.1). Cory: “I think whoami can just be at the root under "magic whoami" right? the identity
+      doesn't change, it's all tied to one account”.
 ---
 
 # Pyramid package
@@ -57,4 +63,4 @@ The whole current `pyramid` tree under `magic pyramid …`.
 
 - `PYRAMID_ALLOW_DESTRUCTIVE` → `MAGIC_ALLOW_DESTRUCTIVE`; `PYRAMID_API_KEY` → `MAGIC_PYRAMID_KEY`; `--project` stays a Pyramid flag, `--workspace` is the kit's.
 - `set-key | show-key | logout` move to `magic login --product-key`, `magic whoami`, `magic logout --product pyramid`.
-- `magic pyramid whoami` keeps its product meaning (user, workspace, projects).
+- `pyramid.whoami` (user, workspace, projects) is planned to become MCP-only (`meta.surfaces: ['mcp']`): `magic whoami` and `magic doctor` keep running it, and the `magic pyramid whoami` command goes ([[FEATURE-WHOAMI-DOCTOR]]). Not made yet: 0.3.1 still exposes the command.

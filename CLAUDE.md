@@ -12,13 +12,18 @@ better to have one CLI that does everything than have 4 CLIs for each project."
   `pyramid`) moved in as the base and is deprecated; Cory runs the npm deprecation and repo archive — no migration
   period, Pyramid has not launched (Cory 2026-10-18: "we can deprecate and archive pyramid CLI after this, pyramid isn't even launched yet").
 - TypeScript, Node 24 (`engines >=24`, `.nvmrc`), public on npm. Reference: Shopify/cli (MIT, oclif).
-- Top level = the person and the family: `magic login | logout | whoami | doctor | mcp`. Products are namespaces:
-  `magic pyramid …`, `magic sites …`, `magic app …`, `magic marketing …`.
+- Top level = the person and the family: `magic login | logout | whoami | doctor | mcp | update`. Products are
+  namespaces: `magic pyramid …`, `magic sites …`, `magic marketing …`. Everything a product does is scoped under
+  it. The Sites App SDK is `magic sites app …` and theme work is `magic sites theme …`; there is no top-level
+  `magic app` (Cory 2026-11-15: "\"magic app\" should NEVER run something for sites" and "everything should be
+  scoped, so \"magic sites app\"").
+- Identity is root-only: `magic whoami` runs each product's `<product>.whoami` operation. No product has its own
+  `whoami` command (the operation stays for `magic whoami`, `magic doctor` and MCP).
 - Base = the old Pyramid CLI: its operations layer, config, keychain, errors, render, hydrate and cache modules
   became the shared core (`packages/kit`, `packages/pyramid`). CLI and MCP are two front-ends over one
   operations list per product; the operations layer knows nothing about either front-end.
 - The Go Sites engine ships as per-platform binary dependencies (the esbuild/wrangler pattern) for `magic sites
-  dev|check`; everything else talks to each product's HTTP API with an Account-issued token from `magic login`.
+  theme dev|check`; everything else talks to each product's HTTP API with an Account-issued token from `magic login`.
 
 ## Working rules
 - The plan is `constellation/` (cards); `.constellation/working.md` is session memory (gitignored). Plans live

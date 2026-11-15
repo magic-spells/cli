@@ -73,7 +73,6 @@ notes:
 
 ## Acceptance
 
-
 - pyramid-cli's vitest suite passes inside the workspace with names updated.
 - `magic pyramid task next`, `task update`, `task comment` behave as `pyramid task …` did, against the production API with a `pyramid_` key.
-- `magic pyramid whoami` prints user, workspace and projects.
+- `magic pyramid whoami` prints user, workspace and projects (the R0 gate; the command is planned to leave the CLI, with `pyramid.whoami` kept for MCP, `magic whoami` and `magic doctor` per [[FEATURE-WHOAMI-DOCTOR]]).

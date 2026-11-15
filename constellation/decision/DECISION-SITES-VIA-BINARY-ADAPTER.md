@@ -26,7 +26,7 @@ The Go binary is not ready to be driven (research §2, §5.3): `SITES_TOKEN` is 
 
 ## Decision
 
-- `packages/sites` is a **binary-backed adapter** ([[COMPONENT-SITES-ADAPTER]]): it spawns the bundled `sites mcp` over stdio as an MCP client, reads `tools/list`, and builds the Sites part of the registry from it (`theme.push` → `sites.theme.push`). Calls go through `tools/call`. `magic sites dev|check` shell out to `sites dev|check` with the terminal attached.
+- `packages/sites` is a **binary-backed adapter** ([[COMPONENT-SITES-ADAPTER]]): it spawns the bundled `sites mcp` over stdio as an MCP client, reads `tools/list`, and builds the Sites part of the registry from it (`theme.push` → `sites.theme.push`). Calls go through `tools/call`. `magic sites theme dev|check` shell out to the engine's own dev and check commands (`sites dev|check` today) with the terminal attached.
 - No TypeScript copy of `/v1`.
 - The engine ships as `@magic-spells/sites-engine-<os>-<arch>` optional dependencies of `magic-spells`, pinned to the CLI's version at pack time, copied from Puzzle's shim ([[COMPONENT-SITES-ENGINE-PACKAGES]]).
 - The CLI owns credentials: it passes the Sites session key to the child per call (env), and the child never reads its own keychain blob when run by `magic`.

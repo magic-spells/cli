@@ -1,5 +1,7 @@
 ---
-name: 'Sites adapter (packages/sites): binary-backed registry over `sites mcp`, plus dev|check by shell-out'
+name: >-
+  Sites adapter (packages/sites): binary-backed registry over `sites mcp`, plus theme dev|check by
+  shell-out
 kind: adapter
 status: planned
 framework: typescript
@@ -25,6 +27,13 @@ notes:
       can feed. Also `assertRegistry` (kit/src/operation.ts) allows at most 3 name parts
       (`sites.<noun>.<verb>`); deeper engine names must be flattened. MCP context is per call
       (ContextSource), so an engine-backed product can start its child lazily on first call.
+  - kind: decision
+    text: >-
+      2026-11-15: `magic sites dev|check` became `magic sites theme dev|check`, and `init` and
+      `migrate` moved under `theme` too: Cory asked for `magic sites theme dev` and chose to move
+      all four theme-folder commands. Why: with `magic sites app init | check | dev` also planned, a
+      bare `magic sites dev` would be ambiguous between a theme and an app. How the engine's names
+      get there is open (DOC-OPEN-DECISIONS row 12).
 ---
 
 # Sites adapter
@@ -36,7 +45,7 @@ notes:
 3. On first use, spawns `sites mcp` over stdio with the Sites session key in its environment and `SITES_API` set from config; acts as an MCP client.
 4. Reads `tools/list` (or the cached `sites ops --json` catalogue, [[API-SITES-OPS-CATALOGUE]]) and builds operations: tool `theme_push` → `sites.theme.push`, schema passed through, `Surfaces` honoured (`mcp`-only tools such as `dev stop` are not CLI commands; `cli`-only fields are not MCP inputs).
 5. `run` = `tools/call`; an `IsError` result is parsed as `ops.Error{Code, Message, Hint}` and mapped to the envelope.
-6. `magic sites dev` and `magic sites check` spawn `sites dev|check` with stdio inherited, so the engine's TTY behaviour (`r`+Enter refresh) is untouched.
+6. `magic sites theme dev` and `magic sites theme check` spawn the engine's own dev and check commands (`sites dev|check` today) with stdio inherited, so the engine's TTY behaviour (`r`+Enter refresh) is untouched.
 
 ## Error map (ops.Error → envelope class)
 
@@ -54,3 +63,4 @@ notes:
 
 - One child per `magic` process; it is shut down on exit.
 - The adapter never parses human output from the binary.
+- The theme-folder commands are `magic sites theme init | check | migrate | dev`, never bare `magic sites init | check | migrate | dev` (a bare `dev` would be ambiguous beside `magic sites app dev`). The engine names them `init`, `check`, `migrate`, `dev` and `dev.stop` today, so step 4 alone would derive the bare names. Recommended, not yet confirmed by Cory ([[DOC-OPEN-DECISIONS]] row 12): the engine renames them `theme.init`, `theme.check`, `theme.migrate`, `theme.dev`, `theme.dev.stop`, so step 4 keeps deriving every name and step 6 spawns `sites theme dev|check`; `sites.theme.dev.stop` is then four parts and is flattened like the other deep names in the note above. The alternative is a rename table here.

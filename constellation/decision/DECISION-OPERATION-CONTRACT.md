@@ -33,7 +33,7 @@ The Go and TypeScript registries agree in spirit but not in detail (research §5
 
 ## Decision
 
-1. **Names.** `product.noun.verb`, lower case, dots (`pyramid.task.next`, `sites.pages.list`, `app.version.publish`). CLI: `magic <product> <noun> <verb>`. MCP: dots → `_` (`pyramid_task_next`). Noun is plural where the product's API is (`pages`), matching the product's own words.
+1. **Names.** `product.noun.verb`, lower case, dots (`pyramid.task.next`, `sites.pages.list`, `sites.app.publish`). CLI: `magic <product> <noun> <verb>`. MCP: dots → `_` (`pyramid_task_next`). Noun is plural where the product's API is (`pages`), matching the product's own words.
 2. **Errors.** One envelope, [[DATATYPE-ERROR-ENVELOPE]]: `{ error: { code, message, hint?, candidates?, product } }`. Codes are pyramid-cli's set generalised (`*_not_found` → `not_found` with `details.kind`, `ambiguous_*_name` → `ambiguous_name`), plus Sites' codes mapped (`theme_diagnostics` and `invalid_input` → class 7, `not_available` → class 1 with a hint, `unknown_operation` → usage).
 3. **Exit codes by class** (pyramid-cli's table kept): 0 ok, 1 unknown, 2 usage, 3 auth (`auth_invalid`, `auth_expired`, `not_logged_in`), 4 permission, 5 not found, 6 ambiguous, 7 validation/conflict/diagnostics, 8 destructive disabled, 9 rate limited, 10 network, 11 product unavailable (binary missing, version mismatch).
 4. **Destructive gate.** An operation flagged `destructive` runs only with `--yes` (CLI) or `yes: true` (MCP input) **and** `MAGIC_ALLOW_DESTRUCTIVE=1` in the environment. Otherwise it fails with `destructive_action_disabled` and changes nothing. The per-product env vars (`PYRAMID_ALLOW_DESTRUCTIVE`) are not read.

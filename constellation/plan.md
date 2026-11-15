@@ -9,8 +9,8 @@ connected_repos:
   - name: sites-app-sdk
     path: ../sites-app-sdk
     description: >-
-      Sites App SDK — app framework for Sites; its developer commands ship here as `magic app …`
-      (COMPONENT-SITES-APP-CLI there)
+      Sites App SDK — app framework for Sites; its developer commands ship here as `magic sites app
+      …` (COMPONENT-SITES-APP-CLI there)
   - name: account
     path: ../org/admin
     description: >-
@@ -66,7 +66,7 @@ Planning only, as of 2026-10-18. Nothing is built; the repo has this plan, `CLAU
 CLI in the family, the Sites operation registry, Account's auth shapes and the reference CLIs). Build order:
 [[RELEASE-0-SCAFFOLD-AND-BASE]] (monorepo, kit, Pyramid moved in, product keys) →
 [[RELEASE-1-LOGIN]] (Account `cli` kind, device flow, product sessions) → [[RELEASE-2-SITES]] (binary-backed
-adapter, platform engine packages) → [[RELEASE-3-APP-SDK]] (`magic app …`) →
+adapter, platform engine packages) → [[RELEASE-3-APP-SDK]] (`magic sites app …`) →
 [[RELEASE-4-MARKETING-TELEMETRY-UPGRADE]]. Open questions are in [[DOC-OPEN-DECISIONS]]. Pictures:
 [[DIAGRAM-ARCHITECTURE]], [[DIAGRAM-LOGIN]].
 

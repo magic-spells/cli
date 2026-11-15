@@ -25,6 +25,15 @@ notes:
       0.2.0 and 0.2.1, with `pyramid`, `sites` and `marketing` namespaces (the last two sign-in-only
       until R2/R4). Product prefixes today: `sites_` (was `pk_`), `pyramid_`, `marketing_` (was
       `pmk_`); the Context's prefixes are the 2026-10-18 baseline.
+  - kind: decision
+    text: >-
+      2026-11-15, two reversals (both planned, not built). (1) The App SDK namespace moved from
+      top-level `magic app …` to `magic sites app …`. Cory: “"magic app" should NEVER run something
+      for sites” and “everything should be scoped, so "magic sites app"”. (2) "`magic pyramid
+      whoami` keeps its product meaning" is replaced by root-only identity: `pyramid.whoami` stays
+      an operation (MCP surface only), the `magic pyramid whoami` command goes. Cory: “I think
+      whoami can just be at the root under "magic whoami" right? the identity doesn't change, it's
+      all tied to one account”.
 ---
 
 # One CLI for the hosted services
@@ -44,22 +53,23 @@ Today the family has a CLI per product, each built by copying the last (research
 
 ## Decision
 
-
 - One npm package `magic-spells`, one binary `magic`, one MCP server `magic mcp`. Public on npm, source public on GitHub, MIT like pyramid-cli.
 - The top level belongs to the person and the family: `magic login | logout | whoami | doctor | mcp | update` (plus `magic telemetry on|off`).
-- Each product is a namespace: `magic pyramid …`, `magic sites …`, `magic app …` (the Sites App SDK), `magic marketing …`. Later products (Reviews, Wishlist) arrive as further namespaces, not further binaries.
-- Product command packages are npm workspaces in this monorepo (`packages/pyramid`, `packages/sites`, `packages/app`, `packages/marketing`) bundled into the one published package. The only other published packages are the per-platform Sites engine binaries ([[DECISION-SITES-VIA-BINARY-ADAPTER]]).
-- `magic whoami` answers "who am I and what can I reach": the Account identity plus the workspaces reachable in each product. `magic pyramid whoami` keeps its product meaning.
+- Each product is a namespace: `magic pyramid …`, `magic sites …` (the Sites App SDK's commands sit inside it as `magic sites app …`; there is no top-level `magic app`), `magic marketing …`. Later products (Reviews, Wishlist) arrive as further namespaces, not further binaries.
+- Product command packages are npm workspaces in this monorepo (`packages/pyramid`, `packages/sites`, `packages/marketing`, and possibly an internal `packages/app` the Sites module loads, settled in R3) bundled into the one published package. The only other published packages are the per-platform Sites engine binaries ([[DECISION-SITES-VIA-BINARY-ADAPTER]]).
+- `magic whoami` answers "who am I and what can I reach": the Account identity plus the workspaces reachable in each product. Identity is root-only: each product has a `<product>.whoami` operation that `magic whoami` and `magic doctor` run, and no product has a `magic <product> whoami` command (planned: 0.3.1 still exposes `magic pyramid whoami`; [[FEATURE-WHOAMI-DOCTOR]]).
 
 ## Alternatives
 
 - **A CLI per product** (today's path). Rejected by Cory: N installs, N logins, N update channels and N copies of the same keychain, render and error code.
 - **A thin `magic` launcher dispatching to separate product binaries** (`magic-<product>` executables on PATH). Rejected for the TypeScript products: it keeps N packages to version and publish. The binary-backed adapter keeps that model only where a product's registry is not TypeScript (Sites).
 - **Publish each product package separately and let the shell load them as plugins.** Rejected: one version for the whole CLI is simpler to support and nothing outside this repo needs the product packages.
+- **The App SDK as a top-level `magic app …` namespace** (the plan until 2026-11-15). Rejected by Cory: “"magic app" should NEVER run something for sites” and “everything should be scoped, so "magic sites app"”.
+- **A `magic <product> whoami` command per product** (`magic pyramid whoami`). Rejected by Cory 2026-11-15: “I think whoami can just be at the root under "magic whoami" right? the identity doesn't change, it's all tied to one account”.
 
 ## Consequences
 
 - `@magic-spells/pyramid` is deprecated and its repo archived ([[DECISION-PYRAMID-CLI-IS-THE-BASE]]); Marketing's CLI never publishes on its own.
-- The App SDK's `sites app …` spelling never ships; its commands land as `magic app …` ([[FEATURE-APP-COMMANDS]]). See [[COMPONENT-SITES-APP-CLI]] (sites-app-sdk plan).
+- The App SDK's commands land as `magic sites app …`, the spelling its own plan uses ([[FEATURE-APP-COMMANDS]]). See [[COMPONENT-SITES-APP-CLI]] (sites-app-sdk plan).
 - The CLI needs a login that works across products, which needs Account changes ([[DECISION-ACCOUNT-IDENTITY-PRODUCT-AUTHORITY]]).
 - One version line: a product that adds commands ships in the next `magic` release.

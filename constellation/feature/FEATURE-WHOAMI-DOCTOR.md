@@ -46,6 +46,14 @@ notes:
       anything else is signed in, and several workspaces without a default is a warning. logout
       output is `{ removed, revoked, account: revoked|unsupported|failed|kept|none, errors? }`.
     sha: 9d2583d
+  - kind: decision
+    text: >-
+      2026-11-15: `magic pyramid whoami` leaves the CLI; identity is root-only and every product
+      keeps a `<product>.whoami` operation without a `magic <product> whoami` command.
+      `pyramid.whoami` stays, MCP-only, because `magic whoami`, `magic doctor` and agents over MCP
+      depend on it. Cory: “I think whoami can just be at the root under "magic whoami" right? the
+      identity doesn't change, it's all tied to one account”. Planned, not built (0.3.1 still has
+      the command).
 ---
 
 # whoami and doctor
@@ -55,6 +63,7 @@ notes:
 - `magic whoami`: R0 — per product, the stored key's source (env, store, none), masked key, and the product's own whoami (Pyramid: user, workspace). R1 adds the Account identity (name, email, grant expiry) and every workspace reachable per product, marking the default. `--json` returns `{ account, products: { <id>: { workspaces, default, source } } }`.
 - `magic doctor`: Node version, install method, CLI version vs latest, credential store backend (keyring or file, with the warning), per product: credential present, API reachable, auth valid; Sites: engine package present, version matches. Exit 0 when all pass, else the class of the first failure; `--json` lists every check.
 - `magic login --product-key` and `magic logout` (R0 shapes from [[COMPONENT-LOGIN]]).
+- Identity is root-only (planned 2026-11-15). Every product has a `<product>.whoami` operation, which `magic whoami` runs and prints under that product and `magic doctor` runs to prove the key works; no product has a `magic <product> whoami` command. `pyramid.whoami` stays an operation on the MCP surface only (`meta.surfaces: ['mcp']`): over MCP, `pyramid_whoami`, the `pyramid://me` resource and the `pyramid_doctor` setup prompt are the only way an agent learns which user, workspace and projects it acts on, including with keys not tied to the Account sign-in (`MAGIC_PYRAMID_KEY`, `magic login --product-key`). Not made yet: 0.3.1 still exposes `magic pyramid whoami`; the change is one line in `packages/pyramid/src/operations/index.ts`.
 
 ## Acceptance
 

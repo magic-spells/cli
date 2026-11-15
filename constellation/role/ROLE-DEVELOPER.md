@@ -17,7 +17,7 @@ connections:
 
 # Developer
 
-A person working in a terminal: theme development (`magic sites dev | check | theme push`), app development (`magic app …`), tracking work (`magic pyramid task next`), scripting in CI with product or app keys.
+A person working in a terminal: theme development (`magic sites theme dev | check | push`), app development (`magic sites app …`), tracking work (`magic pyramid task next`), scripting in CI with product or app keys.
 
 - Logs in once with `magic login`; what each command may do is decided by their role in that product's workspace.
 - Uses `--json` in scripts and relies on the exit table.
