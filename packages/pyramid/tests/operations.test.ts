@@ -1028,6 +1028,17 @@ describe('operation: update_task (real registry)', () => {
 		});
 		expect(resolver.resolveUser).toHaveBeenCalledTimes(1);
 	});
+
+	it('an empty custom_fields list sends no field-values write (the server 422s on {})', async () => {
+		const op = operationsByName.get('pyramid.task.update')!;
+		const getTask = vi.fn(async (id: string) => ({ id, project_id: 'p-apollo' }));
+		const setFieldValues = vi.fn();
+		await op.run(
+			{ task: TASK_UUID, custom_fields: [] },
+			makeCtx({ getTask, setFieldValues }, makeResolver())
+		);
+		expect(setFieldValues).not.toHaveBeenCalled();
+	});
 });
 
 // --- create_tasks_bulk (real op) ------------------------------------------

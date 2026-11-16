@@ -764,7 +764,7 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 		}
 
 		// custom_fields -> PATCH /tasks/{id}/field-values { values: {...} }.
-		if (input.custom_fields !== undefined) {
+		if (input.custom_fields?.length) {
 			const values = await resolveFieldValues(ctx, projectId, input.custom_fields);
 			await failingSubUpdate('field_values', () =>
 				ctx.client.api.setFieldValues(ref.id, { values })
