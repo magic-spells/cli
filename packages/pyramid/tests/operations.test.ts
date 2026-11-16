@@ -6,30 +6,14 @@
 //   - it calls the right client method,
 //   - it hydrates ids back into names in the output (names-in / names-out),
 //   - destructive ops refuse to act when `config.allowDestructive` is false.
-//
-// IMPORTANT — scope note (read before extending):
-//   The FILE-OPERATIONS target set (task.create / task.move / task.delete /
-//   comment.reply, …) is the TARGET surface, but the CURRENT codebase ships only
-//   the Phase-1 read-only ops: whoami, list_projects, get_project_workflow,
-//   list_my_tasks (see src/operations/index.ts). The client likewise has no
-//   createTask / moveTask / deleteTask / replyComment methods yet. So the
-//   create/move/delete/reply assertions the test plan calls for are written here
-//   as a SELF-CONTAINED, registry-shaped harness against representative
-//   `Operation` objects that mirror the spec's `run` contract — they document and
-//   pin the contract (resolve -> client call with UUIDs -> hydrate; destructive
-//   gate) without importing ops that don't exist. The Phase-1 blocks below run
-//   against the REAL registry and are the ones that guard shipped behavior. When
-//   the write ops land, move those blocks onto the real `operationsByName` entries.
 
 import { describe, it, expect, vi } from 'vitest';
-
-import { z } from 'zod';
 
 import { MagicError as McpError, callTool, loadCliConfig, type CliConfig } from '@magic-spells/kit';
 
 import { pyramidError } from '../src/errors.js';
-import { hydrateTaskDetail, hydrateTaskSummary } from '../src/hydrate.js';
-import { operationsByName, type Operation, type OpContext } from '../src/operations/index.js';
+import { hydrateTaskSummary } from '../src/hydrate.js';
+import { operationsByName, type OpContext } from '../src/operations/index.js';
 import type { TaskDetail, Workflow, WhoAmI } from '../src/types.js';
 
 // ============ Shared fixtures ============
@@ -134,11 +118,6 @@ function makeResolver() {
 			if (!l) throw pyramidError('label_not_found', `No label "${q}".`);
 			return { id: l.id, name: l.name };
 		}),
-		resolveTask: vi.fn(async (key: string) => ({
-			id: `id-of-${key}`,
-			projectId: 'p-apollo',
-			key,
-		})),
 		invalidate: vi.fn(),
 	};
 }
@@ -159,20 +138,6 @@ function makeCtx(
 		client: { api: client as never, resolver: resolver as never },
 		signal: new AbortController().signal,
 	};
-}
-
-/**
- * The spec-target resolver surface (DOC-NAME-RESOLUTION) adds `resolveTask` on top of
- * the shipped Phase-1 `Resolver`. The current `OpContext.resolver` is typed as
- * the Phase-1 class, which doesn't declare it yet, so the FILE-OPERATIONS contract ops below
- * reach that not-yet-shipped method through this structural view. Drop this once
- * `resolveTask` lands on the real Resolver.
- */
-interface ExtendedResolver {
-	resolveTask(name: string): Promise<{ id: string; projectId: string; key: string }>;
-}
-function ext(ctx: OpContext): ExtendedResolver {
-	return ctx.client.resolver as unknown as ExtendedResolver;
 }
 
 // ============ Phase-1 ops against the REAL registry ============
@@ -328,76 +293,6 @@ describe('operation: whoami (real registry)', () => {
 	});
 });
 
-// ============ FILE-OPERATIONS write/move/delete/reply contract (registry-shaped) ============
-//
-// These ops are not yet in src/operations/index.ts. The blocks below pin the
-// FILE-OPERATIONS contract against representative Operation objects whose `run`
-// mirrors the spec exactly (resolve names -> call client with UUIDs -> hydrate).
-// They share the SAME OpContext seam, mock client+resolver, and McpError contract
-// as the real ops, so when the write ops land these assertions transplant 1:1.
-
-// --- task.delete (destructive gate) --------------------------------------
-//
-// Spec: resolveTask; if !config.allowDestructive -> throw
-// destructive_action_disabled BEFORE any client call; else deleteTask(id, true).
-
-interface DeleteTaskInput {
-	task: string;
-}
-
-const taskDelete: Operation<DeleteTaskInput, { id: string; key: string; deleted: true }> = {
-	name: 'task.delete',
-	summary: 'Permanently delete a task (gated behind PYRAMID_ALLOW_DESTRUCTIVE).',
-	input: z.object({ task: z.string() }) as never,
-	meta: { destructive: true },
-	async run(input, ctx) {
-		const task = await ext(ctx).resolveTask(input.task);
-		if (!ctx.config.allowDestructive) {
-			throw pyramidError(
-				'destructive_action_disabled',
-				'Deleting a task is destructive. Set PYRAMID_ALLOW_DESTRUCTIVE=1 to enable it.',
-				{ hint: 'Set PYRAMID_ALLOW_DESTRUCTIVE=1.' }
-			);
-		}
-		await (
-			ctx.client.api as never as {
-				deleteTask: (taskId: string, hard: boolean) => Promise<void>;
-			}
-		).deleteTask(task.id, true);
-		return { id: task.id, key: task.key, deleted: true as const };
-	},
-};
-
-describe('operation contract: task.delete (destructive gate)', () => {
-	it('throws destructive_action_disabled and never calls the client when allowDestructive is false', async () => {
-		const resolver = makeResolver();
-		const deleteTask = vi.fn();
-		const ctx = makeCtx({ deleteTask }, resolver, CONFIG_SAFE);
-
-		let thrown: unknown;
-		try {
-			await taskDelete.run({ task: 'APO-42' }, ctx);
-		} catch (e) {
-			thrown = e;
-		}
-
-		expect(thrown).toBeInstanceOf(McpError);
-		expect((thrown as McpError).code).toBe('destructive_action_disabled');
-		expect(deleteTask).not.toHaveBeenCalled();
-	});
-
-	it('calls deleteTask(id, true) when allowDestructive is true', async () => {
-		const resolver = makeResolver();
-		const deleteTask = vi.fn(async () => undefined);
-		const ctx = makeCtx({ deleteTask }, resolver, CONFIG_DESTRUCTIVE);
-
-		const out = await taskDelete.run({ task: 'APO-42' }, ctx);
-
-		expect(deleteTask).toHaveBeenCalledWith('id-of-APO-42', true);
-		expect(out).toEqual({ id: 'id-of-APO-42', key: 'APO-42', deleted: true });
-	});
-});
-
 // ============ Hydration sanity (names-in / names-out invariant) ============
 
 describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)', () => {
@@ -425,21 +320,19 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 
 // ============ Phase-2 write surface against the REAL registry ============
 //
-// The spec-target write ops (task.create / task.move / task.delete /
-// comment.reply) have now LANDED in src/operations/index.ts, so these blocks run
-// the *shipped* `run` bodies (looked up by name on `operationsByName`) through the
-// SAME OpContext seam used above — a fixture workflow + a mock resolver + a mock
-// client. They assert the FILE-OPERATIONS contract on the real code:
+// These blocks run the shipped write ops (task.create / task.move / task.delete /
+// comment.reply, looked up by name on `operationsByName`) through the same
+// OpContext seam — a fixture workflow + a mock resolver + a mock client. They
+// assert the FILE-OPERATIONS contract on the real code:
 //   - human names/keys resolve to UUIDs before the client call (names-in),
 //   - the right client method is called with those UUIDs (never a fractional
 //     position; neighbor tasks are passed by their resolved id),
 //   - the result is hydrated back to names (names-out),
 //   - the destructive gate (destructive_action_disabled) fires BEFORE any write.
 //
-// NOTE — task-ref resolution: unlike the representative harness above (which mocks
-// a `resolver.resolveTask`), the shipped ops resolve a "WEB-42" key or UUID via
-// the CLIENT (resolveTaskRef -> client.searchTasks for a key, client.getTask for a
-// UUID). So the mocks here implement those client methods instead. A search row
+// NOTE — task-ref resolution: the ops resolve a "WEB-42" key or UUID via the
+// CLIENT (resolveTaskRef -> client.searchTasks for a key, client.getTask for a
+// UUID), not the resolver, so the mocks here implement those client methods. A search row
 // carries `{ id, key, project_id }`; we mint a stable `id-<KEY>` id per key so the
 // assertions can name the exact UUID handed to the client.
 
