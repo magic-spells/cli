@@ -91,9 +91,13 @@ function makeResolver() {
 	return {
 		resolveProject: vi.fn(async (_name: string) => APOLLO_WORKFLOW.project),
 		getWorkflow: vi.fn(async (_projectId: string) => APOLLO_WORKFLOW),
-		resolveStatus: vi.fn(async (_pid: string, q: string) => {
+		resolveStatus: vi.fn(async (_pid: string, q: string, stage?: string) => {
+			// With a stage, only its statuses count (mirrors the real resolver).
+			const scope = APOLLO_WORKFLOW.stages.find((g) => g.name === stage || g.key === stage);
 			let s = APOLLO_WORKFLOW.statuses.find(
-				(x) => x.name.toLowerCase() === q.toLowerCase() || x.key === q
+				(x) =>
+					(!scope || x.stage_id === scope.id) &&
+					(x.name.toLowerCase() === q.toLowerCase() || x.key === q)
 			);
 			if (!s) {
 				// A stage name where a status is expected -> that stage's first status by
@@ -108,8 +112,8 @@ function makeResolver() {
 				}
 			}
 			if (!s) throw pyramidError('status_not_found', `No status "${q}".`);
-			const stage = APOLLO_WORKFLOW.stages.find((g) => g.id === s.stage_id)!;
-			return { ...s, stage_name: stage.name };
+			const owner = APOLLO_WORKFLOW.stages.find((g) => g.id === s.stage_id)!;
+			return { ...s, stage_name: owner.name };
 		}),
 		resolveStage: vi.fn(async (_pid: string, q: string) => {
 			const g = APOLLO_WORKFLOW.stages.find(
@@ -332,179 +336,6 @@ describe('operation: whoami (real registry)', () => {
 // They share the SAME OpContext seam, mock client+resolver, and McpError contract
 // as the real ops, so when the write ops land these assertions transplant 1:1.
 
-// --- task.create ----------------------------------------------------------
-//
-// Spec: resolveProject; resolve stage/status/owner/reviewer/labels; stage w/o
-// status -> first status of the stage by position; inconsistent stage+status ->
-// status_not_in_stage; createTask called with resolved UUIDs; output hydrated.
-
-interface CreateTaskInput {
-	project: string;
-	title: string;
-	stage?: string;
-	status?: string;
-	owner?: string;
-	labels?: string[];
-}
-
-const taskCreate: Operation<CreateTaskInput, TaskDetail> = {
-	name: 'task.create',
-	summary: 'Create a task (names in, hydrated detail out).',
-	input: z.object({
-		project: z.string(),
-		title: z.string(),
-		stage: z.string().optional(),
-		status: z.string().optional(),
-		owner: z.string().optional(),
-		labels: z.array(z.string()).optional(),
-	}) as never,
-	async run(input, ctx): Promise<TaskDetail> {
-		const project = await ctx.client.resolver.resolveProject(input.project);
-		const wf = await ctx.client.resolver.getWorkflow(project.id);
-
-		let statusId: string;
-		if (input.status) {
-			const status = await ctx.client.resolver.resolveStatus(project.id, input.status);
-			// r3: status carries its stage. A stage+status pair that disagrees ->
-			// status_not_in_stage, raised BEFORE the client call.
-			if (input.stage) {
-				const stage = await ctx.client.resolver.resolveStage(project.id, input.stage);
-				if (status.stage_id !== stage.id) {
-					throw pyramidError(
-						'status_not_in_stage',
-						`Status "${status.name}" is not in stage "${stage.name}".`
-					);
-				}
-			}
-			statusId = status.id;
-		} else if (input.stage) {
-			// stage without status -> first status of that stage by position.
-			const stage = await ctx.client.resolver.resolveStage(project.id, input.stage);
-			const first = [...wf.statuses]
-				.filter((s) => s.stage_id === stage.id)
-				.sort((a, b) => a.position.localeCompare(b.position))[0]!;
-			statusId = first.id;
-		} else {
-			statusId = wf.statuses[0]!.id;
-		}
-
-		const ownerId = input.owner
-			? (await ctx.client.resolver.resolveUser(project.id, input.owner)).id
-			: undefined;
-		const labelIds: string[] = [];
-		for (const l of input.labels ?? []) {
-			labelIds.push((await ctx.client.resolver.resolveLabel(project.id, l)).id);
-		}
-
-		// client called with RESOLVED UUIDs (never the human names). Ownership is
-		// FLAT: owner -> a top-level owner_id.
-		const raw = await (
-			ctx.client.api as never as {
-				createTask: (
-					projectId: string,
-					body: {
-						title: string;
-						status_id: string;
-						owner_id?: string;
-						label_ids: string[];
-					}
-				) => Promise<unknown>;
-			}
-		).createTask(project.id, {
-			title: input.title,
-			status_id: statusId,
-			...(ownerId ? { owner_id: ownerId } : {}),
-			label_ids: labelIds,
-		});
-
-		return hydrateTaskDetail(raw, wf);
-	},
-};
-
-describe('operation contract: task.create', () => {
-	it('resolves project/status/owner/labels to UUIDs and calls createTask with a top-level owner_id, then hydrates', async () => {
-		const resolver = makeResolver();
-		const createTask = vi.fn(async () => ({
-			id: 't-new',
-			key: 'APO-7',
-			title: 'Wire auth',
-			status_id: 'st-review',
-			owner_id: 'u-ann',
-			updated_at: '2026-06-16T00:00:00Z',
-		}));
-		const ctx = makeCtx({ createTask }, resolver);
-
-		const out = await taskCreate.run(
-			{
-				project: 'apollo',
-				title: 'Wire auth',
-				status: 'In Review',
-				owner: 'ann@example.com',
-				labels: ['bug'],
-			},
-			ctx
-		);
-
-		// resolver turned every human token into an id.
-		expect(resolver.resolveProject).toHaveBeenCalledWith('apollo');
-		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
-		expect(resolver.resolveUser).toHaveBeenCalledWith('p-apollo', 'ann@example.com');
-		expect(resolver.resolveLabel).toHaveBeenCalledWith('p-apollo', 'bug');
-
-		// client got UUIDs in the REAL flat shape: a top-level owner_id.
-		expect(createTask).toHaveBeenCalledWith('p-apollo', {
-			title: 'Wire auth',
-			status_id: 'st-review',
-			owner_id: 'u-ann',
-			label_ids: ['lb-bug'],
-		});
-
-		// result hydrated: ids joined back to names, stage derived from status.
-		expect(out).toMatchObject({
-			key: 'APO-7',
-			status: { id: 'st-review', name: 'In Review' },
-			stage: { id: 'stg-doing', name: 'In Progress' },
-			owner: { id: 'u-ann', display_name: 'Ann Smith' },
-		});
-	});
-
-	it('stage without status picks the first status of that stage by position', async () => {
-		const resolver = makeResolver();
-		const createTask = vi.fn(async (_p: string, body: { status_id: string }) => ({
-			id: 't-new',
-			key: 'APO-8',
-			title: 'Triage',
-			status_id: body.status_id,
-			updated_at: '2026-06-16T00:00:00Z',
-		}));
-		const ctx = makeCtx({ createTask }, resolver);
-
-		await taskCreate.run({ project: 'apollo', title: 'Triage', stage: 'To Do' }, ctx);
-
-		// "To Do" stage -> first status by position is Backlog (position '1').
-		expect(createTask).toHaveBeenCalledWith(
-			'p-apollo',
-			expect.objectContaining({ status_id: 'st-backlog' })
-		);
-	});
-
-	it('throws status_not_in_stage for an inconsistent stage+status pair, BEFORE any client call', async () => {
-		const resolver = makeResolver();
-		const createTask = vi.fn();
-		const ctx = makeCtx({ createTask }, resolver);
-
-		await expect(
-			// "In Review" lives in stage In Progress, not To Do -> mismatch.
-			taskCreate.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'status_not_in_stage' },
-		});
-
-		expect(createTask).not.toHaveBeenCalled();
-	});
-});
-
 // --- task.delete (destructive gate) --------------------------------------
 //
 // Spec: resolveTask; if !config.allowDestructive -> throw
@@ -603,8 +434,7 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 //   - the right client method is called with those UUIDs (never a fractional
 //     position; neighbor tasks are passed by their resolved id),
 //   - the result is hydrated back to names (names-out),
-//   - the domain guards (status_not_in_stage / destructive_action_disabled) fire
-//     BEFORE any write.
+//   - the destructive gate (destructive_action_disabled) fires BEFORE any write.
 //
 // NOTE — task-ref resolution: unlike the representative harness above (which mocks
 // a `resolver.resolveTask`), the shipped ops resolve a "WEB-42" key or UUID via
@@ -671,7 +501,7 @@ describe('operation: create_task (real registry)', () => {
 
 		// names in -> ids: every human token went through the resolver.
 		expect(resolver.resolveProject).toHaveBeenCalledWith('apollo');
-		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
+		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', undefined);
 		expect(resolver.resolveUser).toHaveBeenCalledWith('p-apollo', 'ann@example.com');
 		expect(resolver.resolveLabel).toHaveBeenCalledWith('p-apollo', 'bug');
 
@@ -756,20 +586,18 @@ describe('operation: create_task (real registry)', () => {
 		);
 	});
 
-	it('rejects an inconsistent stage+status pair with status_not_in_stage, BEFORE any client call', async () => {
+	it('resolves the status inside the named stage: one the stage lacks is not found, BEFORE any write', async () => {
 		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		const createTask = vi.fn();
 		const ctx = makeCtx({ createTask }, resolver);
 
 		await expect(
-			// "In Review" lives in stage "In Progress", not "To Do" -> mismatch.
+			// "In Review" lives in stage "In Progress", not "To Do".
 			op.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'status_not_in_stage' },
-		});
+		).rejects.toMatchObject({ code: 'not_found', details: { kind: 'status' } });
 
+		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', 'To Do');
 		expect(createTask).not.toHaveBeenCalled();
 	});
 
@@ -916,7 +744,7 @@ describe('operation: move_task (real registry)', () => {
 		// both the task and its neighbor were resolved via the client (key -> id).
 		expect(client.searchTasks).toHaveBeenCalledWith(expect.objectContaining({ q: 'APO-42' }));
 		expect(client.searchTasks).toHaveBeenCalledWith(expect.objectContaining({ q: 'APO-10' }));
-		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
+		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', undefined);
 
 		// REAL contract (task_move.go): before_id is the record ABOVE the slot, so
 		// "after APO-10" sends APO-10 as before_id. Never a position key — positions
@@ -973,22 +801,17 @@ describe('operation: move_task (real registry)', () => {
 		expect(moveTask).not.toHaveBeenCalled();
 	});
 
-	it('a status that is not in the named stage yields status_not_in_stage on create (stage+status guard)', async () => {
-		// The stage+status mismatch guard is shared (resolveStatusWithStage);
-		// move_task takes a status alone (it carries its own stage), so the mismatch
-		// surfaces on the stage+status surface — create_task — as status_not_in_stage.
-		const op = operationsByName.get('pyramid.task.create')!;
+	it('resolves the status inside `stage`, the one way to pick a repeated status name', async () => {
+		const op = operationsByName.get('pyramid.task.move')!;
+		expect(op.input.shape).toHaveProperty('stage');
 		const resolver = makeResolver();
-		const createTask = vi.fn();
-		const ctx = makeCtx({ createTask }, resolver);
+		const moveTask = vi.fn(async () => moveEnvelope);
+		const ctx = makeCtx(makeRefClient({ moveTask }), resolver);
 
-		await expect(
-			op.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'status_not_in_stage' },
-		});
-		expect(createTask).not.toHaveBeenCalled();
+		await op.run({ task: 'APO-42', status: 'In Review', stage: 'In Progress' }, ctx);
+
+		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', 'In Progress');
+		expect(moveTask).toHaveBeenCalledWith('id-APO-42', { status_id: 'st-review' });
 	});
 });
 

@@ -399,6 +399,53 @@ describe('Resolver — miss throws *_not_found with candidate hints', () => {
 });
 
 // ============================================================================
+// Stage scope — the seeded workflow repeats status names across stages
+// ============================================================================
+
+describe('Resolver — a status inside its stage (seeded workflow)', () => {
+	// The server's defaultWorkflow (service/project.go): Discovery and Design both
+	// hold Initial, Review and Edits. Statuses arrive nested under their stage.
+	const seeded = (): ResolverClient => ({
+		listProjects: async () => [],
+		getWorkflow: async () => ({
+			stages: ['Discovery', 'Design'].map((name, i) => ({
+				id: `stg-${i}`,
+				name,
+				position: `${i}`,
+				statuses: ['Initial', 'Review', 'Edits'].map((s, j) => ({
+					id: `st-${i}-${s}`,
+					name: s,
+					position: `${j}`,
+				})),
+			})),
+		}),
+		listLabels: async () => [],
+		listMembers: async () => [],
+		getTaskSchema: async () => ({}),
+	});
+
+	it('a repeated name is ambiguous, and each candidate names its stage', async () => {
+		const err = await rejection(new Resolver(seeded()).resolveStatus('p', 'Review'));
+		expect(err.code).toBe('ambiguous_name');
+		expect(err.candidates).toEqual(['Discovery: Review', 'Design: Review']);
+	});
+
+	it('with a stage, the status resolves inside it', async () => {
+		const r = new Resolver(seeded());
+		expect((await r.resolveStatus('p', 'Review', 'Design')).id).toBe('st-1-Review');
+		expect((await r.resolveStatus('p', 'Review', 'Discovery')).id).toBe('st-0-Review');
+		// a stage alone (as the status) still means its first status by position.
+		expect((await r.resolveStatus('p', 'Design', 'Design')).id).toBe('st-1-Initial');
+	});
+
+	it('a status the stage does not hold is not found there', async () => {
+		const err = await rejection(new Resolver(seeded()).resolveStatus('p', 'Shipped', 'Design'));
+		expect(err.code).toBe('not_found');
+		expect(err.message).toMatch(/stage "Design"/);
+	});
+});
+
+// ============================================================================
 // Task resolution — human key WEB-42 and a raw UUID both resolve
 // ============================================================================
 //

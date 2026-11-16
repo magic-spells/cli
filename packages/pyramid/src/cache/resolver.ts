@@ -6,7 +6,7 @@
 // always resolves the same way:
 //   - project: handle (ci exact) -> name (ci exact) -> unique fuzzy contains
 //   - status:  key (ci) -> name (ci) -> category (ci) -> stage-name (first
-//              status of that stage by position)
+//              status of that stage by position), inside a stage when given
 //   - stage:   key (ci) -> name (ci) -> category (ci) -> unique fuzzy contains
 //   - user:    email (ci exact) -> display_name (ci exact) -> unique fuzzy
 //   - label:   name (ci exact) -> unique fuzzy contains
@@ -128,48 +128,49 @@ export class Resolver {
 
 	/**
 	 * key (ci) -> name (ci) -> category (ci) -> stage-name (first status of that
-	 * stage by position). Returns the full WorkflowStatus (carries stage_id).
+	 * stage by position). With a `stage`, only that stage's statuses count: the
+	 * seeded workflow repeats names (Initial, Review, Edits) across stages, so a
+	 * stage is the one way to pick between them. Returns the full WorkflowStatus.
 	 */
-	async resolveStatus(projectId: string, q: string): Promise<WorkflowStatus> {
+	async resolveStatus(projectId: string, q: string, stage?: string): Promise<WorkflowStatus> {
 		const wf = await this.getWorkflow(projectId);
 		const needle = norm(q);
+		const scope = stage === undefined ? undefined : await this.resolveStage(projectId, stage);
+		const statuses = scope ? wf.statuses.filter((s) => s.stage_id === scope.id) : wf.statuses;
+		// Candidates name their stage, so an ambiguous status can be narrowed with one.
+		const label = (s: WorkflowStatus): string =>
+			`${wf.stages.find((g) => g.id === s.stage_id)?.name}: ${s.name}`;
 
-		const byKey = wf.statuses.filter((s) => norm(s.key) === needle);
-		const byName = wf.statuses.filter((s) => norm(s.name) === needle);
-		const byCategory = wf.statuses.filter(
+		const byKey = statuses.filter((s) => norm(s.key) === needle);
+		const byName = statuses.filter((s) => norm(s.name) === needle);
+		const byCategory = statuses.filter(
 			(s) => s.category !== undefined && norm(s.category) === needle
 		);
 
-		let match = pick(
-			'status',
-			'ambiguous_status_name',
-			q,
-			[byKey, byName, byCategory],
-			(s) => s.name
-		);
+		let match = pick('status', 'ambiguous_status_name', q, [byKey, byName, byCategory], label);
 
 		// A stage name where a status is expected -> first status of that stage by
 		// position (DOC-NAME-RESOLUTION).
 		if (!match) {
-			const stage = wf.stages.find((s) => norm(s.key) === needle || norm(s.name) === needle);
-			if (stage) {
-				const first = firstStatusOfStage(wf, stage.id);
-				if (first) match = first;
-			}
+			const named = (scope ? [scope] : wf.stages).find(
+				(s) => norm(s.key) === needle || norm(s.name) === needle
+			);
+			if (named) match = firstStatusOfStage(wf, named.id);
 		}
 
 		// Unique fuzzy contains as a last tier.
 		if (!match) {
-			const fuzzy = wf.statuses.filter((s) => contains(s.key, needle) || contains(s.name, needle));
-			match = pick('status', 'ambiguous_status_name', q, [fuzzy], (s) => s.name);
+			const fuzzy = statuses.filter((s) => contains(s.key, needle) || contains(s.name, needle));
+			match = pick('status', 'ambiguous_status_name', q, [fuzzy], label);
 		}
 
 		if (match) return match;
 
-		throw pyramidError('status_not_found', `No status matches "${q}".`, {
+		const where = scope ? ` in stage "${scope.name}"` : '';
+		throw pyramidError('status_not_found', `No status${where} matches "${q}".`, {
 			candidates: shortlist(
 				q,
-				wf.statuses.map((s) => s.name)
+				statuses.map((s) => s.name)
 			),
 		});
 	}

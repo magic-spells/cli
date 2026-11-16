@@ -262,40 +262,6 @@ const customFieldSchema = z.object({
 	value: z.unknown(),
 });
 
-/**
- * Resolve a status input that carries its stage (DOC-DESIGN-RULES r3). When both
- * `stage` and `status` are supplied, resolve the status and verify it lives in
- * the named stage (else `status_not_in_stage`). When only `stage` is supplied,
- * pick that stage's first status by position. Returns the resolved status id (or
- * undefined when neither is supplied).
- */
-async function resolveStatusWithStage(
-	ctx: OpContext,
-	projectId: string,
-	stage: string | undefined,
-	status: string | undefined
-): Promise<{ id: string; stage_id: string } | undefined> {
-	if (status !== undefined) {
-		const resolved = await ctx.client.resolver.resolveStatus(projectId, status);
-		if (stage !== undefined) {
-			const resolvedStage = await ctx.client.resolver.resolveStage(projectId, stage);
-			if (resolved.stage_id !== resolvedStage.id) {
-				throw pyramidError('status_not_in_stage', `Status "${status}" is not in stage "${stage}".`);
-			}
-		}
-		return { id: resolved.id, stage_id: resolved.stage_id };
-	}
-
-	if (stage !== undefined) {
-		// A stage with no status -> the stage's first status by position. resolveStatus
-		// already implements "stage name where a status is expected -> first status".
-		const resolved = await ctx.client.resolver.resolveStatus(projectId, stage);
-		return { id: resolved.id, stage_id: resolved.stage_id };
-	}
-
-	return undefined;
-}
-
 /** Resolve a label-name list to label UUIDs (each via the resolver). */
 async function resolveLabelIds(
 	ctx: OpContext,
@@ -357,9 +323,12 @@ async function buildCreateBody(
 	if (row.estimate_hours !== undefined) body.estimate = row.estimate_hours;
 	if (row.guest_visible !== undefined) body.guest_visible = row.guest_visible;
 
-	// The status carries its stage; resolve it once (the server derives the stage).
-	const resolvedStatus = await resolveStatusWithStage(ctx, projectId, row.stage, row.status);
-	if (resolvedStatus !== undefined) body.status_id = resolvedStatus.id;
+	// The status carries its stage (the server derives it). A status resolves inside
+	// the named stage; a stage alone resolves to its first status (DOC-DESIGN-RULES r3).
+	const status = row.status ?? row.stage;
+	if (status !== undefined) {
+		body.status_id = (await ctx.client.resolver.resolveStatus(projectId, status, row.stage)).id;
+	}
 
 	// owner/reviewer -> TOP-LEVEL owner_id/reviewer_id. No stage to derive: a task
 	// has one owner and one reviewer (DATATYPE-CREATE-TASK-INPUT).
@@ -511,7 +480,7 @@ const taskList: Operation<TaskListInput, Page<TaskSummary>> = {
 		} else {
 			const statusId =
 				input.status !== undefined
-					? (await ctx.client.resolver.resolveStatus(project.id, input.status)).id
+					? (await ctx.client.resolver.resolveStatus(project.id, input.status, input.stage)).id
 					: undefined;
 			const stageId =
 				input.stage !== undefined
@@ -832,6 +801,8 @@ async function failingSubUpdate<T>(which: string, fn: () => Promise<T>): Promise
 const taskMoveInput = z.object({
 	task: z.string(),
 	status: z.string(),
+	// Picks between statuses that share a name in different stages.
+	stage: z.string().optional(),
 	after_task: z.string().optional(),
 	before_task: z.string().optional(),
 });
@@ -840,7 +811,7 @@ type TaskMoveInput = z.infer<typeof taskMoveInput>;
 const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 	name: 'pyramid.task.move',
 	summary:
-		'Move a task to a target status (carries its stage), optionally positioned by neighbor key.',
+		'Move a task to a target status (in `stage` when given), optionally positioned by neighbor key.',
 	input: taskMoveInput,
 	meta: { cli: { positionals: ['task'] } },
 	async run(input, ctx): Promise<TaskDetail> {
@@ -851,7 +822,11 @@ const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 		}
 
 		const ref = await resolveTaskRef(ctx, input.task);
-		const status = await ctx.client.resolver.resolveStatus(ref.projectId, input.status);
+		const status = await ctx.client.resolver.resolveStatus(
+			ref.projectId,
+			input.status,
+			input.stage
+		);
 
 		// The server's anchors name the slot's neighbours: before_id is the task ABOVE
 		// it, after_id the task BELOW. So "after X" sends X as before_id, and vice versa.
