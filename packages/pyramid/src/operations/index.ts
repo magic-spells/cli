@@ -879,13 +879,14 @@ const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 		const ref = await resolveTaskRef(ctx, input.task);
 		const status = await ctx.client.resolver.resolveStatus(ref.projectId, input.status);
 
-		// Wire keys are before_id / after_id (DOC-BACKEND-CONTRACT), not *_task_id.
+		// The server's anchors name the slot's neighbours: before_id is the task ABOVE
+		// it, after_id the task BELOW. So "after X" sends X as before_id, and vice versa.
 		const body: Record<string, unknown> = { status_id: status.id };
 		if (input.after_task !== undefined) {
-			body.after_id = (await resolveTaskRef(ctx, input.after_task)).id;
+			body.before_id = (await resolveTaskRef(ctx, input.after_task)).id;
 		}
 		if (input.before_task !== undefined) {
-			body.before_id = (await resolveTaskRef(ctx, input.before_task)).id;
+			body.after_id = (await resolveTaskRef(ctx, input.before_task)).id;
 		}
 
 		// The response is an ENVELOPE { task, previous } — hydrate raw.task, never the

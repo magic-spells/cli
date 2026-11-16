@@ -506,105 +506,6 @@ describe('operation contract: task.create', () => {
 	});
 });
 
-// --- task.move ------------------------------------------------------------
-//
-// Spec: resolveTask; resolveStatus (carries stage); resolveTask for the
-// after/before neighbor; moveTask(taskId, { status_id, after_task_id? }).
-// after+before together -> validation_failed.
-
-interface MoveTaskInput {
-	task: string;
-	status: string;
-	after_task?: string;
-	before_task?: string;
-}
-
-const taskMove: Operation<MoveTaskInput, TaskDetail> = {
-	name: 'task.move',
-	summary: 'Move a task to a target status (and optional neighbor).',
-	input: z.object({
-		task: z.string(),
-		status: z.string(),
-		after_task: z.string().optional(),
-		before_task: z.string().optional(),
-	}) as never,
-	async run(input, ctx): Promise<TaskDetail> {
-		if (input.after_task && input.before_task) {
-			throw pyramidError('validation_failed', 'after_task and before_task are mutually exclusive.');
-		}
-		const task = await ext(ctx).resolveTask(input.task);
-		const status = await ctx.client.resolver.resolveStatus(task.projectId, input.status);
-		const wf = await ctx.client.resolver.getWorkflow(task.projectId);
-
-		// Wire keys are before_id / after_id (DOC-BACKEND-CONTRACT).
-		const body: {
-			status_id: string;
-			after_id?: string;
-			before_id?: string;
-		} = { status_id: status.id };
-		if (input.after_task) {
-			body.after_id = (await ext(ctx).resolveTask(input.after_task)).id;
-		}
-		if (input.before_task) {
-			body.before_id = (await ext(ctx).resolveTask(input.before_task)).id;
-		}
-
-		// The move response is an envelope { task, previous } — hydrate raw.task.
-		const raw = await (
-			ctx.client.api as never as {
-				moveTask: (taskId: string, body: unknown) => Promise<{ task: unknown }>;
-			}
-		).moveTask(task.id, body);
-		return hydrateTaskDetail(raw.task, wf);
-	},
-};
-
-describe('operation contract: task.move', () => {
-	it('resolves the task + status (carrying stage) + neighbor and calls moveTask with UUIDs', async () => {
-		const resolver = makeResolver();
-		const moveTask = vi.fn(async () => ({
-			task: {
-				id: 'id-of-APO-42',
-				key: 'APO-42',
-				title: 'Ship it',
-				status_id: 'st-review',
-				updated_at: '2026-06-16T00:00:00Z',
-			},
-			previous: { status_id: 'st-backlog', position: '1', completed_at: null },
-		}));
-		const ctx = makeCtx({ moveTask }, resolver);
-
-		const out = await taskMove.run(
-			{ task: 'APO-42', status: 'In Review', after_task: 'APO-10' },
-			ctx
-		);
-
-		expect(resolver.resolveTask).toHaveBeenCalledWith('APO-42');
-		expect(resolver.resolveTask).toHaveBeenCalledWith('APO-10');
-		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
-		expect(moveTask).toHaveBeenCalledWith('id-of-APO-42', {
-			status_id: 'st-review',
-			after_id: 'id-of-APO-10',
-		});
-		expect(out).toMatchObject({ status: { name: 'In Review' } });
-	});
-
-	it('rejects after_task + before_task together with validation_failed (no client call)', async () => {
-		const resolver = makeResolver();
-		const moveTask = vi.fn();
-		const ctx = makeCtx({ moveTask }, resolver);
-
-		await expect(
-			taskMove.run(
-				{ task: 'APO-42', status: 'In Review', after_task: 'APO-10', before_task: 'APO-11' },
-				ctx
-			)
-		).rejects.toMatchObject({ code: 'validation_failed' });
-
-		expect(moveTask).not.toHaveBeenCalled();
-	});
-});
-
 // --- task.delete (destructive gate) --------------------------------------
 //
 // Spec: resolveTask; if !config.allowDestructive -> throw
@@ -999,7 +900,7 @@ describe('operation: move_task (real registry)', () => {
 		previous: { status_id: 'st-backlog', position: '1', completed_at: null },
 	};
 
-	it('passes the after_task NEIGHBOR via after_id and hydrates raw.task from the envelope', async () => {
+	it('sends the after_task neighbour as before_id (the task above the slot) and hydrates raw.task', async () => {
 		const op = operationsByName.get('pyramid.task.move')!;
 		expect(op).toBeDefined();
 
@@ -1018,11 +919,12 @@ describe('operation: move_task (real registry)', () => {
 		expect(client.searchTasks).toHaveBeenCalledWith(expect.objectContaining({ q: 'APO-10' }));
 		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
 
-		// REAL contract: the body key is after_id (NOT after_task_id), never a
-		// position key — positions are server-generated (DOC-DESIGN-RULES r6).
+		// REAL contract (task_move.go): before_id is the record ABOVE the slot, so
+		// "after APO-10" sends APO-10 as before_id. Never a position key — positions
+		// are server-generated (DOC-DESIGN-RULES r6).
 		expect(moveTask).toHaveBeenCalledWith('id-APO-42', {
 			status_id: 'st-review',
-			after_id: 'id-APO-10',
+			before_id: 'id-APO-10',
 		});
 		const body = callArg(moveTask, 1) as Record<string, unknown>;
 		expect(body).not.toHaveProperty('position');
@@ -1033,7 +935,7 @@ describe('operation: move_task (real registry)', () => {
 		expect(out).not.toHaveProperty('previous');
 	});
 
-	it('passes the before_task neighbor via before_id', async () => {
+	it('sends the before_task neighbour as after_id (the task below the slot)', async () => {
 		const op = operationsByName.get('pyramid.task.move')!;
 		const resolver = makeResolver();
 		const moveTask = vi.fn(async () => moveEnvelope);
@@ -1044,7 +946,7 @@ describe('operation: move_task (real registry)', () => {
 
 		expect(moveTask).toHaveBeenCalledWith('id-APO-42', {
 			status_id: 'st-review',
-			before_id: 'id-APO-11',
+			after_id: 'id-APO-11',
 		});
 	});
 
