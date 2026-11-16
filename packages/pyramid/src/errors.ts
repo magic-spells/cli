@@ -1,7 +1,7 @@
 // Pyramid's errors on the kit envelope (DATATYPE-ERROR-ENVELOPE).
 //
 // Pyramid code still names failures in its own words (`task_not_found`,
-// `reply_depth_exceeded`); `pyramidError` translates each to the family-wide code
+// `status_not_in_stage`); `pyramidError` translates each to the family-wide code
 // and keeps the Pyramid word in `details` so nothing is lost:
 //   *_not_found          -> not_found        details.kind
 //   ambiguous_*_name     -> ambiguous_name   details.kind
@@ -27,8 +27,7 @@ type PyramidKind = (typeof NOT_FOUND_KINDS)[number];
 type NotFoundCode = `${PyramidKind}_not_found`;
 type AmbiguousCode = `ambiguous_${PyramidKind}_name`;
 /** Domain rules the Pyramid API (or this package) enforces before a write. */
-type RuleCode =
-	'status_not_in_stage' | 'invalid_field_value' | 'reply_depth_exceeded' | 'task_archived';
+type RuleCode = 'status_not_in_stage' | 'invalid_field_value' | 'task_archived';
 
 export type PyramidErrorCode = MagicErrorCode | NotFoundCode | AmbiguousCode | RuleCode;
 
@@ -57,7 +56,6 @@ function translate(code: PyramidErrorCode): [MagicErrorCode, Record<string, unkn
 	switch (code) {
 		case 'status_not_in_stage':
 		case 'invalid_field_value':
-		case 'reply_depth_exceeded':
 		case 'task_archived':
 			return ['validation_failed', { reason: code }];
 		default:

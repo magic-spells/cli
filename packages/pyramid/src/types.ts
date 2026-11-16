@@ -217,5 +217,4 @@ export interface AddCommentInput {
 export interface ReplyCommentInput {
 	comment_id: string; // ROOT comment
 	content: string;
-	mentions?: string[];
 }

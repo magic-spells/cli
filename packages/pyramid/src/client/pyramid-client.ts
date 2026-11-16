@@ -448,20 +448,9 @@ export class PyramidClient {
 	}
 
 	/**
-	 * GET /v1/comments/{id} — one comment (raw `RawComment`). The `comment.reply`
-	 * op fetches the target to verify it is a ROOT comment (`parent_id` /
-	 * `thread_root_id` null) BEFORE replying, enforcing the one-level rule. Returned
-	 * raw; resolution/hydration is elsewhere. `commentId` must already be a UUID.
-	 */
-	getComment(commentId: string): Promise<unknown> {
-		return this.request<unknown>('GET', `/v1/comments/${encodeURIComponent(commentId)}`);
-	}
-
-	/**
 	 * POST /v1/comments/{id}/replies — reply to a ROOT comment (one level only; the
-	 * op rejects reply-to-reply before this call). `body` is
-	 * `{ content, mention_user_ids? }` with already-resolved mention UUIDs. Returns
-	 * the raw `RawComment`.
+	 * server answers 422 to a reply to a reply). `body` is `{ content }`. Returns
+	 * the raw `RawComment`, which carries `project_id`.
 	 */
 	replyComment(commentId: string, body: unknown): Promise<unknown> {
 		return this.request<unknown>('POST', `/v1/comments/${encodeURIComponent(commentId)}/replies`, {

@@ -667,79 +667,6 @@ describe('operation contract: task.delete (destructive gate)', () => {
 	});
 });
 
-// --- comment.reply (one-level depth guard) -------------------------------
-//
-// Spec: validate the target is a ROOT comment (parent_id == null &&
-// thread_root_id == null); replying to a reply -> reply_depth_exceeded BEFORE
-// the client call.
-
-interface ReplyCommentInput {
-	comment_id: string;
-	content: string;
-}
-
-/** A tiny fixture comment store the op consults to check reply depth. */
-const COMMENTS: Record<string, { parent_id: string | null; thread_root_id: string | null }> = {
-	'c-root': { parent_id: null, thread_root_id: null },
-	'c-reply': { parent_id: 'c-root', thread_root_id: 'c-root' },
-};
-
-const commentReply: Operation<ReplyCommentInput, { id: string }> = {
-	name: 'comment.reply',
-	summary: 'Reply to a root comment (one level deep).',
-	input: z.object({ comment_id: z.string(), content: z.string() }) as never,
-	async run(input, ctx) {
-		const c = await (
-			ctx.client.api as never as {
-				getComment: (
-					id: string
-				) => Promise<{ parent_id: string | null; thread_root_id: string | null }>;
-			}
-		).getComment(input.comment_id);
-		if (c.parent_id != null || c.thread_root_id != null) {
-			throw pyramidError(
-				'reply_depth_exceeded',
-				'Replies are one level deep; reply to the root comment instead.'
-			);
-		}
-		const raw = await (
-			ctx.client.api as never as {
-				replyComment: (id: string, body: { content: string }) => Promise<{ id: string }>;
-			}
-		).replyComment(input.comment_id, { content: input.content });
-		return raw;
-	},
-};
-
-describe('operation contract: comment.reply (one-level depth)', () => {
-	it('replying to a reply throws reply_depth_exceeded BEFORE calling replyComment', async () => {
-		const resolver = makeResolver();
-		const getComment = vi.fn(async (id: string) => COMMENTS[id]!);
-		const replyComment = vi.fn();
-		const ctx = makeCtx({ getComment, replyComment }, resolver);
-
-		await expect(
-			commentReply.run({ comment_id: 'c-reply', content: 'me too' }, ctx)
-		).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'reply_depth_exceeded' },
-		});
-
-		expect(replyComment).not.toHaveBeenCalled();
-	});
-
-	it('replying to a root comment calls replyComment', async () => {
-		const resolver = makeResolver();
-		const getComment = vi.fn(async (id: string) => COMMENTS[id]!);
-		const replyComment = vi.fn(async () => ({ id: 'c-new' }));
-		const ctx = makeCtx({ getComment, replyComment }, resolver);
-
-		const out = await commentReply.run({ comment_id: 'c-root', content: 'ack' }, ctx);
-		expect(replyComment).toHaveBeenCalledWith('c-root', { content: 'ack' });
-		expect(out).toEqual({ id: 'c-new' });
-	});
-});
-
 // ============ Hydration sanity (names-in / names-out invariant) ============
 
 describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)', () => {
@@ -774,8 +701,8 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 //   - the right client method is called with those UUIDs (never a fractional
 //     position; neighbor tasks are passed by their resolved id),
 //   - the result is hydrated back to names (names-out),
-//   - the domain guards (status_not_in_stage / reply_depth_exceeded /
-//     destructive_action_disabled) fire BEFORE any write.
+//   - the domain guards (status_not_in_stage / destructive_action_disabled) fire
+//     BEFORE any write.
 //
 // NOTE — task-ref resolution: unlike the representative harness above (which mocks
 // a `resolver.resolveTask`), the shipped ops resolve a "WEB-42" key or UUID via
@@ -1164,58 +1091,28 @@ describe('operation: move_task (real registry)', () => {
 	});
 });
 
-// --- comment.reply (real op, one-level depth guard) -----------------------
+// --- comment.reply (real op) ----------------------------------------------
+//
+// The server has no GET /comments/{id}: the op posts the reply straight away (the
+// server rejects a reply to a reply) and hydrates against the reply's project_id.
 
 describe('operation: reply_to_comment (real registry)', () => {
-	it('replying to a reply throws reply_depth_exceeded BEFORE calling replyComment', async () => {
+	it('posts the reply without reading the comment first, then hydrates via its project_id', async () => {
 		const op = operationsByName.get('pyramid.comment.reply')!;
-		expect(op).toBeDefined();
+		expect(Object.keys(op.input.shape)).toEqual(['comment_id', 'content']);
 
 		const resolver = makeResolver();
-		// The target is itself a reply: a non-null parent_id (and a thread_root_id
-		// pointing at a DIFFERENT comment) -> it is one level deep already.
-		const getComment = vi.fn(async () => ({
-			id: 'c-reply',
-			task_id: TASK_UUID,
-			parent_id: 'c-root',
-			thread_root_id: 'c-root',
-			author_id: 'u-ann',
-			content: 'first reply',
-		}));
-		const replyComment = vi.fn();
-		const ctx = makeCtx({ getComment, replyComment }, resolver);
-
-		await expect(op.run({ comment_id: 'c-reply', content: 'me too' }, ctx)).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'reply_depth_exceeded' },
-		});
-
-		// validated before the call — no write attempted (r5).
-		expect(replyComment).not.toHaveBeenCalled();
-	});
-
-	it('replying to a ROOT comment resolves its task project and calls replyComment, then hydrates', async () => {
-		const op = operationsByName.get('pyramid.comment.reply')!;
-		const resolver = makeResolver();
-		// A root comment: no parent, thread_root_id === its own id.
-		const getComment = vi.fn(async () => ({
-			id: 'c-root',
-			task_id: TASK_UUID,
-			parent_id: null,
-			thread_root_id: 'c-root',
-			author_id: 'u-ann',
-			content: 'root',
-		}));
 		const replyComment = vi.fn(async () => ({
 			id: 'c-new',
 			task_id: TASK_UUID,
+			project_id: 'p-apollo',
 			stage_id: 'stg-doing',
 			author_id: 'u-ann',
 			content: 'ack',
 			created_at: '2026-06-16T00:00:00Z',
 		}));
-		const client = makeRefClient({ getComment, replyComment });
-		const ctx = makeCtx(client, resolver);
+		// replyComment is the ONLY client method: any other call would throw.
+		const ctx = makeCtx({ replyComment }, resolver);
 
 		const out = (await op.run({ comment_id: 'c-root', content: 'ack' }, ctx)) as {
 			id: string;
@@ -1224,8 +1121,8 @@ describe('operation: reply_to_comment (real registry)', () => {
 		};
 
 		expect(replyComment).toHaveBeenCalledWith('c-root', { content: 'ack' });
+		expect(resolver.getWorkflow).toHaveBeenCalledWith('p-apollo');
 		expect(out.id).toBe('c-new');
-		// hydrated: author id + stage id joined to names via the workflow.
 		// a comment author is a person too — same stub, job_title included.
 		expect(out.author).toEqual({
 			id: 'u-ann',

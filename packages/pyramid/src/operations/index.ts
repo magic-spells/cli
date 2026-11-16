@@ -1003,43 +1003,20 @@ async function currentStageId(ctx: OpContext, ref: TaskRef): Promise<string | un
 const commentReplyInput = z.object({
 	comment_id: z.string(),
 	content: z.string(),
-	mentions: z.array(z.string()).optional(),
 });
 type CommentReplyInput = z.infer<typeof commentReplyInput>;
 
 const commentReply: Operation<CommentReplyInput, TaskComment> = {
 	name: 'pyramid.comment.reply',
-	summary: 'Reply to a ROOT comment (one level only; replying to a reply -> reply_depth_exceeded).',
+	summary: 'Reply to a ROOT comment (one level only; the server rejects a reply to a reply).',
 	input: commentReplyInput,
 	meta: {
 		cli: { positionals: ['comment_id', 'content'] },
 	},
 	async run(input, ctx): Promise<TaskComment> {
-		// Replies are one level deep (r5). Validate the target is a ROOT comment
-		// BEFORE the call: a non-null parent_id / thread_root_id means it is itself a
-		// reply -> reply_depth_exceeded, with no write attempted.
-		const target = rec(await ctx.client.api.getComment(input.comment_id));
-		const parentId = readStr(target.parent_id);
-		const threadRootId = readStr(target.thread_root_id);
-		const selfId = readStr(target.id);
-		// A reply has a non-empty parent_id, or a thread_root_id pointing at another
-		// comment. A root has neither (or thread_root_id === its own id).
-		if (parentId !== undefined || (threadRootId !== undefined && threadRootId !== selfId)) {
-			throw pyramidError(
-				'reply_depth_exceeded',
-				'Replies are one level deep — reply to the root comment instead.'
-			);
-		}
-
-		const taskId = readStr(target.task_id);
-		const projectId = taskId ? (await resolveTaskRef(ctx, taskId)).projectId : '';
-		const mentionIds = await resolveMentionIds(ctx, projectId, input.mentions);
-
-		// Wire field is content + mention_user_ids (no stage_id — inherits parent's).
-		const body: Record<string, unknown> = { content: input.content };
-		if (mentionIds !== undefined) body.mention_user_ids = mentionIds;
-
-		const raw = await ctx.client.api.replyComment(input.comment_id, body);
+		// The server enforces one level and the root's stage; the reply carries project_id.
+		const raw = await ctx.client.api.replyComment(input.comment_id, { content: input.content });
+		const projectId = readStr(rec(raw).project_id);
 		const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
 		return hydrateComment(raw, wf);
 	},

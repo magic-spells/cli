@@ -25,12 +25,7 @@ describe('pyramidError — Pyramid words onto family codes', () => {
 	});
 
 	it('domain rules become validation_failed with details.reason (exit 7)', () => {
-		for (const reason of [
-			'status_not_in_stage',
-			'invalid_field_value',
-			'reply_depth_exceeded',
-			'task_archived',
-		] as const) {
+		for (const reason of ['status_not_in_stage', 'invalid_field_value', 'task_archived'] as const) {
 			const err = pyramidError(reason, 'nope');
 			expect(err.code).toBe('validation_failed');
 			expect(err.details).toEqual({ reason });
@@ -94,7 +89,6 @@ describe('exit classes of Pyramid failure words (pyramid-cli exit table)', () =>
 		expect(exit('validation_failed')).toBe(7);
 		expect(exit('invalid_field_value')).toBe(7);
 		expect(exit('status_not_in_stage')).toBe(7);
-		expect(exit('reply_depth_exceeded')).toBe(7);
 		expect(exit('task_archived')).toBe(7);
 		expect(exit('destructive_action_disabled')).toBe(8);
 		expect(exit('rate_limited')).toBe(9);
