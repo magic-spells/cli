@@ -57,7 +57,7 @@ Today the family has a CLI per product, each built by copying the last (research
 - The top level belongs to the person and the family: `magic login | logout | whoami | doctor | mcp | update` (plus `magic telemetry on|off`).
 - Each product is a namespace: `magic pyramid …`, `magic sites …` (the Sites App SDK's commands sit inside it as `magic sites app …`; there is no top-level `magic app`), `magic marketing …`. Later products (Reviews, Wishlist) arrive as further namespaces, not further binaries.
 - Product command packages are npm workspaces in this monorepo (`packages/pyramid`, `packages/sites`, `packages/marketing`, and possibly an internal `packages/app` the Sites module loads, settled in R3) bundled into the one published package. The only other published packages are the per-platform Sites engine binaries ([[DECISION-SITES-VIA-BINARY-ADAPTER]]).
-- `magic whoami` answers "who am I and what can I reach": the Account identity plus the workspaces reachable in each product. Identity is root-only: each product has a `<product>.whoami` operation that `magic whoami` and `magic doctor` run, and no product has a `magic <product> whoami` command (planned: 0.3.1 still exposes `magic pyramid whoami`; [[FEATURE-WHOAMI-DOCTOR]]).
+- `magic whoami` answers "who am I and what can I reach": the Account identity plus the workspaces reachable in each product. Identity is root-only: each product has a `<product>.whoami` operation that `magic whoami` and `magic doctor` run, and no product has a `magic <product> whoami` command (built on release/0.3.2, ships with the next version; the published 0.3.1 still exposes `magic pyramid whoami`; [[FEATURE-WHOAMI-DOCTOR]]).
 
 ## Alternatives
 

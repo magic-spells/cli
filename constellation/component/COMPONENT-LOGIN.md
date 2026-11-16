@@ -50,6 +50,19 @@ notes:
       2026-10-31: shipped in magic-spells 0.2.0 (on npm, tagged; 0.2.1 adds zod 4). login (loopback
       or --device), --product, --yes, --product-key and logout are live against the merged Account
       and product routes; client id `magic-cli`.
+  - kind: gotcha
+    text: >-
+      Never await the browser opener. `openBrowser` (packages/cli/src/browser.ts) once awaited the
+      `close` event of an opener spawned detached, with stdio ignored and unref'd; that child holds
+      no event loop, so under the top-level await Node exited with code 13 (unsettled top-level
+      await) after the device flow printed its code and before it polled. Now (PR #13,
+      release/0.3.2, unreleased) the opener is fire-and-forget: `openBrowser` returns void, swallows
+      a missing opener's `error` and unrefs. Whether a browser opened is unknowable (an opener can
+      start and still fail), so both flows always print the URL (loopback: one message before the
+      opener starts; device: URL and code as before) and neither says a browser opened. The login
+      tests missed the exit because they inject a fake `openBrowser` through ShellDeps;
+      browser.test.ts mocks node:child_process to cover the real one.
+    sha: 4fdc7f6
 ---
 
 # Login

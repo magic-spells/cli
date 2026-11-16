@@ -48,7 +48,7 @@ Identity is root-only. Every product has a `<product>.whoami` operation, which `
 
 `project list`; `project workflow <project>`; `task list-mine` (alias `next`); `task list <project>`; `task get <task>` (alias `show`); `task timeline <task>`; `task search <query>`; `task create <title>`; `task create-bulk <project>` (alias `bulk`); `task update <task>`; `task move <task>`; `task archive <task>`; `task delete <task>`; `task comment <task> <content>`; `comment reply <comment_id> <content>`; `comment list <task>` — 16 commands, the pyramid-cli tree under `pyramid.<noun>.<verb>` names (`pyramid.task.list-mine`, …). `magic pyramid login` existed in R0 only; R1 removed it (`magic login` mints Pyramid keys).
 
-`pyramid.whoami` is an operation on the MCP surface only (`meta.surfaces: ['mcp']`), not a command: over MCP, `pyramid_whoami`, the `pyramid://me` resource and the `pyramid_doctor` setup prompt tell an agent which user, workspace and projects it acts on. Planned: 0.3.1 still exposes `magic pyramid whoami`.
+`pyramid.whoami` is an operation on the MCP surface only (`meta.surfaces: ['mcp']`), not a command: over MCP, `pyramid_whoami`, the `pyramid://me` resource and the `pyramid_doctor` setup prompt tell an agent which user, workspace and projects it acts on. Built on release/0.3.2 (`magic pyramid whoami` exits 2) and ships with the next version; the published 0.3.1 still has the command.
 
 `magic sites` and `magic marketing` exist from R1 as sign-in-only namespaces (no commands; `--help` lists none) so login, whoami and logout cover them.
 

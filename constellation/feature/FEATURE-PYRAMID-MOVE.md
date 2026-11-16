@@ -57,6 +57,16 @@ notes:
       `--workspace` on a command with no workspace input is a usage error, exit 2, not silently
       ignored. Pyramid's MCP instructions now carry the CLI's version (pyramid/src/version.ts
       deleted; ProductMcp.instructions is a function of the version).
+  - kind: state
+    text: >-
+      PR #13, merged into release/0.3.2 on 2026-11-15, unreleased (0.3.1 still behaves as the
+      0304bf4 notes say). Two points of the name-map note no longer hold: (1) `pyramid.whoami` has
+      no CLI command (MCP-only; `magic pyramid whoami` exits 2), so the CLI tree is 16 commands over
+      17 operations; (2) `status_not_in_stage` and `reply_depth_exceeded` are gone: a status that is
+      not in the named stage is `not_found` (exit 5), and a reply to a reply returns the server's
+      422 as `validation_failed` (exit 7). `invalid_field_value` and `task_archived` still map to
+      validation_failed with details.reason. Rest of PR #13 on COMPONENT-PYRAMID-PACKAGE.
+    sha: 4fdc7f6
 ---
 
 # Pyramid move
@@ -75,4 +85,4 @@ notes:
 
 - pyramid-cli's vitest suite passes inside the workspace with names updated.
 - `magic pyramid task next`, `task update`, `task comment` behave as `pyramid task …` did, against the production API with a `pyramid_` key.
-- `magic pyramid whoami` prints user, workspace and projects (the R0 gate; the command is planned to leave the CLI, with `pyramid.whoami` kept for MCP, `magic whoami` and `magic doctor` per [[FEATURE-WHOAMI-DOCTOR]]).
+- `magic pyramid whoami` prints user, workspace and projects (the R0 gate). The command has since left the CLI on release/0.3.2 (exits 2; ships with the next version, the published 0.3.1 still has it), with `pyramid.whoami` kept for MCP, `magic whoami` and `magic doctor` per [[FEATURE-WHOAMI-DOCTOR]].

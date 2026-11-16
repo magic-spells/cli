@@ -22,6 +22,15 @@ notes:
     text: >-
       2026-10-31: shipped in magic-spells 0.1.0 (packages/kit/src/errors.ts, exitCodeFor); 0.2.0
       added `auth_cancelled` (exit 3) and the `account` product for Account failures.
+  - kind: state
+    text: >-
+      PR #13, merged into release/0.3.2 on 2026-11-15, unreleased (0.3.1 still has both codes):
+      Pyramid's details.reason values are `invalid_field_value` and `task_archived` only.
+      `status_not_in_stage` and `reply_depth_exceeded` are gone: a status that is not in the named
+      stage is `not_found` (exit 5, details.kind `status`), and a reply to a reply returns the
+      server's 422 as `validation_failed` (exit 7). Supersedes the Pyramid list in the abf9d7d
+      deviation note.
+    sha: 4fdc7f6
 ---
 
 From pyramid-cli's `McpError.toJSON()` (`src/errors.ts`) with the product added and the not-found and ambiguous families collapsed. Printed to stderr by the CLI under `--json` and returned as the text of an `isError` MCP result.
