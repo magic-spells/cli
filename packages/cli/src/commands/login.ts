@@ -221,11 +221,10 @@ async function loopbackSignIn(
 		state,
 		challenge: pkce.challenge,
 	});
-	if (await shell.openBrowser(url)) {
-		note(shell, 'Opened your browser to sign in to Magic Spells. Waiting for you to finish…');
-	} else {
-		shell.io.err(`Open this page to sign in to Magic Spells:\n\n  ${url}\n\n`);
-	}
+	shell.io.err(
+		`Sign in to Magic Spells in your browser, or open this page:\n\n  ${url}\n\nWaiting for you to finish…\n`
+	);
+	shell.openBrowser(url);
 	return loopback.result;
 }
 
@@ -244,9 +243,7 @@ async function deviceSignIn(
 			`and enter the code:\n\n      ${bold(big)}\n\n`
 	);
 	if (browserLocal && start.verification_uri_complete) {
-		if (await shell.openBrowser(start.verification_uri_complete)) {
-			note(shell, 'Opened your browser.');
-		}
+		shell.openBrowser(start.verification_uri_complete);
 	}
 	const countdown = shell.io.isTTY() && !shell.opts.quiet;
 	if (!countdown) {

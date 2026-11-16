@@ -47,7 +47,7 @@ export async function magic(
 	};
 	const code = await run(argv, {
 		store: memoryStore(),
-		openBrowser: async () => false,
+		openBrowser: () => {},
 		confirm: null,
 		stderrIsTTY: false,
 		...deps,

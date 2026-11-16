@@ -24,8 +24,8 @@ export interface Shell {
 	readConfig: () => ConfigFile | null;
 	/** Read a secret: hidden TTY prompt, or stdin when piped. */
 	readSecret: (prompt: string) => Promise<string>;
-	/** Open a URL in the browser; false when it could not. */
-	openBrowser: (url: string) => Promise<boolean>;
+	/** Try to open a URL in the browser; the caller prints it too. */
+	openBrowser: (url: string) => void;
 	/** Ask yes/no; null when stdin is not a terminal (then --yes is required). */
 	confirm: ((question: string) => Promise<boolean>) | null;
 	platform: NodeJS.Platform;

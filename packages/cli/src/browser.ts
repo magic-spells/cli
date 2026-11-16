@@ -15,21 +15,17 @@ export function browserIsLocal(env: NodeJS.ProcessEnv, platform: NodeJS.Platform
 }
 
 /**
- * Open a URL in the default browser; false when the opener could not be spawned.
- * Settles on `spawn`, not `close`: the detached, unref'd child holds no event loop,
- * so waiting for it to exit lets the device flow end before its first poll.
+ * Try to open a URL in the default browser. Whether one opened is unknowable (an
+ * opener can start and still fail), so callers always print the URL as well.
  */
-export function openBrowser(url: string): Promise<boolean> {
-	return new Promise((resolve) => {
-		const platform = process.platform;
-		// Not `cmd /c start`: cmd splits the URL at every `&` of the authorize query.
-		const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'rundll32' : 'xdg-open';
-		const args = platform === 'win32' ? ['url.dll,FileProtocolHandler', url] : [url];
-		const child = spawn(command, args, { detached: true, stdio: 'ignore' });
-		child.once('error', () => resolve(false));
-		child.once('spawn', () => resolve(true));
-		child.unref();
-	});
+export function openBrowser(url: string): void {
+	const platform = process.platform;
+	// Not `cmd /c start`: cmd splits the URL at every `&` of the authorize query.
+	const command = platform === 'darwin' ? 'open' : platform === 'win32' ? 'rundll32' : 'xdg-open';
+	const args = platform === 'win32' ? ['url.dll,FileProtocolHandler', url] : [url];
+	const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+	child.on('error', () => {}); // a missing opener: the printed URL is the way in
+	child.unref();
 }
 
 /** Ask a yes/no question on the terminal (stderr prompt, stdin answer); default no. */

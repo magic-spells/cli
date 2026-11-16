@@ -33,7 +33,7 @@ function shell(env: NodeJS.ProcessEnv, store = memoryStore()): Shell {
 		opts: { json: false, yes: false, quiet: false },
 		readConfig: () => null,
 		readSecret: async () => '',
-		openBrowser: async () => false,
+		openBrowser: () => {},
 		confirm: null,
 		platform: process.platform,
 		login: {},

@@ -138,6 +138,8 @@ describe('magic login (loopback)', () => {
 		// The browser went to /auth/authorize with PKCE; the exchange carried the verifier.
 		const authorize = new URL(opened[0]!);
 		expect(authorize.pathname).toBe('/auth/authorize');
+		// Printed as well: an opener that starts can still fail to show a browser.
+		expect(r.stderr).toContain(`\n  ${opened[0]}\n`);
 		expect(authorize.searchParams.get('redirect_uri')).toMatch(
 			/^http:\/\/127\.0\.0\.1:\d+\/callback$/
 		);
@@ -238,7 +240,7 @@ describe('magic login (loopback)', () => {
 		expect(store.items).toEqual({});
 	});
 
-	it('when the browser cannot open, the URL is printed and login keeps listening', async () => {
+	it('with no browser, following the printed URL by hand signs in', async () => {
 		const store = memoryStore();
 		let printed = '';
 		// Approve "by hand": follow the printed URL like a person would.
@@ -252,12 +254,11 @@ describe('magic login (loopback)', () => {
 			isTTY: () => false,
 		};
 		const code = await run(['login'], {
-			...desktop({ store, openBrowser: async () => false }),
+			...desktop({ store, openBrowser: () => {} }),
 			env: { XDG_CONFIG_HOME: '/nonexistent', ...env() },
 			io,
 		});
 		expect(code).toBe(0);
-		expect(printed).toContain('Open this page to sign in to Magic Spells:');
 		expect(store.items['account:grant']).toBeDefined();
 	});
 
@@ -480,7 +481,7 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 				opts: { json: false, yes: false, quiet: false },
 				readConfig: () => null,
 				readSecret: async () => '',
-				openBrowser: async () => false,
+				openBrowser: () => {},
 				confirm: null,
 				platform: 'darwin',
 				login: {},

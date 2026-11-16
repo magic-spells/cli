@@ -36,7 +36,7 @@ export interface ShellDeps {
 	store?: CredentialStore;
 	products?: ProductEntry[];
 	readSecret?: (prompt: string) => Promise<string>;
-	openBrowser?: (url: string) => Promise<boolean>;
+	openBrowser?: (url: string) => void;
 	confirm?: ((question: string) => Promise<boolean>) | null;
 	platform?: NodeJS.Platform;
 	login?: LoginTiming;
