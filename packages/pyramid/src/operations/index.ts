@@ -609,13 +609,8 @@ const taskCreate: Operation<TaskCreateInput, TaskDetail> = {
 const taskBulkCreateInput = z.object({
 	project: z.string(),
 	template: z.string().optional(),
-	defaults: z
-		.object({
-			stage: z.string().optional(),
-			status: z.string().optional(),
-			labels: z.array(z.string()).optional(),
-		})
-		.optional(),
+	// Row fields every row takes unless it sets its own; strict, like the rows.
+	defaults: taskRow.pick({ stage: true, status: true, labels: true }).optional(),
 	tasks: z.array(taskRow).min(1).max(100),
 });
 type TaskBulkCreateInput = z.infer<typeof taskBulkCreateInput>;

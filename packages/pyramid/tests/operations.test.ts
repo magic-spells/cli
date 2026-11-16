@@ -1109,20 +1109,25 @@ describe('operation: create_tasks_bulk (real registry)', () => {
 		expect(bulkCreate).not.toHaveBeenCalled();
 	});
 
-	it('rejects a row field the bulk endpoint would silently drop, naming it (no write)', async () => {
+	it('rejects a row or default field the bulk endpoint would silently drop, naming it (no write)', async () => {
 		const op = operationsByName.get('pyramid.task.create-bulk')!;
 		const bulkCreate = vi.fn();
 		const ctx = makeCtx({ bulkCreate }, makeResolver());
 
-		const r = await callTool('pyramid', op, async () => ctx, {
-			project: 'apollo',
-			template: 'Default',
-			tasks: [{ title: 'One', priority: 'high' }],
-		});
-		expect(r.isError).toBe(true);
-		const { error } = JSON.parse(r.content[0]!.text);
-		expect(error.code).toBe('validation_failed');
-		expect(error.message).toMatch(/priority/);
+		for (const input of [
+			{ tasks: [{ title: 'One', priority: 'high' }] },
+			{ defaults: { priority: 'high' }, tasks: [{ title: 'One' }] },
+		]) {
+			const r = await callTool('pyramid', op, async () => ctx, {
+				project: 'apollo',
+				template: 'Default',
+				...input,
+			});
+			expect(r.isError).toBe(true);
+			const { error } = JSON.parse(r.content[0]!.text);
+			expect(error.code).toBe('validation_failed');
+			expect(error.message).toMatch(/priority/);
+		}
 		expect(bulkCreate).not.toHaveBeenCalled();
 	});
 });
