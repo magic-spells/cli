@@ -928,13 +928,14 @@ describe('operation: update_task (real registry)', () => {
 		const removeTaskLabel = vi.fn(async () => undefined);
 		const setFieldValues = vi.fn(async () => ({}));
 		// getTask: the ref lookup (UUID branch) + the final re-fetch both call it.
-		const getTask = vi.fn(async (id: string) => ({
+		const getTask = vi.fn(async (id: string, expand?: string) => ({
 			id,
 			key: 'APO-1',
 			project_id: 'p-apollo',
 			status_id: 'st-review',
 			title: 'Renamed',
 			updated_at: '2026-06-16T00:00:00Z',
+			...(expand && { labels: [{ id: 'lb-bug', name: 'bug' }] }),
 		}));
 		const client = {
 			getTask,
@@ -976,8 +977,9 @@ describe('operation: update_task (real registry)', () => {
 			values: { 'fld-sev': 'high' },
 		});
 
-		// 3) the op re-fetched + hydrated the final task.
-		expect(out).toMatchObject({ key: 'APO-1', title: 'Renamed' });
+		// 3) the op re-fetched + hydrated the final task, expanded so the added label shows.
+		expect(getTask).toHaveBeenLastCalledWith(TASK_UUID, 'owner,reviewer,labels');
+		expect(out).toMatchObject({ key: 'APO-1', title: 'Renamed', labels: ['bug'] });
 	});
 
 	it('surfaces WHICH sub-update failed (add_labels) with its code', async () => {

@@ -141,6 +141,8 @@ const listMyTasksInput = z.object({
 type ListMyTasksInput = z.infer<typeof listMyTasksInput>;
 
 const DEFAULT_LIMIT = 25;
+/** `?expand` inlines a task's related owner, reviewer and label rows. */
+const EXPAND = 'owner,reviewer,labels';
 
 const listMyTasks: Operation<ListMyTasksInput, Page<TaskSummary>> = {
 	name: 'pyramid.task.list-mine',
@@ -512,7 +514,7 @@ const taskList: Operation<TaskListInput, Page<TaskSummary>> = {
 				limit: input.limit ?? DEFAULT_LIMIT,
 				cursor: input.cursor,
 				// The only list route that can inline labels (archived, search, mine cannot).
-				expand: 'owner,reviewer,labels',
+				expand: EXPAND,
 			});
 		}
 
@@ -550,10 +552,7 @@ const taskShow: Operation<TaskShowInput, TaskDetail> = {
 	meta: { cli: { positionals: ['task'], verbAliases: ['show'] } },
 	async run(input, ctx): Promise<TaskDetail> {
 		const ref = await resolveTaskRef(ctx, input.task);
-		const raw = await ctx.client.api.getTask(
-			ref.id,
-			input.expand ? 'owner,reviewer,labels' : undefined
-		);
+		const raw = await ctx.client.api.getTask(ref.id, input.expand ? EXPAND : undefined);
 		const projectId = readStr(rec(raw).project_id) ?? ref.projectId;
 		return hydrateDetailFor(ctx, raw, projectId);
 	},
@@ -772,8 +771,8 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 			);
 		}
 
-		// 3) Re-fetch + hydrate the final task state.
-		const raw = await ctx.client.api.getTask(ref.id);
+		// 3) Re-fetch + hydrate the final task state, labels included.
+		const raw = await ctx.client.api.getTask(ref.id, EXPAND);
 		return hydrateDetailFor(ctx, raw, projectId);
 	},
 };
