@@ -14,7 +14,11 @@ export function browserIsLocal(env: NodeJS.ProcessEnv, platform: NodeJS.Platform
 	return true;
 }
 
-/** Open a URL in the default browser; false when that could not be done. */
+/**
+ * Open a URL in the default browser; false when the opener could not be spawned.
+ * Settles on `spawn`, not `close`: the detached, unref'd child holds no event loop,
+ * so waiting for it to exit lets the device flow end before its first poll.
+ */
 export function openBrowser(url: string): Promise<boolean> {
 	return new Promise((resolve) => {
 		const platform = process.platform;
@@ -23,7 +27,7 @@ export function openBrowser(url: string): Promise<boolean> {
 		const args = platform === 'win32' ? ['url.dll,FileProtocolHandler', url] : [url];
 		const child = spawn(command, args, { detached: true, stdio: 'ignore' });
 		child.once('error', () => resolve(false));
-		child.once('close', (code) => resolve(code === 0));
+		child.once('spawn', () => resolve(true));
 		child.unref();
 	});
 }
