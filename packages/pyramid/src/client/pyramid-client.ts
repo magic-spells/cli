@@ -348,12 +348,13 @@ export class PyramidClient {
 	}
 
 	/**
-	 * POST /v1/tasks/{id}/labels — add a label to an existing task. `labelId` is an
-	 * already-resolved label UUID. No If-Match. Returns the raw response.
+	 * POST /v1/tasks/{id}/labels — add labels to an existing task in one request.
+	 * `labelIds` are already-resolved label UUIDs (the server 422s an empty list).
+	 * No If-Match. Returns the raw response.
 	 */
-	addTaskLabel(taskId: string, labelId: string): Promise<unknown> {
+	addTaskLabels(taskId: string, labelIds: string[]): Promise<unknown> {
 		return this.request<unknown>('POST', `/v1/tasks/${encodeURIComponent(taskId)}/labels`, {
-			body: { label_id: labelId },
+			body: { label_ids: labelIds },
 		});
 	}
 

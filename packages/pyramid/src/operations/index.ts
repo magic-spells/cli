@@ -808,10 +808,10 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 		// 2) FAN-OUT (best-effort, after the PATCH). Labels and custom fields still
 		// have dedicated endpoints; a failure surfaces WHICH sub-update failed.
 
-		// add_labels / remove_labels -> POST / DELETE /tasks/{id}/labels[/{labelId}].
+		// add_labels -> one POST /tasks/{id}/labels; remove_labels -> DELETE per label.
 		const addLabelIds = await resolveLabelIds(ctx, projectId, input.add_labels);
-		for (const labelId of addLabelIds ?? []) {
-			await failingSubUpdate('add_label', () => ctx.client.api.addTaskLabel(ref.id, labelId));
+		if (addLabelIds?.length) {
+			await failingSubUpdate('add_labels', () => ctx.client.api.addTaskLabels(ref.id, addLabelIds));
 		}
 		const removeLabelIds = await resolveLabelIds(ctx, projectId, input.remove_labels);
 		for (const labelId of removeLabelIds ?? []) {

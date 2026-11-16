@@ -1102,7 +1102,7 @@ describe('operation: update_task (real registry)', () => {
 		} as never);
 
 		const updateTask = vi.fn(async () => ({ id: TASK_UUID }));
-		const addTaskLabel = vi.fn(async () => ({}));
+		const addTaskLabels = vi.fn(async () => ({}));
 		const removeTaskLabel = vi.fn(async () => undefined);
 		const setFieldValues = vi.fn(async () => ({}));
 		// getTask: the ref lookup (UUID branch) + the final re-fetch both call it.
@@ -1117,7 +1117,7 @@ describe('operation: update_task (real registry)', () => {
 		const client = {
 			getTask,
 			updateTask,
-			addTaskLabel,
+			addTaskLabels,
 			removeTaskLabel,
 			setFieldValues,
 		};
@@ -1147,8 +1147,8 @@ describe('operation: update_task (real registry)', () => {
 		expect(patch).not.toHaveProperty('field_values');
 		expect(patch).not.toHaveProperty('stage_id');
 
-		// 2) labels -> POST /labels per resolved id.
-		expect(addTaskLabel).toHaveBeenCalledWith(TASK_UUID, 'lb-bug');
+		// 2) labels -> ONE POST /labels carrying every resolved id.
+		expect(addTaskLabels).toHaveBeenCalledWith(TASK_UUID, ['lb-bug']);
 		// custom_fields -> PATCH /field-values keyed by field UUID.
 		expect(setFieldValues).toHaveBeenCalledWith(TASK_UUID, {
 			values: { 'fld-sev': 'high' },
@@ -1158,7 +1158,7 @@ describe('operation: update_task (real registry)', () => {
 		expect(out).toMatchObject({ key: 'APO-1', title: 'Renamed' });
 	});
 
-	it('surfaces WHICH sub-update failed (add_label) with its code', async () => {
+	it('surfaces WHICH sub-update failed (add_labels) with its code', async () => {
 		const op = operationsByName.get('pyramid.task.update')!;
 		const resolver = makeResolver();
 		const getTask = vi.fn(async (id: string) => ({
@@ -1167,10 +1167,10 @@ describe('operation: update_task (real registry)', () => {
 			project_id: 'p-apollo',
 			status_id: 'st-review',
 		}));
-		const addTaskLabel = vi.fn(async () => {
+		const addTaskLabels = vi.fn(async () => {
 			throw pyramidError('permission_denied', 'nope');
 		});
-		const client = { getTask, addTaskLabel };
+		const client = { getTask, addTaskLabels };
 		const ctx = makeCtx(client, resolver);
 
 		const err = await op
@@ -1179,7 +1179,7 @@ describe('operation: update_task (real registry)', () => {
 			.catch((e) => e as McpError);
 		expect(err).toBeInstanceOf(McpError);
 		expect(err?.code).toBe('permission_denied');
-		expect(err?.message).toMatch(/add_label/);
+		expect(err?.message).toMatch(/add_labels/);
 	});
 
 	it('clears an owner with an explicit null (the null must SURVIVE onto the patch)', async () => {
