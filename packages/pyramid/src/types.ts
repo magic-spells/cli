@@ -83,7 +83,8 @@ export interface TaskSummary {
 	stage: { id: string; name: string };
 	owner: UserStub | null;
 	reviewer: UserStub | null;
-	labels: string[];
+	/** Present only when the server sent the labels (`task list`, `task get --expand`). */
+	labels?: string[];
 	archived: boolean;
 	updated_at: string;
 }

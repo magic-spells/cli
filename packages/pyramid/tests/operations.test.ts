@@ -236,7 +236,6 @@ describe('operation: list_my_tasks (real registry)', () => {
 						title: 'Wire auth',
 						status_id: 'st-review',
 						owner_id: 'u-ann',
-						labels: ['lb-bug'],
 						project_id: 'p-apollo',
 						updated_at: '2026-06-01T00:00:00Z',
 					},
@@ -252,21 +251,21 @@ describe('operation: list_my_tasks (real registry)', () => {
 				status: { name: string };
 				stage: { name: string };
 				owner: { display_name: string } | null;
-				labels: string[];
 			}>;
 			next_cursor: string | null;
 			has_more: boolean;
 		};
 
 		expect(client.listMyTasks).toHaveBeenCalledOnce();
-		// names hydrated alongside UUIDs (status/stage/owner/label all joined).
+		// names hydrated alongside UUIDs (status/stage/owner all joined).
 		expect(page.items[0]).toMatchObject({
 			key: 'APO-1',
 			status: { name: 'In Review' },
 			stage: { name: 'In Progress' }, // derived from the status's stage_id
 			owner: { display_name: 'Ann Smith' },
-			labels: ['bug'],
 		});
+		// the feed sends no labels, so the summary claims none rather than [].
+		expect(page.items[0]).not.toHaveProperty('labels');
 		// pagination surfaced, never truncated (DOC-DESIGN-RULES r8).
 		expect(page.next_cursor).toBe('CUR-NEXT');
 		expect(page.has_more).toBe(true);
@@ -431,7 +430,6 @@ describe('operation contract: task.create', () => {
 			title: 'Wire auth',
 			status_id: 'st-review',
 			owner_id: 'u-ann',
-			labels: ['lb-bug'],
 			updated_at: '2026-06-16T00:00:00Z',
 		}));
 		const ctx = makeCtx({ createTask }, resolver);
@@ -467,7 +465,6 @@ describe('operation contract: task.create', () => {
 			status: { id: 'st-review', name: 'In Review' },
 			stage: { id: 'stg-doing', name: 'In Progress' },
 			owner: { id: 'u-ann', display_name: 'Ann Smith' },
-			labels: ['bug'],
 		});
 	});
 
@@ -581,7 +578,7 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 				title: 'x',
 				status_id: 'st-review',
 				owner_id: 'u-bob',
-				labels: ['lb-bug'],
+				labels: [{ id: 'lb-bug', name: 'bug', color: '#f00' }],
 				updated_at: '2026-06-01T00:00:00Z',
 			},
 			APOLLO_WORKFLOW
@@ -590,6 +587,8 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 		expect(summary.stage).toEqual({ id: 'stg-doing', name: 'In Progress' });
 		expect(summary.owner).toEqual({ id: 'u-bob', display_name: 'Bob Jones' });
 		expect(summary.labels).toEqual(['bug']);
+		// a row without labels (no ?expand) omits the key instead of claiming none.
+		expect(hydrateTaskSummary({ id: 't2' }, APOLLO_WORKFLOW)).not.toHaveProperty('labels');
 	});
 });
 
@@ -655,7 +654,6 @@ describe('operation: create_task (real registry)', () => {
 			title: 'Wire auth',
 			status_id: 'st-review',
 			owner_id: 'u-ann',
-			labels: ['lb-bug'],
 			updated_at: '2026-06-16T00:00:00Z',
 		}));
 		const ctx = makeCtx({ createTask }, resolver);
@@ -695,7 +693,6 @@ describe('operation: create_task (real registry)', () => {
 			status: { id: 'st-review', name: 'In Review' },
 			stage: { id: 'stg-doing', name: 'In Progress' },
 			owner: { id: 'u-ann', display_name: 'Ann Smith' },
-			labels: ['bug'],
 		});
 	});
 
@@ -1382,6 +1379,27 @@ describe('list_tasks: owner/reviewer filters', () => {
 		expect(op.input.shape).not.toHaveProperty('assignee');
 		expect(op.input.shape).toHaveProperty('owner');
 		expect(op.input.shape).toHaveProperty('reviewer');
+	});
+
+	it('asks for the expansion, so its rows carry their real labels', async () => {
+		const op = operationsByName.get('pyramid.task.list')!;
+		const listTasks = vi.fn(async () => ({
+			data: [
+				{
+					id: 't1',
+					key: 'APO-1',
+					status_id: 'st-review',
+					labels: [{ id: 'lb-bug', name: 'bug', color: '#f00' }],
+				},
+			],
+			cursor: null,
+		}));
+		const page = (await op.run({ project: 'apollo' }, makeCtx({ listTasks }, makeResolver()))) as {
+			items: Array<{ labels?: string[] }>;
+		};
+
+		expect(callArg(listTasks, 1)).toMatchObject({ expand: 'owner,reviewer,labels' });
+		expect(page.items[0]!.labels).toEqual(['bug']);
 	});
 
 	it('labels a hydrated owner with the job_title the workflow already knows', async () => {

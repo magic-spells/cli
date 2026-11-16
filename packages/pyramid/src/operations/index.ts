@@ -539,6 +539,8 @@ const taskList: Operation<TaskListInput, Page<TaskSummary>> = {
 				q: input.query,
 				limit: input.limit ?? DEFAULT_LIMIT,
 				cursor: input.cursor,
+				// The only list route that can inline labels (archived, search, mine cannot).
+				expand: 'owner,reviewer,labels',
 			});
 		}
 
