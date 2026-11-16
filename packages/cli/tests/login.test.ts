@@ -434,9 +434,12 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 		const store = await loggedIn();
 		const oldKey = JSON.parse(store.items['pyramid:acme']!).key;
 		pyramid.expireNext = true;
-		const r = await magic(['pyramid', 'whoami', '--workspace', 'acme'], desktop({ store }));
+		const r = await magic(
+			['pyramid', 'project', 'list', '--workspace', 'acme'],
+			desktop({ store })
+		);
 		expect(r.code).toBe(0);
-		expect(JSON.parse(r.stdout).user.email).toBe('ann@example.com');
+		expect(JSON.parse(r.stdout)).toEqual([]);
 		expect(JSON.parse(store.items['pyramid:acme']!).key).not.toBe(oldKey);
 		expect(pyramid.requests.filter((q) => q.method === 'POST').at(-1)!.body).toMatchObject({
 			workspace: 'acme',
@@ -447,7 +450,10 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 		const store = await loggedIn();
 		account.expireAll();
 		pyramid.expireNext = true;
-		const r = await magic(['pyramid', 'whoami', '--workspace', 'acme'], desktop({ store }));
+		const r = await magic(
+			['pyramid', 'project', 'list', '--workspace', 'acme'],
+			desktop({ store })
+		);
 		expect(r.code).toBe(3);
 		expect(errorOf(r.stderr)).toMatchObject({
 			code: 'not_logged_in',
@@ -457,7 +463,7 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 
 	it('several workspaces and no --workspace is a usage error listing them', async () => {
 		const store = await loggedIn();
-		const r = await magic(['pyramid', 'whoami'], desktop({ store }));
+		const r = await magic(['pyramid', 'project', 'list'], desktop({ store }));
 		expect(r.code).toBe(2);
 		expect(errorOf(r.stderr).candidates).toEqual(['acme', 'beta']);
 	});

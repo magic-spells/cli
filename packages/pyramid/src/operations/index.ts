@@ -68,6 +68,9 @@ const whoami: Operation<Record<string, never>, WhoAmI> = {
 	name: 'pyramid.whoami',
 	summary: 'Report the authenticated user, their workspace, and accessible projects.',
 	input: z.object({}),
+	// Identity is root-only on the CLI (`magic whoami`, `magic doctor`, which run this
+	// by name); MCP keeps the tool, the pyramid://me resource and the setup prompt.
+	meta: { surfaces: ['mcp'] },
 	async run(_input, ctx): Promise<WhoAmI> {
 		// getMe carries the user (and MAY embed a workspace). When it doesn't, fall
 		// back to the key's pinned workspace (the first listWorkspaces entry).

@@ -22,7 +22,7 @@ export interface OpContext<C = unknown> {
 
 /**
  * `product.noun.verb` (CLI `magic <product> <noun> <verb>`, MCP `product_noun_verb`).
- * A two-part `product.verb` is a product-level command (`magic acme whoami`).
+ * A two-part `product.verb` is a product-level operation (`acme.whoami`, MCP `acme_whoami`).
  */
 export type OperationName = `${string}.${string}`;
 

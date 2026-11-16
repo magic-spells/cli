@@ -148,14 +148,11 @@ describe('magic pyramid task next', () => {
 });
 
 describe('magic pyramid whoami / project list', () => {
-	it('whoami prints user, workspace and projects', async () => {
+	it('whoami is not a Pyramid command (identity is root-only: `magic whoami`)', async () => {
 		const r = await magicPyramid(['whoami']);
-		expect(r.code).toBe(0);
-		expect(JSON.parse(r.stdout)).toMatchObject({
-			user: { display_name: 'Ann Smith', email: 'ann@example.com' },
-			workspace: { handle: 'acme', name: 'Acme' },
-			projects: [{ handle: 'web', name: 'Website' }],
-		});
+		expect(r.code).toBe(2);
+		expect(JSON.parse(r.stderr).error).toMatchObject({ code: 'usage' });
+		expect(seen).toEqual([]);
 	});
 
 	it('project list', async () => {
