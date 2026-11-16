@@ -591,8 +591,12 @@ const taskShow: Operation<TaskShowInput, TaskDetail> = {
 
 const priorityEnum = z.enum(['none', 'low', 'medium', 'high', 'urgent']);
 
-const taskCreateInput = z.object({
-	project: z.string(),
+/**
+ * One task row: exactly the fields of the server's bulk row (handlers/task.go
+ * BulkCreateRequest). Strict, because the server ignores unknown keys: a field
+ * it would drop is a validation error that names it, never silently lost data.
+ */
+const taskRow = z.strictObject({
 	title: z.string(),
 	description: z.string().optional(),
 	stage: z.string().optional(),
@@ -600,11 +604,17 @@ const taskCreateInput = z.object({
 	owner: z.string().optional(),
 	reviewer: z.string().optional(),
 	labels: z.array(z.string()).optional(),
+	custom_fields: z.array(customFieldSchema).optional(),
+});
+
+// A single create is a row plus the fields only POST /projects/{id}/tasks reads.
+const taskCreateInput = z.object({
+	project: z.string(),
+	...taskRow.shape,
 	priority: priorityEnum.optional(),
 	due_date: z.string().optional(),
 	estimate_hours: z.number().optional(),
 	guest_visible: z.boolean().optional(),
-	custom_fields: z.array(customFieldSchema).optional(),
 });
 type TaskCreateInput = z.infer<typeof taskCreateInput>;
 
@@ -633,25 +643,7 @@ const taskBulkCreateInput = z.object({
 			labels: z.array(z.string()).optional(),
 		})
 		.optional(),
-	tasks: z
-		.array(
-			z.object({
-				title: z.string(),
-				description: z.string().optional(),
-				stage: z.string().optional(),
-				status: z.string().optional(),
-				owner: z.string().optional(),
-				reviewer: z.string().optional(),
-				labels: z.array(z.string()).optional(),
-				priority: priorityEnum.optional(),
-				due_date: z.string().optional(),
-				estimate_hours: z.number().optional(),
-				guest_visible: z.boolean().optional(),
-				custom_fields: z.array(customFieldSchema).optional(),
-			})
-		)
-		.min(1)
-		.max(100),
+	tasks: z.array(taskRow).min(1).max(100),
 });
 type TaskBulkCreateInput = z.infer<typeof taskBulkCreateInput>;
 

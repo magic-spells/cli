@@ -1275,6 +1275,23 @@ describe('operation: create_tasks_bulk (real registry)', () => {
 		).rejects.toMatchObject({ code: 'validation_failed' });
 		expect(bulkCreate).not.toHaveBeenCalled();
 	});
+
+	it('rejects a row field the bulk endpoint would silently drop, naming it (no write)', async () => {
+		const op = operationsByName.get('pyramid.task.create-bulk')!;
+		const bulkCreate = vi.fn();
+		const ctx = makeCtx({ bulkCreate }, makeResolver());
+
+		const r = await callTool('pyramid', op, async () => ctx, {
+			project: 'apollo',
+			template: 'Default',
+			tasks: [{ title: 'One', priority: 'high' }],
+		});
+		expect(r.isError).toBe(true);
+		const { error } = JSON.parse(r.content[0]!.text);
+		expect(error.code).toBe('validation_failed');
+		expect(error.message).toMatch(/priority/);
+		expect(bulkCreate).not.toHaveBeenCalled();
+	});
 });
 
 // --- create_task: custom-field validation (r7) + flat ownership --------------
