@@ -370,7 +370,7 @@ export class PyramidClient {
 
 	/**
 	 * PATCH /v1/tasks/{id}/field-values — bulk-set a task's custom-field values.
-	 * `body` is `{ field_values: { <fieldId>: value } }` keyed by field UUID. No
+	 * `body` is `{ values: { <fieldId>: value } }` keyed by field UUID. No
 	 * If-Match. Returns the raw response.
 	 */
 	setFieldValues(taskId: string, body: unknown): Promise<unknown> {

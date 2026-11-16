@@ -1249,7 +1249,7 @@ describe('operation: update_task (real registry)', () => {
 		expect(addTaskLabel).toHaveBeenCalledWith(TASK_UUID, 'lb-bug');
 		// custom_fields -> PATCH /field-values keyed by field UUID.
 		expect(setFieldValues).toHaveBeenCalledWith(TASK_UUID, {
-			field_values: { 'fld-sev': 'high' },
+			values: { 'fld-sev': 'high' },
 		});
 
 		// 3) the op re-fetched + hydrated the final task.
