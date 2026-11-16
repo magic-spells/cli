@@ -30,17 +30,17 @@ import { MagicError as McpError } from '@magic-spells/kit';
 //
 // listProjects returns a bare array of raw project rows. getWorkflow returns a
 // raw workflow payload keyed by project id. Field names match the server model
-// (id/handle/name/task_prefix/role for projects; workflow stages[]/statuses[]
+// (id/handle/name/task_prefix/my_role for projects; workflow stages[]/statuses[]
 // carrying stage_id/position; members with email/display_name; labels).
 
 const PROJECTS: readonly unknown[] = [
-	{ id: 'p-apollo', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', role: 'admin' },
+	{ id: 'p-apollo', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', my_role: 'admin' },
 	{
 		id: 'p-website',
 		handle: 'website-redesign',
 		name: 'Website Redesign',
 		task_prefix: 'WEB',
-		role: 'pm',
+		my_role: 'pm',
 	},
 	// Two projects that BOTH fuzzy-contain "web" (website-redesign + webhooks),
 	// so a non-exact "web" query is ambiguous across the fuzzy tier — yet an
@@ -50,7 +50,7 @@ const PROJECTS: readonly unknown[] = [
 		handle: 'webhooks',
 		name: 'Webhooks Service',
 		task_prefix: 'HOOK',
-		role: 'member',
+		my_role: 'member',
 	},
 ] as const;
 

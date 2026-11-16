@@ -180,13 +180,13 @@ describe('operation: list_projects (real registry)', () => {
 
 		const client = {
 			listProjects: vi.fn(async () => [
-				{ id: 'p1', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', role: 'admin' },
+				{ id: 'p1', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', my_role: 'admin' },
 				{
 					id: 'p2',
 					handle: 'gemini',
 					name: 'Gemini',
 					task_prefix: 'GEM',
-					role: 'member',
+					my_role: 'viewer',
 					archived_at: '2026-01-01T00:00:00Z',
 				},
 			]),
@@ -194,14 +194,16 @@ describe('operation: list_projects (real registry)', () => {
 		const resolver = makeResolver();
 		const out = (await op.run({}, makeCtx(client, resolver))) as Array<{
 			id: string;
+			role: string;
 			archived: boolean;
 		}>;
 
 		expect(client.listProjects).toHaveBeenCalledOnce();
 		expect(out).toHaveLength(2);
-		expect(out[0]).toMatchObject({ id: 'p1', archived: false });
+		// the server names the caller's role `my_role` (model.ProjectWithRole).
+		expect(out[0]).toMatchObject({ id: 'p1', role: 'admin', archived: false });
 		// archived_at present -> archived true (the names-in/derive-out contract).
-		expect(out[1]).toMatchObject({ id: 'p2', archived: true });
+		expect(out[1]).toMatchObject({ id: 'p2', role: 'viewer', archived: true });
 	});
 });
 
@@ -307,7 +309,7 @@ describe('operation: whoami (real registry)', () => {
 				email: 'ann@example.com',
 			})),
 			listProjects: vi.fn(async () => [
-				{ id: 'p-apollo', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', role: 'admin' },
+				{ id: 'p-apollo', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', my_role: 'admin' },
 			]),
 			listWorkspaces: vi.fn(async () => [
 				{ id: 'workspace-1', handle: 'acme', name: 'Acme', role: 'owner' },

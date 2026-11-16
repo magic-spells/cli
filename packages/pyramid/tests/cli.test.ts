@@ -28,7 +28,7 @@ const ROUTES: Record<string, unknown> = {
 	'GET /v1/me': { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' },
 	'GET /v1/workspaces': { data: [{ id: 'w1', handle: 'acme', name: 'Acme', role: 'owner' }] },
 	'GET /v1/projects': {
-		data: [{ id: 'p-web', handle: 'web', name: 'Website', task_prefix: 'WEB', role: 'admin' }],
+		data: [{ id: 'p-web', handle: 'web', name: 'Website', task_prefix: 'WEB', my_role: 'admin' }],
 	},
 	'GET /v1/me/tasks': {
 		data: [

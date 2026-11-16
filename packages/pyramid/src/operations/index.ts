@@ -19,7 +19,7 @@ import {
 
 import { pyramidError } from '../errors.js';
 import type { PyramidClient } from '../client/pyramid-client.js';
-import type { Resolver } from '../cache/resolver.js';
+import { normalizeProject, type Resolver } from '../cache/resolver.js';
 import {
 	hydrateComment,
 	hydrateTaskDetail,
@@ -50,26 +50,6 @@ export type OpContext = KitOpContext<PyramidApi>;
 
 /** One Pyramid operation: resolve names -> ids, call the API, hydrate names back. */
 export type Operation<I = any, O = unknown> = KitOperation<I, O, PyramidApi>;
-
-const PROJECT_ROLES = ['admin', 'pm', 'member', 'viewer', 'guest'] as const;
-type ProjectRole = (typeof PROJECT_ROLES)[number];
-
-function projectRole(v: unknown): ProjectRole {
-	return (PROJECT_ROLES as readonly string[]).includes(v as string) ? (v as ProjectRole) : 'member';
-}
-
-/** Raw project row -> ProjectSummary (archived derived from archived_at). */
-function toProjectSummary(raw: unknown): ProjectSummary {
-	const p = rec(raw);
-	return {
-		id: readStr(p.id) ?? '',
-		handle: readStr(p.handle) ?? '',
-		name: readStr(p.name) ?? '',
-		task_prefix: readStr(p.task_prefix) ?? '',
-		role: projectRole(p.role),
-		archived: p.archived_at != null || p.archived === true,
-	};
-}
 
 const WORKSPACE_ROLES = ['owner', 'admin', 'member'] as const;
 type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
@@ -112,7 +92,7 @@ const whoami: Operation<Record<string, never>, WhoAmI> = {
 				name: readStr(workspaceRaw.name) ?? readStr(workspaceRaw.handle) ?? '',
 				role: workspaceRole(workspaceRaw.role),
 			},
-			projects: projectsRaw.map(toProjectSummary),
+			projects: projectsRaw.map(normalizeProject),
 		};
 	},
 };
@@ -125,7 +105,7 @@ const listProjects: Operation<Record<string, never>, ProjectSummary[]> = {
 	input: z.object({}),
 	async run(_input, ctx): Promise<ProjectSummary[]> {
 		const raw = await ctx.client.api.listProjects();
-		return raw.map(toProjectSummary);
+		return raw.map(normalizeProject);
 	},
 };
 

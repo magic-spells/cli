@@ -349,15 +349,15 @@ function projectRole(v: unknown): ProjectRole {
 	return (PROJECT_ROLES as readonly string[]).includes(str(v)) ? (str(v) as ProjectRole) : 'member';
 }
 
-/** Raw project row -> ProjectSummary (archived derived from archived_at). */
-function normalizeProject(raw: unknown): ProjectSummary {
+/** Raw project row -> ProjectSummary (role from `my_role`, archived from archived_at). */
+export function normalizeProject(raw: unknown): ProjectSummary {
 	const p = rec(raw);
 	return {
 		id: str(p.id),
 		handle: str(p.handle),
 		name: str(p.name),
 		task_prefix: str(p.task_prefix),
-		role: projectRole(p.role),
+		role: projectRole(p.my_role),
 		archived: p.archived_at != null || p.archived === true,
 	};
 }
