@@ -219,12 +219,11 @@ export async function startFakeAccount(clientId = 'magic-cli-test'): Promise<Fak
 }
 
 /** A "browser" that follows Account's redirect to the loopback, like a person approving. */
-export function fakeBrowser(opened: string[] = []): (url: string) => Promise<boolean> {
-	return async (url) => {
+export function fakeBrowser(opened: string[] = []): (url: string) => void {
+	return (url) => {
 		opened.push(url);
 		// Device verification pages are for people; only the authorize URL is followed.
 		if (url.includes('/auth/authorize')) void fetch(url, { redirect: 'follow' }).catch(() => {});
-		return true;
 	};
 }
 

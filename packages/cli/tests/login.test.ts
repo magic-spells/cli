@@ -138,6 +138,8 @@ describe('magic login (loopback)', () => {
 		// The browser went to /auth/authorize with PKCE; the exchange carried the verifier.
 		const authorize = new URL(opened[0]!);
 		expect(authorize.pathname).toBe('/auth/authorize');
+		// Printed as well: an opener that starts can still fail to show a browser.
+		expect(r.stderr).toContain(`\n  ${opened[0]}\n`);
 		expect(authorize.searchParams.get('redirect_uri')).toMatch(
 			/^http:\/\/127\.0\.0\.1:\d+\/callback$/
 		);
@@ -238,7 +240,7 @@ describe('magic login (loopback)', () => {
 		expect(store.items).toEqual({});
 	});
 
-	it('when the browser cannot open, the URL is printed and login keeps listening', async () => {
+	it('with no browser, following the printed URL by hand signs in', async () => {
 		const store = memoryStore();
 		let printed = '';
 		// Approve "by hand": follow the printed URL like a person would.
@@ -252,12 +254,11 @@ describe('magic login (loopback)', () => {
 			isTTY: () => false,
 		};
 		const code = await run(['login'], {
-			...desktop({ store, openBrowser: async () => false }),
+			...desktop({ store, openBrowser: () => {} }),
 			env: { XDG_CONFIG_HOME: '/nonexistent', ...env() },
 			io,
 		});
 		expect(code).toBe(0);
-		expect(printed).toContain('Open this page to sign in to Magic Spells:');
 		expect(store.items['account:grant']).toBeDefined();
 	});
 
@@ -434,9 +435,12 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 		const store = await loggedIn();
 		const oldKey = JSON.parse(store.items['pyramid:acme']!).key;
 		pyramid.expireNext = true;
-		const r = await magic(['pyramid', 'whoami', '--workspace', 'acme'], desktop({ store }));
+		const r = await magic(
+			['pyramid', 'project', 'list', '--workspace', 'acme'],
+			desktop({ store })
+		);
 		expect(r.code).toBe(0);
-		expect(JSON.parse(r.stdout).user.email).toBe('ann@example.com');
+		expect(JSON.parse(r.stdout)).toEqual([]);
 		expect(JSON.parse(store.items['pyramid:acme']!).key).not.toBe(oldKey);
 		expect(pyramid.requests.filter((q) => q.method === 'POST').at(-1)!.body).toMatchObject({
 			workspace: 'acme',
@@ -447,7 +451,10 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 		const store = await loggedIn();
 		account.expireAll();
 		pyramid.expireNext = true;
-		const r = await magic(['pyramid', 'whoami', '--workspace', 'acme'], desktop({ store }));
+		const r = await magic(
+			['pyramid', 'project', 'list', '--workspace', 'acme'],
+			desktop({ store })
+		);
 		expect(r.code).toBe(3);
 		expect(errorOf(r.stderr)).toMatchObject({
 			code: 'not_logged_in',
@@ -457,7 +464,7 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 
 	it('several workspaces and no --workspace is a usage error listing them', async () => {
 		const store = await loggedIn();
-		const r = await magic(['pyramid', 'whoami'], desktop({ store }));
+		const r = await magic(['pyramid', 'project', 'list'], desktop({ store }));
 		expect(r.code).toBe(2);
 		expect(errorOf(r.stderr).candidates).toEqual(['acme', 'beta']);
 	});
@@ -474,7 +481,7 @@ describe('whoami, silent re-mint, logout, doctor after login', () => {
 				opts: { json: false, yes: false, quiet: false },
 				readConfig: () => null,
 				readSecret: async () => '',
-				openBrowser: async () => false,
+				openBrowser: () => {},
 				confirm: null,
 				platform: 'darwin',
 				login: {},

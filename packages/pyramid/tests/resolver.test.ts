@@ -30,17 +30,17 @@ import { MagicError as McpError } from '@magic-spells/kit';
 //
 // listProjects returns a bare array of raw project rows. getWorkflow returns a
 // raw workflow payload keyed by project id. Field names match the server model
-// (id/handle/name/task_prefix/role for projects; workflow stages[]/statuses[]
+// (id/handle/name/task_prefix/my_role for projects; workflow stages[]/statuses[]
 // carrying stage_id/position; members with email/display_name; labels).
 
 const PROJECTS: readonly unknown[] = [
-	{ id: 'p-apollo', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', role: 'admin' },
+	{ id: 'p-apollo', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', my_role: 'admin' },
 	{
 		id: 'p-website',
 		handle: 'website-redesign',
 		name: 'Website Redesign',
 		task_prefix: 'WEB',
-		role: 'pm',
+		my_role: 'pm',
 	},
 	// Two projects that BOTH fuzzy-contain "web" (website-redesign + webhooks),
 	// so a non-exact "web" query is ambiguous across the fuzzy tier — yet an
@@ -50,7 +50,7 @@ const PROJECTS: readonly unknown[] = [
 		handle: 'webhooks',
 		name: 'Webhooks Service',
 		task_prefix: 'HOOK',
-		role: 'member',
+		my_role: 'member',
 	},
 ] as const;
 
@@ -395,6 +395,54 @@ describe('Resolver — miss throws *_not_found with candidate hints', () => {
 		expect(err.code).toBe('not_found');
 		expect(err.details).toEqual({ kind: 'label' });
 		expect(err.candidates).toBeDefined();
+	});
+});
+
+// ============================================================================
+// Stage scope — the seeded workflow repeats status names across stages
+// ============================================================================
+
+describe('Resolver — a status inside its stage (seeded workflow)', () => {
+	// The server's defaultWorkflow (service/project.go): Discovery and Design both
+	// hold Initial, Review and Edits. Statuses arrive nested under their stage.
+	const seeded = (): ResolverClient => ({
+		listProjects: async () => [],
+		getWorkflow: async () => ({
+			stages: ['Discovery', 'Design'].map((name, i) => ({
+				id: `stg-${i}`,
+				name,
+				position: `${i}`,
+				statuses: ['Initial', 'Review', 'Edits'].map((s, j) => ({
+					id: `st-${i}-${s}`,
+					name: s,
+					position: `${j}`,
+				})),
+			})),
+		}),
+		listLabels: async () => [],
+		listMembers: async () => [],
+		getTaskSchema: async () => ({}),
+	});
+
+	it('a repeated name is ambiguous, and each candidate names its stage', async () => {
+		const err = await rejection(new Resolver(seeded()).resolveStatus('p', 'Review'));
+		expect(err.code).toBe('ambiguous_name');
+		expect(err.candidates).toEqual(['Discovery: Review', 'Design: Review']);
+		expect(err.hint).toBe('Pass `stage` to choose one.');
+	});
+
+	it('with a stage, the status resolves inside it', async () => {
+		const r = new Resolver(seeded());
+		expect((await r.resolveStatus('p', 'Review', 'Design')).id).toBe('st-1-Review');
+		expect((await r.resolveStatus('p', 'Review', 'Discovery')).id).toBe('st-0-Review');
+		// a stage alone (as the status) still means its first status by position.
+		expect((await r.resolveStatus('p', 'Design', 'Design')).id).toBe('st-1-Initial');
+	});
+
+	it('a status the stage does not hold is not found there', async () => {
+		const err = await rejection(new Resolver(seeded()).resolveStatus('p', 'Shipped', 'Design'));
+		expect(err.code).toBe('not_found');
+		expect(err.message).toMatch(/stage "Design"/);
 	});
 });
 

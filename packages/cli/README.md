@@ -50,7 +50,7 @@ wins over a stored one; pasted keys are never re-minted.
 | `magic doctor [--json]` | Node, credential store, Account and your sign-in, and per product: API reachable, key present, product checks |
 | `magic update [--check] [--json]` | update magic to the latest version: runs `npm install -g magic-spells@<latest>` for a global npm install; `--check` and `--json` only report |
 | `magic mcp [--products a,b]` | the MCP server over stdio: every product's tools, prefixed (`pyramid_*`) |
-| `magic pyramid <noun> <verb>` | Pyramid: `task next`, `task move WEB-42 --status "In Review"`, `task comment`, `project list`, `whoami`, … (`magic pyramid --help`) |
+| `magic pyramid <noun> <verb>` | Pyramid: `task next`, `task move WEB-42 --status "In Review"`, `task comment`, `project list`, … (`magic pyramid --help`) |
 
 Global flags: `--json`, `--yes/-y`, `--no-color`, `--quiet/-q`, `--workspace <handle>`.
 Output is JSON whenever stdout is not a terminal; errors go to stderr as

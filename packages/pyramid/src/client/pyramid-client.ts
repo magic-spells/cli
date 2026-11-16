@@ -348,12 +348,13 @@ export class PyramidClient {
 	}
 
 	/**
-	 * POST /v1/tasks/{id}/labels — add a label to an existing task. `labelId` is an
-	 * already-resolved label UUID. No If-Match. Returns the raw response.
+	 * POST /v1/tasks/{id}/labels — add labels to an existing task in one request.
+	 * `labelIds` are already-resolved label UUIDs (the server 422s an empty list).
+	 * No If-Match. Returns the raw response.
 	 */
-	addTaskLabel(taskId: string, labelId: string): Promise<unknown> {
+	addTaskLabels(taskId: string, labelIds: string[]): Promise<unknown> {
 		return this.request<unknown>('POST', `/v1/tasks/${encodeURIComponent(taskId)}/labels`, {
-			body: { label_id: labelId },
+			body: { label_ids: labelIds },
 		});
 	}
 
@@ -370,7 +371,7 @@ export class PyramidClient {
 
 	/**
 	 * PATCH /v1/tasks/{id}/field-values — bulk-set a task's custom-field values.
-	 * `body` is `{ field_values: { <fieldId>: value } }` keyed by field UUID. No
+	 * `body` is `{ values: { <fieldId>: value } }` keyed by field UUID. No
 	 * If-Match. Returns the raw response.
 	 */
 	setFieldValues(taskId: string, body: unknown): Promise<unknown> {
@@ -448,20 +449,9 @@ export class PyramidClient {
 	}
 
 	/**
-	 * GET /v1/comments/{id} — one comment (raw `RawComment`). The `comment.reply`
-	 * op fetches the target to verify it is a ROOT comment (`parent_id` /
-	 * `thread_root_id` null) BEFORE replying, enforcing the one-level rule. Returned
-	 * raw; resolution/hydration is elsewhere. `commentId` must already be a UUID.
-	 */
-	getComment(commentId: string): Promise<unknown> {
-		return this.request<unknown>('GET', `/v1/comments/${encodeURIComponent(commentId)}`);
-	}
-
-	/**
 	 * POST /v1/comments/{id}/replies — reply to a ROOT comment (one level only; the
-	 * op rejects reply-to-reply before this call). `body` is
-	 * `{ content, mention_user_ids? }` with already-resolved mention UUIDs. Returns
-	 * the raw `RawComment`.
+	 * server answers 422 to a reply to a reply). `body` is `{ content }`. Returns
+	 * the raw `RawComment`, which carries `project_id`.
 	 */
 	replyComment(commentId: string, body: unknown): Promise<unknown> {
 		return this.request<unknown>('POST', `/v1/comments/${encodeURIComponent(commentId)}/replies`, {

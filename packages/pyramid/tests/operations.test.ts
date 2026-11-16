@@ -6,30 +6,14 @@
 //   - it calls the right client method,
 //   - it hydrates ids back into names in the output (names-in / names-out),
 //   - destructive ops refuse to act when `config.allowDestructive` is false.
-//
-// IMPORTANT — scope note (read before extending):
-//   The FILE-OPERATIONS target set (task.create / task.move / task.delete /
-//   comment.reply, …) is the TARGET surface, but the CURRENT codebase ships only
-//   the Phase-1 read-only ops: whoami, list_projects, get_project_workflow,
-//   list_my_tasks (see src/operations/index.ts). The client likewise has no
-//   createTask / moveTask / deleteTask / replyComment methods yet. So the
-//   create/move/delete/reply assertions the test plan calls for are written here
-//   as a SELF-CONTAINED, registry-shaped harness against representative
-//   `Operation` objects that mirror the spec's `run` contract — they document and
-//   pin the contract (resolve -> client call with UUIDs -> hydrate; destructive
-//   gate) without importing ops that don't exist. The Phase-1 blocks below run
-//   against the REAL registry and are the ones that guard shipped behavior. When
-//   the write ops land, move those blocks onto the real `operationsByName` entries.
 
 import { describe, it, expect, vi } from 'vitest';
-
-import { z } from 'zod';
 
 import { MagicError as McpError, callTool, loadCliConfig, type CliConfig } from '@magic-spells/kit';
 
 import { pyramidError } from '../src/errors.js';
-import { hydrateTaskDetail, hydrateTaskSummary } from '../src/hydrate.js';
-import { operationsByName, type Operation, type OpContext } from '../src/operations/index.js';
+import { hydrateTaskSummary } from '../src/hydrate.js';
+import { operationsByName, type OpContext } from '../src/operations/index.js';
 import type { TaskDetail, Workflow, WhoAmI } from '../src/types.js';
 
 // ============ Shared fixtures ============
@@ -91,9 +75,13 @@ function makeResolver() {
 	return {
 		resolveProject: vi.fn(async (_name: string) => APOLLO_WORKFLOW.project),
 		getWorkflow: vi.fn(async (_projectId: string) => APOLLO_WORKFLOW),
-		resolveStatus: vi.fn(async (_pid: string, q: string) => {
+		resolveStatus: vi.fn(async (_pid: string, q: string, stage?: string) => {
+			// With a stage, only its statuses count (mirrors the real resolver).
+			const scope = APOLLO_WORKFLOW.stages.find((g) => g.name === stage || g.key === stage);
 			let s = APOLLO_WORKFLOW.statuses.find(
-				(x) => x.name.toLowerCase() === q.toLowerCase() || x.key === q
+				(x) =>
+					(!scope || x.stage_id === scope.id) &&
+					(x.name.toLowerCase() === q.toLowerCase() || x.key === q)
 			);
 			if (!s) {
 				// A stage name where a status is expected -> that stage's first status by
@@ -108,8 +96,8 @@ function makeResolver() {
 				}
 			}
 			if (!s) throw pyramidError('status_not_found', `No status "${q}".`);
-			const stage = APOLLO_WORKFLOW.stages.find((g) => g.id === s.stage_id)!;
-			return { ...s, stage_name: stage.name };
+			const owner = APOLLO_WORKFLOW.stages.find((g) => g.id === s.stage_id)!;
+			return { ...s, stage_name: owner.name };
 		}),
 		resolveStage: vi.fn(async (_pid: string, q: string) => {
 			const g = APOLLO_WORKFLOW.stages.find(
@@ -130,11 +118,6 @@ function makeResolver() {
 			if (!l) throw pyramidError('label_not_found', `No label "${q}".`);
 			return { id: l.id, name: l.name };
 		}),
-		resolveTask: vi.fn(async (key: string) => ({
-			id: `id-of-${key}`,
-			projectId: 'p-apollo',
-			key,
-		})),
 		invalidate: vi.fn(),
 	};
 }
@@ -157,20 +140,6 @@ function makeCtx(
 	};
 }
 
-/**
- * The spec-target resolver surface (DOC-NAME-RESOLUTION) adds `resolveTask` on top of
- * the shipped Phase-1 `Resolver`. The current `OpContext.resolver` is typed as
- * the Phase-1 class, which doesn't declare it yet, so the FILE-OPERATIONS contract ops below
- * reach that not-yet-shipped method through this structural view. Drop this once
- * `resolveTask` lands on the real Resolver.
- */
-interface ExtendedResolver {
-	resolveTask(name: string): Promise<{ id: string; projectId: string; key: string }>;
-}
-function ext(ctx: OpContext): ExtendedResolver {
-	return ctx.client.resolver as unknown as ExtendedResolver;
-}
-
 // ============ Phase-1 ops against the REAL registry ============
 
 describe('operation: list_projects (real registry)', () => {
@@ -180,13 +149,13 @@ describe('operation: list_projects (real registry)', () => {
 
 		const client = {
 			listProjects: vi.fn(async () => [
-				{ id: 'p1', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', role: 'admin' },
+				{ id: 'p1', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', my_role: 'admin' },
 				{
 					id: 'p2',
 					handle: 'gemini',
 					name: 'Gemini',
 					task_prefix: 'GEM',
-					role: 'member',
+					my_role: 'viewer',
 					archived_at: '2026-01-01T00:00:00Z',
 				},
 			]),
@@ -194,14 +163,16 @@ describe('operation: list_projects (real registry)', () => {
 		const resolver = makeResolver();
 		const out = (await op.run({}, makeCtx(client, resolver))) as Array<{
 			id: string;
+			role: string;
 			archived: boolean;
 		}>;
 
 		expect(client.listProjects).toHaveBeenCalledOnce();
 		expect(out).toHaveLength(2);
-		expect(out[0]).toMatchObject({ id: 'p1', archived: false });
+		// the server names the caller's role `my_role` (model.ProjectWithRole).
+		expect(out[0]).toMatchObject({ id: 'p1', role: 'admin', archived: false });
 		// archived_at present -> archived true (the names-in/derive-out contract).
-		expect(out[1]).toMatchObject({ id: 'p2', archived: true });
+		expect(out[1]).toMatchObject({ id: 'p2', role: 'viewer', archived: true });
 	});
 });
 
@@ -234,7 +205,6 @@ describe('operation: list_my_tasks (real registry)', () => {
 						title: 'Wire auth',
 						status_id: 'st-review',
 						owner_id: 'u-ann',
-						labels: ['lb-bug'],
 						project_id: 'p-apollo',
 						updated_at: '2026-06-01T00:00:00Z',
 					},
@@ -250,21 +220,21 @@ describe('operation: list_my_tasks (real registry)', () => {
 				status: { name: string };
 				stage: { name: string };
 				owner: { display_name: string } | null;
-				labels: string[];
 			}>;
 			next_cursor: string | null;
 			has_more: boolean;
 		};
 
 		expect(client.listMyTasks).toHaveBeenCalledOnce();
-		// names hydrated alongside UUIDs (status/stage/owner/label all joined).
+		// names hydrated alongside UUIDs (status/stage/owner all joined).
 		expect(page.items[0]).toMatchObject({
 			key: 'APO-1',
 			status: { name: 'In Review' },
 			stage: { name: 'In Progress' }, // derived from the status's stage_id
 			owner: { display_name: 'Ann Smith' },
-			labels: ['bug'],
 		});
+		// the feed sends no labels, so the summary claims none rather than [].
+		expect(page.items[0]).not.toHaveProperty('labels');
 		// pagination surfaced, never truncated (DOC-DESIGN-RULES r8).
 		expect(page.next_cursor).toBe('CUR-NEXT');
 		expect(page.has_more).toBe(true);
@@ -307,7 +277,7 @@ describe('operation: whoami (real registry)', () => {
 				email: 'ann@example.com',
 			})),
 			listProjects: vi.fn(async () => [
-				{ id: 'p-apollo', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', role: 'admin' },
+				{ id: 'p-apollo', handle: 'apollo', name: 'Apollo', task_prefix: 'APO', my_role: 'admin' },
 			]),
 			listWorkspaces: vi.fn(async () => [
 				{ id: 'workspace-1', handle: 'acme', name: 'Acme', role: 'owner' },
@@ -323,423 +293,6 @@ describe('operation: whoami (real registry)', () => {
 	});
 });
 
-// ============ FILE-OPERATIONS write/move/delete/reply contract (registry-shaped) ============
-//
-// These ops are not yet in src/operations/index.ts. The blocks below pin the
-// FILE-OPERATIONS contract against representative Operation objects whose `run`
-// mirrors the spec exactly (resolve names -> call client with UUIDs -> hydrate).
-// They share the SAME OpContext seam, mock client+resolver, and McpError contract
-// as the real ops, so when the write ops land these assertions transplant 1:1.
-
-// --- task.create ----------------------------------------------------------
-//
-// Spec: resolveProject; resolve stage/status/owner/reviewer/labels; stage w/o
-// status -> first status of the stage by position; inconsistent stage+status ->
-// status_not_in_stage; createTask called with resolved UUIDs; output hydrated.
-
-interface CreateTaskInput {
-	project: string;
-	title: string;
-	stage?: string;
-	status?: string;
-	owner?: string;
-	labels?: string[];
-}
-
-const taskCreate: Operation<CreateTaskInput, TaskDetail> = {
-	name: 'task.create',
-	summary: 'Create a task (names in, hydrated detail out).',
-	input: z.object({
-		project: z.string(),
-		title: z.string(),
-		stage: z.string().optional(),
-		status: z.string().optional(),
-		owner: z.string().optional(),
-		labels: z.array(z.string()).optional(),
-	}) as never,
-	async run(input, ctx): Promise<TaskDetail> {
-		const project = await ctx.client.resolver.resolveProject(input.project);
-		const wf = await ctx.client.resolver.getWorkflow(project.id);
-
-		let statusId: string;
-		if (input.status) {
-			const status = await ctx.client.resolver.resolveStatus(project.id, input.status);
-			// r3: status carries its stage. A stage+status pair that disagrees ->
-			// status_not_in_stage, raised BEFORE the client call.
-			if (input.stage) {
-				const stage = await ctx.client.resolver.resolveStage(project.id, input.stage);
-				if (status.stage_id !== stage.id) {
-					throw pyramidError(
-						'status_not_in_stage',
-						`Status "${status.name}" is not in stage "${stage.name}".`
-					);
-				}
-			}
-			statusId = status.id;
-		} else if (input.stage) {
-			// stage without status -> first status of that stage by position.
-			const stage = await ctx.client.resolver.resolveStage(project.id, input.stage);
-			const first = [...wf.statuses]
-				.filter((s) => s.stage_id === stage.id)
-				.sort((a, b) => a.position.localeCompare(b.position))[0]!;
-			statusId = first.id;
-		} else {
-			statusId = wf.statuses[0]!.id;
-		}
-
-		const ownerId = input.owner
-			? (await ctx.client.resolver.resolveUser(project.id, input.owner)).id
-			: undefined;
-		const labelIds: string[] = [];
-		for (const l of input.labels ?? []) {
-			labelIds.push((await ctx.client.resolver.resolveLabel(project.id, l)).id);
-		}
-
-		// client called with RESOLVED UUIDs (never the human names). Ownership is
-		// FLAT: owner -> a top-level owner_id.
-		const raw = await (
-			ctx.client.api as never as {
-				createTask: (
-					projectId: string,
-					body: {
-						title: string;
-						status_id: string;
-						owner_id?: string;
-						label_ids: string[];
-					}
-				) => Promise<unknown>;
-			}
-		).createTask(project.id, {
-			title: input.title,
-			status_id: statusId,
-			...(ownerId ? { owner_id: ownerId } : {}),
-			label_ids: labelIds,
-		});
-
-		return hydrateTaskDetail(raw, wf);
-	},
-};
-
-describe('operation contract: task.create', () => {
-	it('resolves project/status/owner/labels to UUIDs and calls createTask with a top-level owner_id, then hydrates', async () => {
-		const resolver = makeResolver();
-		const createTask = vi.fn(async () => ({
-			id: 't-new',
-			key: 'APO-7',
-			title: 'Wire auth',
-			status_id: 'st-review',
-			owner_id: 'u-ann',
-			labels: ['lb-bug'],
-			updated_at: '2026-06-16T00:00:00Z',
-		}));
-		const ctx = makeCtx({ createTask }, resolver);
-
-		const out = await taskCreate.run(
-			{
-				project: 'apollo',
-				title: 'Wire auth',
-				status: 'In Review',
-				owner: 'ann@example.com',
-				labels: ['bug'],
-			},
-			ctx
-		);
-
-		// resolver turned every human token into an id.
-		expect(resolver.resolveProject).toHaveBeenCalledWith('apollo');
-		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
-		expect(resolver.resolveUser).toHaveBeenCalledWith('p-apollo', 'ann@example.com');
-		expect(resolver.resolveLabel).toHaveBeenCalledWith('p-apollo', 'bug');
-
-		// client got UUIDs in the REAL flat shape: a top-level owner_id.
-		expect(createTask).toHaveBeenCalledWith('p-apollo', {
-			title: 'Wire auth',
-			status_id: 'st-review',
-			owner_id: 'u-ann',
-			label_ids: ['lb-bug'],
-		});
-
-		// result hydrated: ids joined back to names, stage derived from status.
-		expect(out).toMatchObject({
-			key: 'APO-7',
-			status: { id: 'st-review', name: 'In Review' },
-			stage: { id: 'stg-doing', name: 'In Progress' },
-			owner: { id: 'u-ann', display_name: 'Ann Smith' },
-			labels: ['bug'],
-		});
-	});
-
-	it('stage without status picks the first status of that stage by position', async () => {
-		const resolver = makeResolver();
-		const createTask = vi.fn(async (_p: string, body: { status_id: string }) => ({
-			id: 't-new',
-			key: 'APO-8',
-			title: 'Triage',
-			status_id: body.status_id,
-			updated_at: '2026-06-16T00:00:00Z',
-		}));
-		const ctx = makeCtx({ createTask }, resolver);
-
-		await taskCreate.run({ project: 'apollo', title: 'Triage', stage: 'To Do' }, ctx);
-
-		// "To Do" stage -> first status by position is Backlog (position '1').
-		expect(createTask).toHaveBeenCalledWith(
-			'p-apollo',
-			expect.objectContaining({ status_id: 'st-backlog' })
-		);
-	});
-
-	it('throws status_not_in_stage for an inconsistent stage+status pair, BEFORE any client call', async () => {
-		const resolver = makeResolver();
-		const createTask = vi.fn();
-		const ctx = makeCtx({ createTask }, resolver);
-
-		await expect(
-			// "In Review" lives in stage In Progress, not To Do -> mismatch.
-			taskCreate.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'status_not_in_stage' },
-		});
-
-		expect(createTask).not.toHaveBeenCalled();
-	});
-});
-
-// --- task.move ------------------------------------------------------------
-//
-// Spec: resolveTask; resolveStatus (carries stage); resolveTask for the
-// after/before neighbor; moveTask(taskId, { status_id, after_task_id? }).
-// after+before together -> validation_failed.
-
-interface MoveTaskInput {
-	task: string;
-	status: string;
-	after_task?: string;
-	before_task?: string;
-}
-
-const taskMove: Operation<MoveTaskInput, TaskDetail> = {
-	name: 'task.move',
-	summary: 'Move a task to a target status (and optional neighbor).',
-	input: z.object({
-		task: z.string(),
-		status: z.string(),
-		after_task: z.string().optional(),
-		before_task: z.string().optional(),
-	}) as never,
-	async run(input, ctx): Promise<TaskDetail> {
-		if (input.after_task && input.before_task) {
-			throw pyramidError('validation_failed', 'after_task and before_task are mutually exclusive.');
-		}
-		const task = await ext(ctx).resolveTask(input.task);
-		const status = await ctx.client.resolver.resolveStatus(task.projectId, input.status);
-		const wf = await ctx.client.resolver.getWorkflow(task.projectId);
-
-		// Wire keys are before_id / after_id (DOC-BACKEND-CONTRACT).
-		const body: {
-			status_id: string;
-			after_id?: string;
-			before_id?: string;
-		} = { status_id: status.id };
-		if (input.after_task) {
-			body.after_id = (await ext(ctx).resolveTask(input.after_task)).id;
-		}
-		if (input.before_task) {
-			body.before_id = (await ext(ctx).resolveTask(input.before_task)).id;
-		}
-
-		// The move response is an envelope { task, previous } — hydrate raw.task.
-		const raw = await (
-			ctx.client.api as never as {
-				moveTask: (taskId: string, body: unknown) => Promise<{ task: unknown }>;
-			}
-		).moveTask(task.id, body);
-		return hydrateTaskDetail(raw.task, wf);
-	},
-};
-
-describe('operation contract: task.move', () => {
-	it('resolves the task + status (carrying stage) + neighbor and calls moveTask with UUIDs', async () => {
-		const resolver = makeResolver();
-		const moveTask = vi.fn(async () => ({
-			task: {
-				id: 'id-of-APO-42',
-				key: 'APO-42',
-				title: 'Ship it',
-				status_id: 'st-review',
-				updated_at: '2026-06-16T00:00:00Z',
-			},
-			previous: { status_id: 'st-backlog', position: '1', completed_at: null },
-		}));
-		const ctx = makeCtx({ moveTask }, resolver);
-
-		const out = await taskMove.run(
-			{ task: 'APO-42', status: 'In Review', after_task: 'APO-10' },
-			ctx
-		);
-
-		expect(resolver.resolveTask).toHaveBeenCalledWith('APO-42');
-		expect(resolver.resolveTask).toHaveBeenCalledWith('APO-10');
-		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
-		expect(moveTask).toHaveBeenCalledWith('id-of-APO-42', {
-			status_id: 'st-review',
-			after_id: 'id-of-APO-10',
-		});
-		expect(out).toMatchObject({ status: { name: 'In Review' } });
-	});
-
-	it('rejects after_task + before_task together with validation_failed (no client call)', async () => {
-		const resolver = makeResolver();
-		const moveTask = vi.fn();
-		const ctx = makeCtx({ moveTask }, resolver);
-
-		await expect(
-			taskMove.run(
-				{ task: 'APO-42', status: 'In Review', after_task: 'APO-10', before_task: 'APO-11' },
-				ctx
-			)
-		).rejects.toMatchObject({ code: 'validation_failed' });
-
-		expect(moveTask).not.toHaveBeenCalled();
-	});
-});
-
-// --- task.delete (destructive gate) --------------------------------------
-//
-// Spec: resolveTask; if !config.allowDestructive -> throw
-// destructive_action_disabled BEFORE any client call; else deleteTask(id, true).
-
-interface DeleteTaskInput {
-	task: string;
-}
-
-const taskDelete: Operation<DeleteTaskInput, { id: string; key: string; deleted: true }> = {
-	name: 'task.delete',
-	summary: 'Permanently delete a task (gated behind PYRAMID_ALLOW_DESTRUCTIVE).',
-	input: z.object({ task: z.string() }) as never,
-	meta: { destructive: true },
-	async run(input, ctx) {
-		const task = await ext(ctx).resolveTask(input.task);
-		if (!ctx.config.allowDestructive) {
-			throw pyramidError(
-				'destructive_action_disabled',
-				'Deleting a task is destructive. Set PYRAMID_ALLOW_DESTRUCTIVE=1 to enable it.',
-				{ hint: 'Set PYRAMID_ALLOW_DESTRUCTIVE=1.' }
-			);
-		}
-		await (
-			ctx.client.api as never as {
-				deleteTask: (taskId: string, hard: boolean) => Promise<void>;
-			}
-		).deleteTask(task.id, true);
-		return { id: task.id, key: task.key, deleted: true as const };
-	},
-};
-
-describe('operation contract: task.delete (destructive gate)', () => {
-	it('throws destructive_action_disabled and never calls the client when allowDestructive is false', async () => {
-		const resolver = makeResolver();
-		const deleteTask = vi.fn();
-		const ctx = makeCtx({ deleteTask }, resolver, CONFIG_SAFE);
-
-		let thrown: unknown;
-		try {
-			await taskDelete.run({ task: 'APO-42' }, ctx);
-		} catch (e) {
-			thrown = e;
-		}
-
-		expect(thrown).toBeInstanceOf(McpError);
-		expect((thrown as McpError).code).toBe('destructive_action_disabled');
-		expect(deleteTask).not.toHaveBeenCalled();
-	});
-
-	it('calls deleteTask(id, true) when allowDestructive is true', async () => {
-		const resolver = makeResolver();
-		const deleteTask = vi.fn(async () => undefined);
-		const ctx = makeCtx({ deleteTask }, resolver, CONFIG_DESTRUCTIVE);
-
-		const out = await taskDelete.run({ task: 'APO-42' }, ctx);
-
-		expect(deleteTask).toHaveBeenCalledWith('id-of-APO-42', true);
-		expect(out).toEqual({ id: 'id-of-APO-42', key: 'APO-42', deleted: true });
-	});
-});
-
-// --- comment.reply (one-level depth guard) -------------------------------
-//
-// Spec: validate the target is a ROOT comment (parent_id == null &&
-// thread_root_id == null); replying to a reply -> reply_depth_exceeded BEFORE
-// the client call.
-
-interface ReplyCommentInput {
-	comment_id: string;
-	content: string;
-}
-
-/** A tiny fixture comment store the op consults to check reply depth. */
-const COMMENTS: Record<string, { parent_id: string | null; thread_root_id: string | null }> = {
-	'c-root': { parent_id: null, thread_root_id: null },
-	'c-reply': { parent_id: 'c-root', thread_root_id: 'c-root' },
-};
-
-const commentReply: Operation<ReplyCommentInput, { id: string }> = {
-	name: 'comment.reply',
-	summary: 'Reply to a root comment (one level deep).',
-	input: z.object({ comment_id: z.string(), content: z.string() }) as never,
-	async run(input, ctx) {
-		const c = await (
-			ctx.client.api as never as {
-				getComment: (
-					id: string
-				) => Promise<{ parent_id: string | null; thread_root_id: string | null }>;
-			}
-		).getComment(input.comment_id);
-		if (c.parent_id != null || c.thread_root_id != null) {
-			throw pyramidError(
-				'reply_depth_exceeded',
-				'Replies are one level deep; reply to the root comment instead.'
-			);
-		}
-		const raw = await (
-			ctx.client.api as never as {
-				replyComment: (id: string, body: { content: string }) => Promise<{ id: string }>;
-			}
-		).replyComment(input.comment_id, { content: input.content });
-		return raw;
-	},
-};
-
-describe('operation contract: comment.reply (one-level depth)', () => {
-	it('replying to a reply throws reply_depth_exceeded BEFORE calling replyComment', async () => {
-		const resolver = makeResolver();
-		const getComment = vi.fn(async (id: string) => COMMENTS[id]!);
-		const replyComment = vi.fn();
-		const ctx = makeCtx({ getComment, replyComment }, resolver);
-
-		await expect(
-			commentReply.run({ comment_id: 'c-reply', content: 'me too' }, ctx)
-		).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'reply_depth_exceeded' },
-		});
-
-		expect(replyComment).not.toHaveBeenCalled();
-	});
-
-	it('replying to a root comment calls replyComment', async () => {
-		const resolver = makeResolver();
-		const getComment = vi.fn(async (id: string) => COMMENTS[id]!);
-		const replyComment = vi.fn(async () => ({ id: 'c-new' }));
-		const ctx = makeCtx({ getComment, replyComment }, resolver);
-
-		const out = await commentReply.run({ comment_id: 'c-root', content: 'ack' }, ctx);
-		expect(replyComment).toHaveBeenCalledWith('c-root', { content: 'ack' });
-		expect(out).toEqual({ id: 'c-new' });
-	});
-});
-
 // ============ Hydration sanity (names-in / names-out invariant) ============
 
 describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)', () => {
@@ -751,7 +304,7 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 				title: 'x',
 				status_id: 'st-review',
 				owner_id: 'u-bob',
-				labels: ['lb-bug'],
+				labels: [{ id: 'lb-bug', name: 'bug', color: '#f00' }],
 				updated_at: '2026-06-01T00:00:00Z',
 			},
 			APOLLO_WORKFLOW
@@ -760,27 +313,26 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 		expect(summary.stage).toEqual({ id: 'stg-doing', name: 'In Progress' });
 		expect(summary.owner).toEqual({ id: 'u-bob', display_name: 'Bob Jones' });
 		expect(summary.labels).toEqual(['bug']);
+		// a row without labels (no ?expand) omits the key instead of claiming none.
+		expect(hydrateTaskSummary({ id: 't2' }, APOLLO_WORKFLOW)).not.toHaveProperty('labels');
 	});
 });
 
 // ============ Phase-2 write surface against the REAL registry ============
 //
-// The spec-target write ops (task.create / task.move / task.delete /
-// comment.reply) have now LANDED in src/operations/index.ts, so these blocks run
-// the *shipped* `run` bodies (looked up by name on `operationsByName`) through the
-// SAME OpContext seam used above — a fixture workflow + a mock resolver + a mock
-// client. They assert the FILE-OPERATIONS contract on the real code:
+// These blocks run the shipped write ops (task.create / task.move / task.delete /
+// comment.reply, looked up by name on `operationsByName`) through the same
+// OpContext seam — a fixture workflow + a mock resolver + a mock client. They
+// assert the FILE-OPERATIONS contract on the real code:
 //   - human names/keys resolve to UUIDs before the client call (names-in),
 //   - the right client method is called with those UUIDs (never a fractional
 //     position; neighbor tasks are passed by their resolved id),
 //   - the result is hydrated back to names (names-out),
-//   - the domain guards (status_not_in_stage / reply_depth_exceeded /
-//     destructive_action_disabled) fire BEFORE any write.
+//   - the destructive gate (destructive_action_disabled) fires BEFORE any write.
 //
-// NOTE — task-ref resolution: unlike the representative harness above (which mocks
-// a `resolver.resolveTask`), the shipped ops resolve a "WEB-42" key or UUID via
-// the CLIENT (resolveTaskRef -> client.searchTasks for a key, client.getTask for a
-// UUID). So the mocks here implement those client methods instead. A search row
+// NOTE — task-ref resolution: the ops resolve a "WEB-42" key or UUID via the
+// CLIENT (resolveTaskRef -> client.searchTasks for a key, client.getTask for a
+// UUID), not the resolver, so the mocks here implement those client methods. A search row
 // carries `{ id, key, project_id }`; we mint a stable `id-<KEY>` id per key so the
 // assertions can name the exact UUID handed to the client.
 
@@ -825,7 +377,6 @@ describe('operation: create_task (real registry)', () => {
 			title: 'Wire auth',
 			status_id: 'st-review',
 			owner_id: 'u-ann',
-			labels: ['lb-bug'],
 			updated_at: '2026-06-16T00:00:00Z',
 		}));
 		const ctx = makeCtx({ createTask }, resolver);
@@ -843,7 +394,7 @@ describe('operation: create_task (real registry)', () => {
 
 		// names in -> ids: every human token went through the resolver.
 		expect(resolver.resolveProject).toHaveBeenCalledWith('apollo');
-		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
+		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', undefined);
 		expect(resolver.resolveUser).toHaveBeenCalledWith('p-apollo', 'ann@example.com');
 		expect(resolver.resolveLabel).toHaveBeenCalledWith('p-apollo', 'bug');
 
@@ -865,7 +416,6 @@ describe('operation: create_task (real registry)', () => {
 			status: { id: 'st-review', name: 'In Review' },
 			stage: { id: 'stg-doing', name: 'In Progress' },
 			owner: { id: 'u-ann', display_name: 'Ann Smith' },
-			labels: ['bug'],
 		});
 	});
 
@@ -929,20 +479,18 @@ describe('operation: create_task (real registry)', () => {
 		);
 	});
 
-	it('rejects an inconsistent stage+status pair with status_not_in_stage, BEFORE any client call', async () => {
+	it('resolves the status inside the named stage: one the stage lacks is not found, BEFORE any write', async () => {
 		const op = operationsByName.get('pyramid.task.create')!;
 		const resolver = makeResolver();
 		const createTask = vi.fn();
 		const ctx = makeCtx({ createTask }, resolver);
 
 		await expect(
-			// "In Review" lives in stage "In Progress", not "To Do" -> mismatch.
+			// "In Review" lives in stage "In Progress", not "To Do".
 			op.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'status_not_in_stage' },
-		});
+		).rejects.toMatchObject({ code: 'not_found', details: { kind: 'status' } });
 
+		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', 'To Do');
 		expect(createTask).not.toHaveBeenCalled();
 	});
 
@@ -1072,7 +620,7 @@ describe('operation: move_task (real registry)', () => {
 		previous: { status_id: 'st-backlog', position: '1', completed_at: null },
 	};
 
-	it('passes the after_task NEIGHBOR via after_id and hydrates raw.task from the envelope', async () => {
+	it('sends the after_task neighbour as before_id (the task above the slot) and hydrates raw.task', async () => {
 		const op = operationsByName.get('pyramid.task.move')!;
 		expect(op).toBeDefined();
 
@@ -1089,13 +637,14 @@ describe('operation: move_task (real registry)', () => {
 		// both the task and its neighbor were resolved via the client (key -> id).
 		expect(client.searchTasks).toHaveBeenCalledWith(expect.objectContaining({ q: 'APO-42' }));
 		expect(client.searchTasks).toHaveBeenCalledWith(expect.objectContaining({ q: 'APO-10' }));
-		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review');
+		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', undefined);
 
-		// REAL contract: the body key is after_id (NOT after_task_id), never a
-		// position key — positions are server-generated (DOC-DESIGN-RULES r6).
+		// REAL contract (task_move.go): before_id is the record ABOVE the slot, so
+		// "after APO-10" sends APO-10 as before_id. Never a position key — positions
+		// are server-generated (DOC-DESIGN-RULES r6).
 		expect(moveTask).toHaveBeenCalledWith('id-APO-42', {
 			status_id: 'st-review',
-			after_id: 'id-APO-10',
+			before_id: 'id-APO-10',
 		});
 		const body = callArg(moveTask, 1) as Record<string, unknown>;
 		expect(body).not.toHaveProperty('position');
@@ -1106,7 +655,7 @@ describe('operation: move_task (real registry)', () => {
 		expect(out).not.toHaveProperty('previous');
 	});
 
-	it('passes the before_task neighbor via before_id', async () => {
+	it('sends the before_task neighbour as after_id (the task below the slot)', async () => {
 		const op = operationsByName.get('pyramid.task.move')!;
 		const resolver = makeResolver();
 		const moveTask = vi.fn(async () => moveEnvelope);
@@ -1117,7 +666,7 @@ describe('operation: move_task (real registry)', () => {
 
 		expect(moveTask).toHaveBeenCalledWith('id-APO-42', {
 			status_id: 'st-review',
-			before_id: 'id-APO-11',
+			after_id: 'id-APO-11',
 		});
 	});
 
@@ -1145,77 +694,42 @@ describe('operation: move_task (real registry)', () => {
 		expect(moveTask).not.toHaveBeenCalled();
 	});
 
-	it('a status that is not in the named stage yields status_not_in_stage on create (stage+status guard)', async () => {
-		// The stage+status mismatch guard is shared (resolveStatusWithStage);
-		// move_task takes a status alone (it carries its own stage), so the mismatch
-		// surfaces on the stage+status surface — create_task — as status_not_in_stage.
-		const op = operationsByName.get('pyramid.task.create')!;
+	it('resolves the status inside `stage`, the one way to pick a repeated status name', async () => {
+		const op = operationsByName.get('pyramid.task.move')!;
+		expect(op.input.shape).toHaveProperty('stage');
 		const resolver = makeResolver();
-		const createTask = vi.fn();
-		const ctx = makeCtx({ createTask }, resolver);
+		const moveTask = vi.fn(async () => moveEnvelope);
+		const ctx = makeCtx(makeRefClient({ moveTask }), resolver);
 
-		await expect(
-			op.run({ project: 'apollo', title: 'X', status: 'In Review', stage: 'To Do' }, ctx)
-		).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'status_not_in_stage' },
-		});
-		expect(createTask).not.toHaveBeenCalled();
+		await op.run({ task: 'APO-42', status: 'In Review', stage: 'In Progress' }, ctx);
+
+		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', 'In Progress');
+		expect(moveTask).toHaveBeenCalledWith('id-APO-42', { status_id: 'st-review' });
 	});
 });
 
-// --- comment.reply (real op, one-level depth guard) -----------------------
+// --- comment.reply (real op) ----------------------------------------------
+//
+// The server has no GET /comments/{id}: the op posts the reply straight away (the
+// server rejects a reply to a reply) and hydrates against the reply's project_id.
 
 describe('operation: reply_to_comment (real registry)', () => {
-	it('replying to a reply throws reply_depth_exceeded BEFORE calling replyComment', async () => {
+	it('posts the reply without reading the comment first, then hydrates via its project_id', async () => {
 		const op = operationsByName.get('pyramid.comment.reply')!;
-		expect(op).toBeDefined();
+		expect(Object.keys(op.input.shape)).toEqual(['comment_id', 'content']);
 
 		const resolver = makeResolver();
-		// The target is itself a reply: a non-null parent_id (and a thread_root_id
-		// pointing at a DIFFERENT comment) -> it is one level deep already.
-		const getComment = vi.fn(async () => ({
-			id: 'c-reply',
-			task_id: TASK_UUID,
-			parent_id: 'c-root',
-			thread_root_id: 'c-root',
-			author_id: 'u-ann',
-			content: 'first reply',
-		}));
-		const replyComment = vi.fn();
-		const ctx = makeCtx({ getComment, replyComment }, resolver);
-
-		await expect(op.run({ comment_id: 'c-reply', content: 'me too' }, ctx)).rejects.toMatchObject({
-			code: 'validation_failed',
-			details: { reason: 'reply_depth_exceeded' },
-		});
-
-		// validated before the call — no write attempted (r5).
-		expect(replyComment).not.toHaveBeenCalled();
-	});
-
-	it('replying to a ROOT comment resolves its task project and calls replyComment, then hydrates', async () => {
-		const op = operationsByName.get('pyramid.comment.reply')!;
-		const resolver = makeResolver();
-		// A root comment: no parent, thread_root_id === its own id.
-		const getComment = vi.fn(async () => ({
-			id: 'c-root',
-			task_id: TASK_UUID,
-			parent_id: null,
-			thread_root_id: 'c-root',
-			author_id: 'u-ann',
-			content: 'root',
-		}));
 		const replyComment = vi.fn(async () => ({
 			id: 'c-new',
 			task_id: TASK_UUID,
+			project_id: 'p-apollo',
 			stage_id: 'stg-doing',
 			author_id: 'u-ann',
 			content: 'ack',
 			created_at: '2026-06-16T00:00:00Z',
 		}));
-		const client = makeRefClient({ getComment, replyComment });
-		const ctx = makeCtx(client, resolver);
+		// replyComment is the ONLY client method: any other call would throw.
+		const ctx = makeCtx({ replyComment }, resolver);
 
 		const out = (await op.run({ comment_id: 'c-root', content: 'ack' }, ctx)) as {
 			id: string;
@@ -1224,8 +738,8 @@ describe('operation: reply_to_comment (real registry)', () => {
 		};
 
 		expect(replyComment).toHaveBeenCalledWith('c-root', { content: 'ack' });
+		expect(resolver.getWorkflow).toHaveBeenCalledWith('p-apollo');
 		expect(out.id).toBe('c-new');
-		// hydrated: author id + stage id joined to names via the workflow.
 		// a comment author is a person too — same stub, job_title included.
 		expect(out.author).toEqual({
 			id: 'u-ann',
@@ -1303,22 +817,23 @@ describe('operation: update_task (real registry)', () => {
 		} as never);
 
 		const updateTask = vi.fn(async () => ({ id: TASK_UUID }));
-		const addTaskLabel = vi.fn(async () => ({}));
+		const addTaskLabels = vi.fn(async () => ({}));
 		const removeTaskLabel = vi.fn(async () => undefined);
 		const setFieldValues = vi.fn(async () => ({}));
 		// getTask: the ref lookup (UUID branch) + the final re-fetch both call it.
-		const getTask = vi.fn(async (id: string) => ({
+		const getTask = vi.fn(async (id: string, expand?: string) => ({
 			id,
 			key: 'APO-1',
 			project_id: 'p-apollo',
 			status_id: 'st-review',
 			title: 'Renamed',
 			updated_at: '2026-06-16T00:00:00Z',
+			...(expand && { labels: [{ id: 'lb-bug', name: 'bug' }] }),
 		}));
 		const client = {
 			getTask,
 			updateTask,
-			addTaskLabel,
+			addTaskLabels,
 			removeTaskLabel,
 			setFieldValues,
 		};
@@ -1348,18 +863,19 @@ describe('operation: update_task (real registry)', () => {
 		expect(patch).not.toHaveProperty('field_values');
 		expect(patch).not.toHaveProperty('stage_id');
 
-		// 2) labels -> POST /labels per resolved id.
-		expect(addTaskLabel).toHaveBeenCalledWith(TASK_UUID, 'lb-bug');
+		// 2) labels -> ONE POST /labels carrying every resolved id.
+		expect(addTaskLabels).toHaveBeenCalledWith(TASK_UUID, ['lb-bug']);
 		// custom_fields -> PATCH /field-values keyed by field UUID.
 		expect(setFieldValues).toHaveBeenCalledWith(TASK_UUID, {
-			field_values: { 'fld-sev': 'high' },
+			values: { 'fld-sev': 'high' },
 		});
 
-		// 3) the op re-fetched + hydrated the final task.
-		expect(out).toMatchObject({ key: 'APO-1', title: 'Renamed' });
+		// 3) the op re-fetched + hydrated the final task, expanded so the added label shows.
+		expect(getTask).toHaveBeenLastCalledWith(TASK_UUID, 'owner,reviewer,labels');
+		expect(out).toMatchObject({ key: 'APO-1', title: 'Renamed', labels: ['bug'] });
 	});
 
-	it('surfaces WHICH sub-update failed (add_label) with its code', async () => {
+	it('surfaces WHICH sub-update failed (add_labels) with its code', async () => {
 		const op = operationsByName.get('pyramid.task.update')!;
 		const resolver = makeResolver();
 		const getTask = vi.fn(async (id: string) => ({
@@ -1368,10 +884,10 @@ describe('operation: update_task (real registry)', () => {
 			project_id: 'p-apollo',
 			status_id: 'st-review',
 		}));
-		const addTaskLabel = vi.fn(async () => {
+		const addTaskLabels = vi.fn(async () => {
 			throw pyramidError('permission_denied', 'nope');
 		});
-		const client = { getTask, addTaskLabel };
+		const client = { getTask, addTaskLabels };
 		const ctx = makeCtx(client, resolver);
 
 		const err = await op
@@ -1380,7 +896,7 @@ describe('operation: update_task (real registry)', () => {
 			.catch((e) => e as McpError);
 		expect(err).toBeInstanceOf(McpError);
 		expect(err?.code).toBe('permission_denied');
-		expect(err?.message).toMatch(/add_label/);
+		expect(err?.message).toMatch(/add_labels/);
 	});
 
 	it('clears an owner with an explicit null (the null must SURVIVE onto the patch)', async () => {
@@ -1404,6 +920,17 @@ describe('operation: update_task (real registry)', () => {
 			reviewer_id: 'u-bob',
 		});
 		expect(resolver.resolveUser).toHaveBeenCalledTimes(1);
+	});
+
+	it('an empty custom_fields list sends no field-values write (the server 422s on {})', async () => {
+		const op = operationsByName.get('pyramid.task.update')!;
+		const getTask = vi.fn(async (id: string) => ({ id, project_id: 'p-apollo' }));
+		const setFieldValues = vi.fn();
+		await op.run(
+			{ task: TASK_UUID, custom_fields: [] },
+			makeCtx({ getTask, setFieldValues }, makeResolver())
+		);
+		expect(setFieldValues).not.toHaveBeenCalled();
 	});
 });
 
@@ -1472,6 +999,28 @@ describe('operation: create_tasks_bulk (real registry)', () => {
 		await expect(
 			op.run({ project: 'apollo', tasks: [{ title: 'One' }] }, ctx)
 		).rejects.toMatchObject({ code: 'validation_failed' });
+		expect(bulkCreate).not.toHaveBeenCalled();
+	});
+
+	it('rejects a row or default field the bulk endpoint would silently drop, naming it (no write)', async () => {
+		const op = operationsByName.get('pyramid.task.create-bulk')!;
+		const bulkCreate = vi.fn();
+		const ctx = makeCtx({ bulkCreate }, makeResolver());
+
+		for (const input of [
+			{ tasks: [{ title: 'One', priority: 'high' }] },
+			{ defaults: { priority: 'high' }, tasks: [{ title: 'One' }] },
+		]) {
+			const r = await callTool('pyramid', op, async () => ctx, {
+				project: 'apollo',
+				template: 'Default',
+				...input,
+			});
+			expect(r.isError).toBe(true);
+			const { error } = JSON.parse(r.content[0]!.text);
+			expect(error.code).toBe('validation_failed');
+			expect(error.message).toMatch(/priority/);
+		}
 		expect(bulkCreate).not.toHaveBeenCalled();
 	});
 });
@@ -1564,6 +1113,27 @@ describe('list_tasks: owner/reviewer filters', () => {
 		expect(op.input.shape).not.toHaveProperty('assignee');
 		expect(op.input.shape).toHaveProperty('owner');
 		expect(op.input.shape).toHaveProperty('reviewer');
+	});
+
+	it('asks for the expansion, so its rows carry their real labels', async () => {
+		const op = operationsByName.get('pyramid.task.list')!;
+		const listTasks = vi.fn(async () => ({
+			data: [
+				{
+					id: 't1',
+					key: 'APO-1',
+					status_id: 'st-review',
+					labels: [{ id: 'lb-bug', name: 'bug', color: '#f00' }],
+				},
+			],
+			cursor: null,
+		}));
+		const page = (await op.run({ project: 'apollo' }, makeCtx({ listTasks }, makeResolver()))) as {
+			items: Array<{ labels?: string[] }>;
+		};
+
+		expect(callArg(listTasks, 1)).toMatchObject({ expand: 'owner,reviewer,labels' });
+		expect(page.items[0]!.labels).toEqual(['bug']);
 	});
 
 	it('labels a hydrated owner with the job_title the workflow already knows', async () => {

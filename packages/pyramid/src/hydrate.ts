@@ -39,7 +39,8 @@ export function hydrateTaskSummary(raw: any, workflow: Workflow): TaskSummary {
 		stage: stageRefForStatus(workflow, statusId, r),
 		owner: ownerStub(workflow, r.owner, r.owner_id),
 		reviewer: ownerStub(workflow, r.reviewer, r.reviewer_id),
-		labels: labelNames(workflow, r.labels ?? r.label_ids),
+		// Only ?expand rows carry labels; elsewhere omit them rather than claim none.
+		...(Array.isArray(r.labels) && { labels: labelNames(workflow, r.labels) }),
 		archived: r.archived_at != null || r.archived === true,
 		updated_at: str(r.updated_at),
 	};
@@ -326,8 +327,7 @@ function mentionStubs(wf: Workflow, value: unknown): UserStub[] {
  * The server may return label-id strings, `{ id, name }` objects, or names; all
  * collapse to display names with no bare UUID left behind.
  */
-function labelNames(wf: Workflow, labels: unknown): string[] {
-	if (!Array.isArray(labels)) return [];
+function labelNames(wf: Workflow, labels: unknown[]): string[] {
 	return labels
 		.map((l): string => {
 			if (typeof l === 'string') {

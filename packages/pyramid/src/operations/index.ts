@@ -19,7 +19,7 @@ import {
 
 import { pyramidError } from '../errors.js';
 import type { PyramidClient } from '../client/pyramid-client.js';
-import type { Resolver } from '../cache/resolver.js';
+import { normalizeProject, type Resolver } from '../cache/resolver.js';
 import {
 	hydrateComment,
 	hydrateTaskDetail,
@@ -51,26 +51,6 @@ export type OpContext = KitOpContext<PyramidApi>;
 /** One Pyramid operation: resolve names -> ids, call the API, hydrate names back. */
 export type Operation<I = any, O = unknown> = KitOperation<I, O, PyramidApi>;
 
-const PROJECT_ROLES = ['admin', 'pm', 'member', 'viewer', 'guest'] as const;
-type ProjectRole = (typeof PROJECT_ROLES)[number];
-
-function projectRole(v: unknown): ProjectRole {
-	return (PROJECT_ROLES as readonly string[]).includes(v as string) ? (v as ProjectRole) : 'member';
-}
-
-/** Raw project row -> ProjectSummary (archived derived from archived_at). */
-function toProjectSummary(raw: unknown): ProjectSummary {
-	const p = rec(raw);
-	return {
-		id: readStr(p.id) ?? '',
-		handle: readStr(p.handle) ?? '',
-		name: readStr(p.name) ?? '',
-		task_prefix: readStr(p.task_prefix) ?? '',
-		role: projectRole(p.role),
-		archived: p.archived_at != null || p.archived === true,
-	};
-}
-
 const WORKSPACE_ROLES = ['owner', 'admin', 'member'] as const;
 type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
@@ -88,6 +68,9 @@ const whoami: Operation<Record<string, never>, WhoAmI> = {
 	name: 'pyramid.whoami',
 	summary: 'Report the authenticated user, their workspace, and accessible projects.',
 	input: z.object({}),
+	// Identity is root-only on the CLI (`magic whoami`, `magic doctor`, which run this
+	// by name); MCP keeps the tool, the pyramid://me resource and the setup prompt.
+	meta: { surfaces: ['mcp'] },
 	async run(_input, ctx): Promise<WhoAmI> {
 		// getMe carries the user (and MAY embed a workspace). When it doesn't, fall
 		// back to the key's pinned workspace (the first listWorkspaces entry).
@@ -112,7 +95,7 @@ const whoami: Operation<Record<string, never>, WhoAmI> = {
 				name: readStr(workspaceRaw.name) ?? readStr(workspaceRaw.handle) ?? '',
 				role: workspaceRole(workspaceRaw.role),
 			},
-			projects: projectsRaw.map(toProjectSummary),
+			projects: projectsRaw.map(normalizeProject),
 		};
 	},
 };
@@ -125,7 +108,7 @@ const listProjects: Operation<Record<string, never>, ProjectSummary[]> = {
 	input: z.object({}),
 	async run(_input, ctx): Promise<ProjectSummary[]> {
 		const raw = await ctx.client.api.listProjects();
-		return raw.map(toProjectSummary);
+		return raw.map(normalizeProject);
 	},
 };
 
@@ -158,6 +141,8 @@ const listMyTasksInput = z.object({
 type ListMyTasksInput = z.infer<typeof listMyTasksInput>;
 
 const DEFAULT_LIMIT = 25;
+/** `?expand` inlines a task's related owner, reviewer and label rows. */
+const EXPAND = 'owner,reviewer,labels';
 
 const listMyTasks: Operation<ListMyTasksInput, Page<TaskSummary>> = {
 	name: 'pyramid.task.list-mine',
@@ -282,40 +267,6 @@ const customFieldSchema = z.object({
 	value: z.unknown(),
 });
 
-/**
- * Resolve a status input that carries its stage (DOC-DESIGN-RULES r3). When both
- * `stage` and `status` are supplied, resolve the status and verify it lives in
- * the named stage (else `status_not_in_stage`). When only `stage` is supplied,
- * pick that stage's first status by position. Returns the resolved status id (or
- * undefined when neither is supplied).
- */
-async function resolveStatusWithStage(
-	ctx: OpContext,
-	projectId: string,
-	stage: string | undefined,
-	status: string | undefined
-): Promise<{ id: string; stage_id: string } | undefined> {
-	if (status !== undefined) {
-		const resolved = await ctx.client.resolver.resolveStatus(projectId, status);
-		if (stage !== undefined) {
-			const resolvedStage = await ctx.client.resolver.resolveStage(projectId, stage);
-			if (resolved.stage_id !== resolvedStage.id) {
-				throw pyramidError('status_not_in_stage', `Status "${status}" is not in stage "${stage}".`);
-			}
-		}
-		return { id: resolved.id, stage_id: resolved.stage_id };
-	}
-
-	if (stage !== undefined) {
-		// A stage with no status -> the stage's first status by position. resolveStatus
-		// already implements "stage name where a status is expected -> first status".
-		const resolved = await ctx.client.resolver.resolveStatus(projectId, stage);
-		return { id: resolved.id, stage_id: resolved.stage_id };
-	}
-
-	return undefined;
-}
-
 /** Resolve a label-name list to label UUIDs (each via the resolver). */
 async function resolveLabelIds(
 	ctx: OpContext,
@@ -377,9 +328,12 @@ async function buildCreateBody(
 	if (row.estimate_hours !== undefined) body.estimate = row.estimate_hours;
 	if (row.guest_visible !== undefined) body.guest_visible = row.guest_visible;
 
-	// The status carries its stage; resolve it once (the server derives the stage).
-	const resolvedStatus = await resolveStatusWithStage(ctx, projectId, row.stage, row.status);
-	if (resolvedStatus !== undefined) body.status_id = resolvedStatus.id;
+	// The status carries its stage (the server derives it). A status resolves inside
+	// the named stage; a stage alone resolves to its first status (DOC-DESIGN-RULES r3).
+	const status = row.status ?? row.stage;
+	if (status !== undefined) {
+		body.status_id = (await ctx.client.resolver.resolveStatus(projectId, status, row.stage)).id;
+	}
 
 	// owner/reviewer -> TOP-LEVEL owner_id/reviewer_id. No stage to derive: a task
 	// has one owner and one reviewer (DATATYPE-CREATE-TASK-INPUT).
@@ -531,7 +485,7 @@ const taskList: Operation<TaskListInput, Page<TaskSummary>> = {
 		} else {
 			const statusId =
 				input.status !== undefined
-					? (await ctx.client.resolver.resolveStatus(project.id, input.status)).id
+					? (await ctx.client.resolver.resolveStatus(project.id, input.status, input.stage)).id
 					: undefined;
 			const stageId =
 				input.stage !== undefined
@@ -559,6 +513,8 @@ const taskList: Operation<TaskListInput, Page<TaskSummary>> = {
 				q: input.query,
 				limit: input.limit ?? DEFAULT_LIMIT,
 				cursor: input.cursor,
+				// The only list route that can inline labels (archived, search, mine cannot).
+				expand: EXPAND,
 			});
 		}
 
@@ -596,10 +552,7 @@ const taskShow: Operation<TaskShowInput, TaskDetail> = {
 	meta: { cli: { positionals: ['task'], verbAliases: ['show'] } },
 	async run(input, ctx): Promise<TaskDetail> {
 		const ref = await resolveTaskRef(ctx, input.task);
-		const raw = await ctx.client.api.getTask(
-			ref.id,
-			input.expand ? 'owner,reviewer,labels' : undefined
-		);
+		const raw = await ctx.client.api.getTask(ref.id, input.expand ? EXPAND : undefined);
 		const projectId = readStr(rec(raw).project_id) ?? ref.projectId;
 		return hydrateDetailFor(ctx, raw, projectId);
 	},
@@ -611,8 +564,12 @@ const taskShow: Operation<TaskShowInput, TaskDetail> = {
 
 const priorityEnum = z.enum(['none', 'low', 'medium', 'high', 'urgent']);
 
-const taskCreateInput = z.object({
-	project: z.string(),
+/**
+ * One task row: exactly the fields of the server's bulk row (handlers/task.go
+ * BulkCreateRequest). Strict, because the server ignores unknown keys: a field
+ * it would drop is a validation error that names it, never silently lost data.
+ */
+const taskRow = z.strictObject({
 	title: z.string(),
 	description: z.string().optional(),
 	stage: z.string().optional(),
@@ -620,11 +577,17 @@ const taskCreateInput = z.object({
 	owner: z.string().optional(),
 	reviewer: z.string().optional(),
 	labels: z.array(z.string()).optional(),
+	custom_fields: z.array(customFieldSchema).optional(),
+});
+
+// A single create is a row plus the fields only POST /projects/{id}/tasks reads.
+const taskCreateInput = z.object({
+	project: z.string(),
+	...taskRow.shape,
 	priority: priorityEnum.optional(),
 	due_date: z.string().optional(),
 	estimate_hours: z.number().optional(),
 	guest_visible: z.boolean().optional(),
-	custom_fields: z.array(customFieldSchema).optional(),
 });
 type TaskCreateInput = z.infer<typeof taskCreateInput>;
 
@@ -646,32 +609,9 @@ const taskCreate: Operation<TaskCreateInput, TaskDetail> = {
 const taskBulkCreateInput = z.object({
 	project: z.string(),
 	template: z.string().optional(),
-	defaults: z
-		.object({
-			stage: z.string().optional(),
-			status: z.string().optional(),
-			labels: z.array(z.string()).optional(),
-		})
-		.optional(),
-	tasks: z
-		.array(
-			z.object({
-				title: z.string(),
-				description: z.string().optional(),
-				stage: z.string().optional(),
-				status: z.string().optional(),
-				owner: z.string().optional(),
-				reviewer: z.string().optional(),
-				labels: z.array(z.string()).optional(),
-				priority: priorityEnum.optional(),
-				due_date: z.string().optional(),
-				estimate_hours: z.number().optional(),
-				guest_visible: z.boolean().optional(),
-				custom_fields: z.array(customFieldSchema).optional(),
-			})
-		)
-		.min(1)
-		.max(100),
+	// Row fields every row takes unless it sets its own; strict, like the rows.
+	defaults: taskRow.pick({ stage: true, status: true, labels: true }).optional(),
+	tasks: z.array(taskRow).min(1).max(100),
 });
 type TaskBulkCreateInput = z.infer<typeof taskBulkCreateInput>;
 
@@ -808,26 +748,26 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 		// 2) FAN-OUT (best-effort, after the PATCH). Labels and custom fields still
 		// have dedicated endpoints; a failure surfaces WHICH sub-update failed.
 
-		// add_labels / remove_labels -> POST / DELETE /tasks/{id}/labels[/{labelId}].
+		// add_labels -> one POST /tasks/{id}/labels; remove_labels -> DELETE per label.
 		const addLabelIds = await resolveLabelIds(ctx, projectId, input.add_labels);
-		for (const labelId of addLabelIds ?? []) {
-			await failingSubUpdate('add_label', () => ctx.client.api.addTaskLabel(ref.id, labelId));
+		if (addLabelIds?.length) {
+			await failingSubUpdate('add_labels', () => ctx.client.api.addTaskLabels(ref.id, addLabelIds));
 		}
 		const removeLabelIds = await resolveLabelIds(ctx, projectId, input.remove_labels);
 		for (const labelId of removeLabelIds ?? []) {
 			await failingSubUpdate('remove_label', () => ctx.client.api.removeTaskLabel(ref.id, labelId));
 		}
 
-		// custom_fields -> PATCH /tasks/{id}/field-values { field_values: {...} }.
-		if (input.custom_fields !== undefined) {
-			const fieldValues = await resolveFieldValues(ctx, projectId, input.custom_fields);
+		// custom_fields -> PATCH /tasks/{id}/field-values { values: {...} }.
+		if (input.custom_fields?.length) {
+			const values = await resolveFieldValues(ctx, projectId, input.custom_fields);
 			await failingSubUpdate('field_values', () =>
-				ctx.client.api.setFieldValues(ref.id, { field_values: fieldValues })
+				ctx.client.api.setFieldValues(ref.id, { values })
 			);
 		}
 
-		// 3) Re-fetch + hydrate the final task state.
-		const raw = await ctx.client.api.getTask(ref.id);
+		// 3) Re-fetch + hydrate the final task state, labels included.
+		const raw = await ctx.client.api.getTask(ref.id, EXPAND);
 		return hydrateDetailFor(ctx, raw, projectId);
 	},
 };
@@ -858,6 +798,8 @@ async function failingSubUpdate<T>(which: string, fn: () => Promise<T>): Promise
 const taskMoveInput = z.object({
 	task: z.string(),
 	status: z.string(),
+	// Picks between statuses that share a name in different stages.
+	stage: z.string().optional(),
 	after_task: z.string().optional(),
 	before_task: z.string().optional(),
 });
@@ -866,7 +808,7 @@ type TaskMoveInput = z.infer<typeof taskMoveInput>;
 const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 	name: 'pyramid.task.move',
 	summary:
-		'Move a task to a target status (carries its stage), optionally positioned by neighbor key.',
+		'Move a task to a target status (in `stage` when given), optionally positioned by neighbor key.',
 	input: taskMoveInput,
 	meta: { cli: { positionals: ['task'] } },
 	async run(input, ctx): Promise<TaskDetail> {
@@ -877,15 +819,20 @@ const taskMove: Operation<TaskMoveInput, TaskDetail> = {
 		}
 
 		const ref = await resolveTaskRef(ctx, input.task);
-		const status = await ctx.client.resolver.resolveStatus(ref.projectId, input.status);
+		const status = await ctx.client.resolver.resolveStatus(
+			ref.projectId,
+			input.status,
+			input.stage
+		);
 
-		// Wire keys are before_id / after_id (DOC-BACKEND-CONTRACT), not *_task_id.
+		// The server's anchors name the slot's neighbours: before_id is the task ABOVE
+		// it, after_id the task BELOW. So "after X" sends X as before_id, and vice versa.
 		const body: Record<string, unknown> = { status_id: status.id };
 		if (input.after_task !== undefined) {
-			body.after_id = (await resolveTaskRef(ctx, input.after_task)).id;
+			body.before_id = (await resolveTaskRef(ctx, input.after_task)).id;
 		}
 		if (input.before_task !== undefined) {
-			body.before_id = (await resolveTaskRef(ctx, input.before_task)).id;
+			body.after_id = (await resolveTaskRef(ctx, input.before_task)).id;
 		}
 
 		// The response is an ENVELOPE { task, previous } — hydrate raw.task, never the
@@ -1003,43 +950,20 @@ async function currentStageId(ctx: OpContext, ref: TaskRef): Promise<string | un
 const commentReplyInput = z.object({
 	comment_id: z.string(),
 	content: z.string(),
-	mentions: z.array(z.string()).optional(),
 });
 type CommentReplyInput = z.infer<typeof commentReplyInput>;
 
 const commentReply: Operation<CommentReplyInput, TaskComment> = {
 	name: 'pyramid.comment.reply',
-	summary: 'Reply to a ROOT comment (one level only; replying to a reply -> reply_depth_exceeded).',
+	summary: 'Reply to a ROOT comment (one level only; the server rejects a reply to a reply).',
 	input: commentReplyInput,
 	meta: {
 		cli: { positionals: ['comment_id', 'content'] },
 	},
 	async run(input, ctx): Promise<TaskComment> {
-		// Replies are one level deep (r5). Validate the target is a ROOT comment
-		// BEFORE the call: a non-null parent_id / thread_root_id means it is itself a
-		// reply -> reply_depth_exceeded, with no write attempted.
-		const target = rec(await ctx.client.api.getComment(input.comment_id));
-		const parentId = readStr(target.parent_id);
-		const threadRootId = readStr(target.thread_root_id);
-		const selfId = readStr(target.id);
-		// A reply has a non-empty parent_id, or a thread_root_id pointing at another
-		// comment. A root has neither (or thread_root_id === its own id).
-		if (parentId !== undefined || (threadRootId !== undefined && threadRootId !== selfId)) {
-			throw pyramidError(
-				'reply_depth_exceeded',
-				'Replies are one level deep — reply to the root comment instead.'
-			);
-		}
-
-		const taskId = readStr(target.task_id);
-		const projectId = taskId ? (await resolveTaskRef(ctx, taskId)).projectId : '';
-		const mentionIds = await resolveMentionIds(ctx, projectId, input.mentions);
-
-		// Wire field is content + mention_user_ids (no stage_id — inherits parent's).
-		const body: Record<string, unknown> = { content: input.content };
-		if (mentionIds !== undefined) body.mention_user_ids = mentionIds;
-
-		const raw = await ctx.client.api.replyComment(input.comment_id, body);
+		// The server enforces one level and the root's stage; the reply carries project_id.
+		const raw = await ctx.client.api.replyComment(input.comment_id, { content: input.content });
+		const projectId = readStr(rec(raw).project_id);
 		const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
 		return hydrateComment(raw, wf);
 	},

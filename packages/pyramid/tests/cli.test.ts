@@ -28,7 +28,7 @@ const ROUTES: Record<string, unknown> = {
 	'GET /v1/me': { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' },
 	'GET /v1/workspaces': { data: [{ id: 'w1', handle: 'acme', name: 'Acme', role: 'owner' }] },
 	'GET /v1/projects': {
-		data: [{ id: 'p-web', handle: 'web', name: 'Website', task_prefix: 'WEB', role: 'admin' }],
+		data: [{ id: 'p-web', handle: 'web', name: 'Website', task_prefix: 'WEB', my_role: 'admin' }],
 	},
 	'GET /v1/me/tasks': {
 		data: [
@@ -148,14 +148,11 @@ describe('magic pyramid task next', () => {
 });
 
 describe('magic pyramid whoami / project list', () => {
-	it('whoami prints user, workspace and projects', async () => {
+	it('whoami is not a Pyramid command (identity is root-only: `magic whoami`)', async () => {
 		const r = await magicPyramid(['whoami']);
-		expect(r.code).toBe(0);
-		expect(JSON.parse(r.stdout)).toMatchObject({
-			user: { display_name: 'Ann Smith', email: 'ann@example.com' },
-			workspace: { handle: 'acme', name: 'Acme' },
-			projects: [{ handle: 'web', name: 'Website' }],
-		});
+		expect(r.code).toBe(2);
+		expect(JSON.parse(r.stderr).error).toMatchObject({ code: 'usage' });
+		expect(seen).toEqual([]);
 	});
 
 	it('project list', async () => {

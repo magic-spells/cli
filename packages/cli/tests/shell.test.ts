@@ -42,7 +42,6 @@ describe('magic shell', () => {
 		const { cap, io: sink } = io();
 		expect(await run(['pyramid', '--help'], { io: sink, env: {} })).toBe(0);
 		for (const c of [
-			'whoami',
 			'project list',
 			'task list-mine (next)',
 			'task update <task>',
@@ -50,8 +49,9 @@ describe('magic shell', () => {
 		]) {
 			expect(cap.stderr).toContain(c);
 		}
-		// `magic pyramid login` is gone: `magic login` signs in to every product.
+		// `magic pyramid login` and `whoami` are gone: both are root commands.
 		expect(cap.stderr).not.toMatch(/^\s+login\b/m);
+		expect(cap.stderr).not.toMatch(/^\s+whoami\b/m);
 	});
 
 	it('magic pyramid task next without a key is not_logged_in (exit 3)', async () => {

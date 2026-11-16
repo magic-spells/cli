@@ -10,7 +10,7 @@ magic pyramid task next
 magic pyramid task move WEB-42 --status "In Review"
 magic pyramid task comment WEB-42 "Looks good"
 magic pyramid project list
-magic pyramid whoami
+magic whoami                         # identity is root-only: every product, one command
 ```
 
 With more than one Pyramid workspace, pick one with `--workspace <handle>` (or set

@@ -215,6 +215,18 @@ describe('PyramidClient — listTasks query params (real names)', () => {
 	});
 });
 
+describe('PyramidClient — addTaskLabels', () => {
+	it('POSTs every label id in one `label_ids` body (label.go taskLabelAddRequest)', async () => {
+		const calls = captureCalls();
+		await new PyramidClient(CONFIG).addTaskLabels('t1', ['lb1', 'lb2']);
+
+		expect(calls).toHaveLength(1);
+		expect(calls[0]!.method).toBe('POST');
+		expect(calls[0]!.url).toContain('/v1/tasks/t1/labels');
+		expect(JSON.parse(calls[0]!.body!)).toEqual({ label_ids: ['lb1', 'lb2'] });
+	});
+});
+
 describe('PyramidClient — the flat-ownership contract (no stage-responsibilities)', () => {
 	it('has no setStageResponsibilities method — the route was removed server-side', () => {
 		const client = new PyramidClient(CONFIG) as unknown as Record<string, unknown>;
