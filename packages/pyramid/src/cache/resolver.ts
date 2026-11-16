@@ -140,6 +140,7 @@ export class Resolver {
 		// Candidates name their stage, so an ambiguous status can be narrowed with one.
 		const label = (s: WorkflowStatus): string =>
 			`${wf.stages.find((g) => g.id === s.stage_id)?.name}: ${s.name}`;
+		const hint = scope ? undefined : 'Pass `stage` to choose one.';
 
 		const byKey = statuses.filter((s) => norm(s.key) === needle);
 		const byName = statuses.filter((s) => norm(s.name) === needle);
@@ -147,7 +148,14 @@ export class Resolver {
 			(s) => s.category !== undefined && norm(s.category) === needle
 		);
 
-		let match = pick('status', 'ambiguous_status_name', q, [byKey, byName, byCategory], label);
+		let match = pick(
+			'status',
+			'ambiguous_status_name',
+			q,
+			[byKey, byName, byCategory],
+			label,
+			hint
+		);
 
 		// A stage name where a status is expected -> first status of that stage by
 		// position (DOC-NAME-RESOLUTION).
@@ -161,7 +169,7 @@ export class Resolver {
 		// Unique fuzzy contains as a last tier.
 		if (!match) {
 			const fuzzy = statuses.filter((s) => contains(s.key, needle) || contains(s.name, needle));
-			match = pick('status', 'ambiguous_status_name', q, [fuzzy], label);
+			match = pick('status', 'ambiguous_status_name', q, [fuzzy], label, hint);
 		}
 
 		if (match) return match;
@@ -303,13 +311,15 @@ function pick<T>(
 		| 'ambiguous_stage_name',
 	query: string,
 	tiers: T[][],
-	label: (item: T) => string
+	label: (item: T) => string,
+	hint?: string
 ): T | undefined {
 	for (const tier of tiers) {
 		if (tier.length === 1) return tier[0];
 		if (tier.length > 1) {
 			throw pyramidError(ambiguousCode, `"${query}" is ambiguous — ${tier.length} matches.`, {
 				candidates: dedupeStrings(tier.map(label)),
+				hint,
 			});
 		}
 	}

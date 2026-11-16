@@ -428,6 +428,7 @@ describe('Resolver — a status inside its stage (seeded workflow)', () => {
 		const err = await rejection(new Resolver(seeded()).resolveStatus('p', 'Review'));
 		expect(err.code).toBe('ambiguous_name');
 		expect(err.candidates).toEqual(['Discovery: Review', 'Design: Review']);
+		expect(err.hint).toBe('Pass `stage` to choose one.');
 	});
 
 	it('with a stage, the status resolves inside it', async () => {
