@@ -240,18 +240,13 @@ async function resolveTaskRef(ctx: OpContext, ref: string): Promise<TaskRef> {
 	};
 }
 
-/**
- * Hydrate a raw task detail against its project workflow. Fetches the (cached)
- * workflow when a projectId is known; otherwise hydrates against EMPTY_WORKFLOW
- * so names degrade gracefully without inventing UUIDs.
- */
+/** Hydrate a raw task detail against its project's (cached) workflow. */
 async function hydrateDetailFor(
 	ctx: OpContext,
 	raw: unknown,
 	projectId: string
 ): Promise<TaskDetail> {
-	const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
-	return hydrateTaskDetail(raw, wf);
+	return hydrateTaskDetail(raw, await ctx.client.resolver.getWorkflow(projectId));
 }
 
 /** The custom-field zod row: a field name/key + an arbitrary JSON value. */
@@ -919,8 +914,7 @@ const commentAdd: Operation<CommentAddInput, TaskComment> = {
 		if (mentionIds !== undefined) body.mention_user_ids = mentionIds;
 
 		const raw = await ctx.client.api.addComment(ref.id, body);
-		const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
-		return hydrateComment(raw, wf);
+		return hydrateComment(raw, await ctx.client.resolver.getWorkflow(projectId));
 	},
 };
 
@@ -1023,9 +1017,7 @@ const listComments: Operation<ListCommentsInput, Page<TaskComment>> = {
 			limit: input.limit ?? DEFAULT_LIMIT,
 			cursor: input.cursor,
 		});
-		const wf = ref.projectId
-			? await ctx.client.resolver.getWorkflow(ref.projectId)
-			: EMPTY_WORKFLOW;
+		const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
 		const items = page.data.map((raw) => hydrateComment(raw, wf));
 		return { items, next_cursor: page.cursor, has_more: page.cursor !== null };
 	},
@@ -1060,9 +1052,7 @@ const taskTimeline: Operation<TaskTimelineInput, Page<TimelineEvent>> = {
 		});
 		// Only the actor is joined to a name; the per-event values stay raw because
 		// their shape is event_type-dependent (DATATYPE-TIMELINE-EVENT).
-		const wf = ref.projectId
-			? await ctx.client.resolver.getWorkflow(ref.projectId)
-			: EMPTY_WORKFLOW;
+		const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
 		const items = page.data.map((raw) => hydrateTimelineEvent(raw, wf));
 		return { items, next_cursor: page.cursor, has_more: page.cursor !== null };
 	},
