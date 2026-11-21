@@ -686,7 +686,7 @@ const taskUpdateInput = z.object({
 	priority: z.string().optional(),
 	due_date: z.string().nullable().optional(),
 	start_date: z.string().nullable().optional(),
-	estimate: z.number().nullable().optional(),
+	estimate_hours: z.number().nullable().optional(),
 	guest_visible: z.boolean().optional(),
 	owner: z.string().nullable().optional(),
 	reviewer: z.string().nullable().optional(),
@@ -699,7 +699,7 @@ type TaskUpdateInput = z.infer<typeof taskUpdateInput>;
 const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 	name: 'pyramid.task.update',
 	summary:
-		'Update a task, including its owner/reviewer (pass null to clear). Labels and custom fields fan out to their endpoints.',
+		'Update a task; null clears a nullable field. Labels and custom fields fan out to their endpoints.',
 	input: taskUpdateInput,
 	meta: { cli: { positionals: ['task'] } },
 	async run(input, ctx): Promise<TaskDetail> {
@@ -717,7 +717,7 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 		if (input.priority !== undefined) patch.priority = input.priority;
 		if (input.due_date !== undefined) patch.due_date = input.due_date;
 		if (input.start_date !== undefined) patch.start_date = input.start_date;
-		if (input.estimate !== undefined) patch.estimate = input.estimate;
+		if (input.estimate_hours !== undefined) patch.estimate = input.estimate_hours;
 		if (input.guest_visible !== undefined) patch.guest_visible = input.guest_visible;
 
 		// owner/reviewer: a name resolves to a UUID; an explicit null CLEARS the

@@ -296,6 +296,15 @@ describe('magic pyramid task update', () => {
 			owner_id: null,
 		});
 	});
+
+	it('the estimate is estimate_hours, as on output; --estimate still reaches it', async () => {
+		for (const flag of ['--estimate-hours', '--estimate']) {
+			seen.length = 0;
+			expect((await magicPyramid(['task', 'update', 'WEB-42', flag, '2.5'])).code).toBe(0);
+			const patch = seen.find((s) => s.method === 'PATCH')!;
+			expect(JSON.parse(patch.body)).toEqual({ estimate: 2.5 });
+		}
+	});
 });
 
 describe('help after a command', () => {

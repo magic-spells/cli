@@ -1024,6 +1024,16 @@ describe('operation: update_task (real registry)', () => {
 		expect(resolver.resolveUser).toHaveBeenCalledTimes(1);
 	});
 
+	it('estimate_hours, the name output uses, survives the schema and clears the estimate', async () => {
+		const op = operationsByName.get('pyramid.task.update')!;
+		const updateTask = vi.fn(async () => ({ id: TASK_UUID }));
+		const getTask = vi.fn(async (id: string) => ({ id, project_id: 'p-apollo' }));
+		// MCP hands the tool arguments through the operation's schema, as here.
+		const input = op.input.parse({ task: TASK_UUID, estimate_hours: null });
+		await op.run(input, makeCtx({ getTask, updateTask }, makeResolver()));
+		expect(updateTask).toHaveBeenCalledWith(TASK_UUID, { estimate: null });
+	});
+
 	it('an empty custom_fields list sends no field-values write (the server 422s on {})', async () => {
 		const op = operationsByName.get('pyramid.task.update')!;
 		const getTask = vi.fn(async (id: string) => ({ id, project_id: 'p-apollo' }));
