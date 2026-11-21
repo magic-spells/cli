@@ -72,7 +72,8 @@ const ROUTES: Record<string, unknown> = {
 	'GET /v1/me': { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' },
 	'GET /v1/workspaces': { data: [{ id: 'w1', handle: 'acme', name: 'Acme', role: 'owner' }] },
 	// Two pages: the server's keyset cursor is the last row's id, null on the last page.
-	'GET /v1/projects': {
+	// Keyed exactly, so wrong paging parameters 404 at once instead of looping on page 1.
+	'GET /v1/projects?limit=100': {
 		data: [{ id: 'p-web', handle: 'web', name: 'Website', task_prefix: 'WEB', my_role: 'admin' }],
 		cursor: 'p-web',
 	},
@@ -219,6 +220,7 @@ describe('magic pyramid whoami / project list', () => {
 
 	it('project list follows the cursor through every page', async () => {
 		const r = await magicPyramid(['project', 'list']);
+		expect(r.stderr).toBe(''); // a page asked for wrongly shows here as the fake's 404
 		expect(JSON.parse(r.stdout)).toEqual([
 			{
 				id: 'p-web',
@@ -243,6 +245,7 @@ describe('magic pyramid whoami / project list', () => {
 		const r = await magicPyramid(['task', 'delete', 'LATE-1', '--yes'], {
 			MAGIC_ALLOW_DESTRUCTIVE: '1',
 		});
+		expect(r.stderr).toBe('');
 		expect(r.code).toBe(0);
 		expect(JSON.parse(r.stdout)).toEqual({ id: 't-late-1', key: 'LATE-1', deleted: true });
 	});
