@@ -273,6 +273,17 @@ export class PyramidClient {
 	}
 
 	/**
+	 * GET /v1/projects/{id}/tasks/by-number/{number} — one task by its key's number
+	 * (WEB-42 -> 42), archived or not. The same row as `getTask`.
+	 */
+	getTaskByNumber(projectId: string, number: string): Promise<unknown> {
+		return this.request<unknown>(
+			'GET',
+			`/v1/projects/${encodeURIComponent(projectId)}/tasks/by-number/${number}`
+		);
+	}
+
+	/**
 	 * GET /v1/search/tasks — full-text task search across the workspace. Returns the
 	 * raw `{ data }` envelope (no cursor per DOC-BACKEND-CONTRACT; normalized to a
 	 * null cursor). `q` is the query; the optional filters are already-resolved user

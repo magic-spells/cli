@@ -24,7 +24,41 @@ const MEMBERS = [
 	{ id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com', role: 'admin' },
 ];
 
+/** WEB-42, archived, as the server's model.Task serialises it. */
+const ARCHIVED = {
+	id: 't-42',
+	project_id: 'p-web',
+	template_id: null,
+	number: 42,
+	key: 'WEB-42',
+	title: 'Ship the CLI',
+	description: null,
+	guest_visible: false,
+	status_id: 'st-review',
+	priority: 'none',
+	owner_id: 'u-ann',
+	reviewer_id: null,
+	task_group_id: null,
+	release_id: null,
+	due_date: null,
+	start_date: null,
+	completed_at: null,
+	estimate_points: null,
+	estimate_hours: null,
+	position: 'a0',
+	cover_image_url: null,
+	archived_at: '2026-11-10T00:00:00Z',
+	metadata: {},
+	created_by: 'u-ann',
+	created_at: '2026-10-01T00:00:00Z',
+	updated_at: '2026-11-10T00:00:00Z',
+};
+
 const ROUTES: Record<string, unknown> = {
+	// Search skips archived tasks (search.sql), so it cannot find WEB-42.
+	'GET /v1/search/tasks': { data: [] },
+	'GET /v1/projects/p-web/tasks/by-number/42': ARCHIVED,
+	'POST /v1/tasks/t-42/unarchive': { ...ARCHIVED, archived_at: null },
 	'GET /v1/me': { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' },
 	'GET /v1/workspaces': { data: [{ id: 'w1', handle: 'acme', name: 'Acme', role: 'owner' }] },
 	'GET /v1/projects': {
@@ -167,6 +201,29 @@ describe('magic pyramid whoami / project list', () => {
 				archived: false,
 			},
 		]);
+	});
+});
+
+describe('magic pyramid task archive --unarchive', () => {
+	it('reaches an archived task by its key: the prefix names the project, then by number', async () => {
+		const r = await magicPyramid(['task', 'archive', 'web-42', '--unarchive']);
+		expect(r.code).toBe(0);
+		expect(JSON.parse(r.stdout)).toMatchObject({ key: 'WEB-42', archived: false });
+		expect(seen.map((s) => `${s.method} ${s.path}`)).toEqual(
+			expect.arrayContaining([
+				'GET /v1/projects/p-web/tasks/by-number/42',
+				'POST /v1/tasks/t-42/unarchive',
+			])
+		);
+	});
+
+	it('a key whose prefix names no project is task not_found, exit 5', async () => {
+		const r = await magicPyramid(['task', 'get', 'NOPE-1']);
+		expect(r.code).toBe(5);
+		expect(JSON.parse(r.stderr).error).toMatchObject({
+			code: 'not_found',
+			details: { kind: 'task' },
+		});
 	});
 });
 

@@ -124,6 +124,11 @@ export class Resolver {
 		});
 	}
 
+	/** The project a task key's prefix names ("WEB" of WEB-42): ci exact, unique per workspace. */
+	async projectByPrefix(prefix: string): Promise<ProjectSummary | undefined> {
+		return (await this.getProjects()).find((p) => norm(p.task_prefix) === norm(prefix));
+	}
+
 	// ---------- Status ----------
 
 	/**

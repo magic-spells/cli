@@ -197,7 +197,7 @@ const EMPTY_WORKFLOW: Workflow = {
 // ============ Phase-2 shared helpers ============
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const TASK_KEY_RE = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
+const TASK_KEY_RE = /^([A-Za-z][A-Za-z0-9]*)-(\d+)$/;
 
 /** A resolved task reference: its UUID, owning project, and human key. */
 interface TaskRef {
@@ -208,40 +208,34 @@ interface TaskRef {
 
 /**
  * Resolve a `task` input (a "WEB-42" human key OR a raw UUID) to its UUID +
- * owning project. The resolver owns project/status/user/label name resolution
- * but not task lookup, so this lives here (DOC-NAME-RESOLUTION r"Task"):
- *   - UUID  -> fetch the task, read its `project_id`/`key` off the raw row.
- *   - key   -> full-text search for the key, match the row whose `key` equals
- *              it (case-insensitive), then read its ids.
+ * owning project, reading the task by that exact identifier, so an archived task
+ * resolves too (DOC-NAME-RESOLUTION r"Task"):
+ *   - UUID -> the task by id.
+ *   - key  -> the project its prefix names, then that project's task by number.
  * A miss throws `task_not_found`.
  */
 async function resolveTaskRef(ctx: OpContext, ref: string): Promise<TaskRef> {
 	const trimmed = ref.trim();
-
+	const key = TASK_KEY_RE.exec(trimmed);
+	let raw: unknown;
 	if (UUID_RE.test(trimmed)) {
-		const raw = rec(await ctx.client.api.getTask(trimmed));
-		return {
-			id: readStr(raw.id) ?? trimmed,
-			projectId: readStr(raw.project_id) ?? '',
-			key: readStr(raw.key) ?? '',
-		};
+		raw = await ctx.client.api.getTask(trimmed);
+	} else if (key) {
+		const project = await ctx.client.resolver.projectByPrefix(key[1]!);
+		if (!project) throw pyramidError('task_not_found', `No task matches "${ref}".`);
+		raw = await ctx.client.api.getTaskByNumber(project.id, key[2]!);
+	} else {
+		throw pyramidError(
+			'task_not_found',
+			`"${ref}" is neither a task key (e.g. WEB-42) nor a UUID.`
+		);
 	}
-
-	if (TASK_KEY_RE.test(trimmed)) {
-		const page = await ctx.client.api.searchTasks({ q: trimmed, limit: 50 });
-		const needle = trimmed.toLowerCase();
-		const hit = page.data.map(rec).find((r) => (readStr(r.key) ?? '').toLowerCase() === needle);
-		if (hit) {
-			return {
-				id: readStr(hit.id) ?? '',
-				projectId: readStr(hit.project_id) ?? '',
-				key: readStr(hit.key) ?? trimmed,
-			};
-		}
-		throw pyramidError('task_not_found', `No task matches "${ref}".`);
-	}
-
-	throw pyramidError('task_not_found', `"${ref}" is neither a task key (e.g. WEB-42) nor a UUID.`);
+	const r = rec(raw);
+	return {
+		id: readStr(r.id) ?? '',
+		projectId: readStr(r.project_id) ?? '',
+		key: readStr(r.key) ?? '',
+	};
 }
 
 /**
