@@ -10,6 +10,9 @@ export const DEAD_URL = 'http://127.0.0.1:9';
 
 export const PYRAMID_ONLY = PRODUCTS.filter((p) => p.id === 'pyramid');
 
+/** The env that puts the config folder at `<dir>/magic` on every platform (APPDATA on Windows). */
+export const configHome = (dir: string) => ({ XDG_CONFIG_HOME: dir, APPDATA: dir });
+
 export function memoryStore(initial: Record<string, string> = {}): CredentialStore & {
 	items: Record<string, string>;
 } {
@@ -52,7 +55,7 @@ export async function magic(
 		stderrIsTTY: false,
 		...deps,
 		env: {
-			XDG_CONFIG_HOME: '/nonexistent',
+			...configHome('/nonexistent'),
 			MAGIC_ACCOUNT_URL: DEAD_URL,
 			MAGIC_SITES_URL: DEAD_URL,
 			MAGIC_MARKETING_URL: DEAD_URL,

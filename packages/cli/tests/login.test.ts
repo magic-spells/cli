@@ -17,7 +17,7 @@ import {
 import { buildMcp } from '../src/commands/mcp.js';
 import { PRODUCTS } from '../src/products.js';
 import { run, type ShellDeps } from '../src/main.js';
-import { magic, memoryStore } from './helpers.js';
+import { configHome, magic, memoryStore } from './helpers.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
@@ -255,7 +255,7 @@ describe('magic login (loopback)', () => {
 		};
 		const code = await run(['login'], {
 			...desktop({ store, openBrowser: () => {} }),
-			env: { XDG_CONFIG_HOME: '/nonexistent', ...env() },
+			env: { ...configHome('/nonexistent'), ...env() },
 			io,
 		});
 		expect(code).toBe(0);

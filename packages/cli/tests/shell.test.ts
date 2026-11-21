@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { run } from '../src/main.js';
+import { configHome } from './helpers.js';
 
 function io(tty = false) {
 	const cap = { stdout: '', stderr: '' };
@@ -63,7 +64,8 @@ describe('magic shell', () => {
 			set: async () => {},
 			delete: async () => {},
 		};
-		expect(await run(['pyramid', 'task', 'next'], { io: sink, env: {}, store })).toBe(3);
+		const env = configHome('/nonexistent');
+		expect(await run(['pyramid', 'task', 'next'], { io: sink, env, store })).toBe(3);
 		expect(JSON.parse(cap.stderr).error).toMatchObject({
 			code: 'not_logged_in',
 			product: 'pyramid',

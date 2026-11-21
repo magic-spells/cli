@@ -16,7 +16,7 @@ import { buildMcp } from '../src/commands/mcp.js';
 import { PRODUCTS, type ProductEntry } from '../src/products.js';
 import type { Shell } from '../src/shell.js';
 import { KEY, startFakeApi, type FakeApi } from './fake-api.js';
-import { memoryStore } from './helpers.js';
+import { configHome, memoryStore } from './helpers.js';
 
 let api: FakeApi;
 beforeAll(async () => {
@@ -181,7 +181,7 @@ describe('magic mcp over stdio', () => {
 		const child = spawn(process.execPath, [bin, 'mcp'], {
 			env: {
 				PATH: process.env.PATH,
-				XDG_CONFIG_HOME: mkdtempSync(join(tmpdir(), 'magic-mcp-')),
+				...configHome(mkdtempSync(join(tmpdir(), 'magic-mcp-'))),
 				MAGIC_CREDENTIALS_FILE: '1',
 				MAGIC_PYRAMID_KEY: KEY,
 				MAGIC_PYRAMID_URL: api.url,
@@ -239,7 +239,7 @@ describe('magic mcp over stdio', () => {
 	it('reads a key piped on stdin for login --product-key (no prompt, no echo)', async () => {
 		const home = mkdtempSync(join(tmpdir(), 'magic-login-'));
 		const child = spawn(process.execPath, [bin, 'login', '--product-key'], {
-			env: { PATH: process.env.PATH, XDG_CONFIG_HOME: home, MAGIC_CREDENTIALS_FILE: '1' },
+			env: { PATH: process.env.PATH, ...configHome(home), MAGIC_CREDENTIALS_FILE: '1' },
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
 		let out = '';

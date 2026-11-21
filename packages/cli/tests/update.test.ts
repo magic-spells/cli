@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { serveMcp } from '../src/commands/mcp.js';
 import type { UpdateDeps } from '../src/commands/update.js';
 import { version } from '../src/version.js';
-import { DEAD_URL, magic } from './helpers.js';
+import { configHome, DEAD_URL, magic } from './helpers.js';
 
 // `magic mcp` without a stdio server: the shell's real mcp dispatch, a stubbed start.
 vi.mock('../src/commands/mcp.js', () => ({ serveMcp: vi.fn(async () => 0) }));
@@ -210,7 +210,7 @@ describe('the update notice', () => {
 		const r = await magic(argv, {
 			tty: opts.tty ?? true,
 			stderrIsTTY: opts.stderrIsTTY ?? true,
-			env: { XDG_CONFIG_HOME: dir, ...opts.env },
+			env: { ...configHome(dir), ...opts.env },
 			update: {
 				registryUrl: registry.url,
 				...(opts.now !== undefined ? { now: () => opts.now! } : {}),
@@ -272,7 +272,7 @@ describe('the update notice', () => {
 		const r = await magic(['whoami'], {
 			tty: true,
 			stderrIsTTY: true,
-			env: { XDG_CONFIG_HOME: dir },
+			env: configHome(dir),
 			update: { registryUrl: DEAD_URL, onBackgroundCheck: (p) => void p },
 		});
 		expect(r.stderr).not.toContain('registry');
