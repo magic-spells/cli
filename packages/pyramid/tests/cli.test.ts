@@ -60,6 +60,8 @@ const ARCHIVED = {
 	key: 'WEB-43',
 	archived_at: '2026-11-10T00:00:00Z',
 };
+/** LATE-1, in a project on the second page of the project list. */
+const LATE = { ...TASK, id: 't-late-1', project_id: 'p-late', number: 1, key: 'LATE-1' };
 
 const ROUTES: Record<string, unknown> = {
 	// Search skips archived tasks (search.sql), so it cannot find WEB-43.
@@ -71,9 +73,18 @@ const ROUTES: Record<string, unknown> = {
 	'PATCH /v1/tasks/t-42': TASK,
 	'GET /v1/me': { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' },
 	'GET /v1/workspaces': { data: [{ id: 'w1', handle: 'acme', name: 'Acme', role: 'owner' }] },
+	// Two pages: the server's keyset cursor is the last row's id, null on the last page.
 	'GET /v1/projects': {
 		data: [{ id: 'p-web', handle: 'web', name: 'Website', task_prefix: 'WEB', my_role: 'admin' }],
+		cursor: 'p-web',
 	},
+	'GET /v1/projects?limit=100&cursor=p-web': {
+		data: [{ id: 'p-late', handle: 'late', name: 'Late', task_prefix: 'LATE', my_role: 'member' }],
+		cursor: null,
+	},
+	'GET /v1/projects/p-late/tasks/by-number/1': LATE,
+	'GET /v1/tasks/t-late-1': LATE,
+	'DELETE /v1/tasks/t-late-1': {},
 	'GET /v1/me/tasks': {
 		data: [
 			{
@@ -110,7 +121,9 @@ beforeAll(async () => {
 			auth: req.headers.authorization,
 			body: sent,
 		});
-		const body = ROUTES[`${req.method} ${url.pathname}`];
+		const body =
+			ROUTES[`${req.method} ${url.pathname}${url.search}`] ??
+			ROUTES[`${req.method} ${url.pathname}`];
 		if (req.headers.authorization !== `Bearer ${KEY}`) {
 			res.writeHead(401, { 'content-type': 'application/json' });
 			res.end(JSON.stringify({ error: { code: 'unauthorized', message: 'bad key' } }));
@@ -206,7 +219,7 @@ describe('magic pyramid whoami / project list', () => {
 		expect(seen).toEqual([]);
 	});
 
-	it('project list', async () => {
+	it('project list follows the cursor through every page', async () => {
 		const r = await magicPyramid(['project', 'list']);
 		expect(JSON.parse(r.stdout)).toEqual([
 			{
@@ -217,7 +230,23 @@ describe('magic pyramid whoami / project list', () => {
 				role: 'admin',
 				archived: false,
 			},
+			{
+				id: 'p-late',
+				handle: 'late',
+				name: 'Late',
+				task_prefix: 'LATE',
+				role: 'member',
+				archived: false,
+			},
 		]);
+	});
+
+	it('a key whose project is on the second page resolves', async () => {
+		const r = await magicPyramid(['task', 'delete', 'LATE-1', '--yes'], {
+			MAGIC_ALLOW_DESTRUCTIVE: '1',
+		});
+		expect(r.code).toBe(0);
+		expect(JSON.parse(r.stdout)).toEqual({ id: 't-late-1', key: 'LATE-1', deleted: true });
 	});
 });
 

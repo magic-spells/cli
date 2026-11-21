@@ -93,12 +93,20 @@ export class PyramidClient {
 	}
 
 	/**
-	 * GET /v1/projects — accessible projects. Server shape is
-	 * `{ data: Project[], cursor }`; we unwrap `data` (tolerating a bare array).
-	 * First-page discovery only — Phase-1 needs no pagination here.
+	 * GET /v1/projects — every accessible project: `{ data: Project[], cursor }` pages
+	 * of 100 (the server's maximum), followed until the cursor is null.
 	 */
-	listProjects(): Promise<unknown[]> {
-		return this.request<unknown>('GET', '/v1/projects').then(unwrapData);
+	async listProjects(): Promise<unknown[]> {
+		const projects: unknown[] = [];
+		let cursor: string | undefined;
+		do {
+			const page = await this.request<CursorEnvelope>('GET', '/v1/projects', {
+				query: { limit: 100, cursor },
+			});
+			projects.push(...unwrapData(page));
+			cursor = typeof page?.cursor === 'string' ? page.cursor : undefined;
+		} while (cursor);
+		return projects;
 	}
 
 	/**
