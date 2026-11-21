@@ -396,6 +396,8 @@ describe('task output carries what the server sends', () => {
 			guest_visible: true,
 			created_at: '2026-11-01T09:00:00Z',
 		});
+		// Without --expand the row that resolved the reference is the answer: one read.
+		expect(getTask).toHaveBeenCalledOnce();
 	});
 });
 
@@ -1442,6 +1444,8 @@ describe('list_comments: stage scoping', () => {
 		await op.run({ task: TASK_UUID }, makeCtx({ getTask, listComments }, resolver));
 		// st-review lives in stg-doing -> default stage_id = stg-doing.
 		expect(callArg(listComments, 1).stage_id).toBe('stg-doing');
+		// The stage comes from the row the reference was read from: one task read.
+		expect(getTask).toHaveBeenCalledOnce();
 	});
 
 	it('lists ALL stages when stage: "all"', async () => {

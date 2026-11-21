@@ -199,11 +199,12 @@ const EMPTY_WORKFLOW: Workflow = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TASK_KEY_RE = /^([A-Za-z][A-Za-z0-9]*)-(\d+)$/;
 
-/** A resolved task reference: its UUID, owning project, and human key. */
+/** A resolved task reference: its UUID, owning project, human key, and the row read. */
 interface TaskRef {
 	id: string;
 	projectId: string;
 	key: string;
+	row: Record<string, unknown>;
 }
 
 /**
@@ -235,6 +236,7 @@ async function resolveTaskRef(ctx: OpContext, ref: string): Promise<TaskRef> {
 		id: readStr(r.id) ?? '',
 		projectId: readStr(r.project_id) ?? '',
 		key: readStr(r.key) ?? '',
+		row: r,
 	};
 }
 
@@ -543,9 +545,8 @@ const taskShow: Operation<TaskShowInput, TaskDetail> = {
 	meta: { cli: { positionals: ['task'], verbAliases: ['show'] } },
 	async run(input, ctx): Promise<TaskDetail> {
 		const ref = await resolveTaskRef(ctx, input.task);
-		const raw = await ctx.client.api.getTask(ref.id, input.expand ? EXPAND : undefined);
-		const projectId = readStr(rec(raw).project_id) ?? ref.projectId;
-		return hydrateDetailFor(ctx, raw, projectId);
+		const raw = input.expand ? await ctx.client.api.getTask(ref.id, EXPAND) : ref.row;
+		return hydrateDetailFor(ctx, raw, ref.projectId);
 	},
 };
 
@@ -923,17 +924,10 @@ const commentAdd: Operation<CommentAddInput, TaskComment> = {
 	},
 };
 
-/** The task's current stage id, derived from its status via the workflow. */
+/** The task's current stage id: its status's stage, from the workflow. */
 async function currentStageId(ctx: OpContext, ref: TaskRef): Promise<string | undefined> {
-	if (!ref.projectId) return undefined;
-	const raw = rec(await ctx.client.api.getTask(ref.id));
-	const statusId = readStr(raw.status_id);
-	if (statusId) {
-		const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
-		const status = wf.statuses.find((s) => s.id === statusId);
-		if (status) return status.stage_id;
-	}
-	return readStr(raw.stage_id);
+	const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
+	return wf.statuses.find((s) => s.id === ref.row.status_id)?.stage_id;
 }
 
 // ---------- comment.reply ----------
