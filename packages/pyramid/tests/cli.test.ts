@@ -64,8 +64,6 @@ const ARCHIVED = {
 const LATE = { ...TASK, id: 't-late-1', project_id: 'p-late', number: 1, key: 'LATE-1' };
 
 const ROUTES: Record<string, unknown> = {
-	// Search skips archived tasks (search.sql), so it cannot find WEB-43.
-	'GET /v1/search/tasks': { data: [] },
 	'GET /v1/projects/p-web/tasks/by-number/42': TASK,
 	'GET /v1/projects/p-web/tasks/by-number/43': ARCHIVED,
 	'POST /v1/tasks/t-43/unarchive': { ...ARCHIVED, archived_at: null },

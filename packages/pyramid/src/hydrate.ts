@@ -61,9 +61,6 @@ export function hydrateTaskDetail(raw: any, workflow: Workflow): TaskDetail {
 		created_at: str(r.created_at),
 	};
 
-	// description is required on the summary already; keep it consistent here.
-	detail.description = nullableStr(r.description);
-
 	if (Array.isArray(r.field_values)) {
 		detail.field_values = r.field_values.map((fv: any) => {
 			const f = obj(fv);
