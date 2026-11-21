@@ -252,10 +252,7 @@ async function hydrateDetailFor(
 	return hydrateTaskDetail(raw, wf);
 }
 
-/**
- * The custom-field zod row: a field name/key + an arbitrary JSON value. Mirrors
- * CustomFieldValue in src/types.ts.
- */
+/** The custom-field zod row: a field name/key + an arbitrary JSON value. */
 const customFieldSchema = z.object({
 	field: z.string(),
 	value: z.unknown(),
