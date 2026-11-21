@@ -269,6 +269,21 @@ describe('magic pyramid task update', () => {
 	});
 });
 
+describe('help after a command', () => {
+	it('prints the product help and writes nothing: no comment "-h", no task "-h"', async () => {
+		for (const argv of [
+			['task', 'comment', 'WEB-42', '-h'],
+			['task', 'create', '-h', '--project', 'web'],
+			['task', 'list', 'web', '--help'],
+		]) {
+			const r = await magicPyramid(argv);
+			expect(r.code).toBe(0);
+			expect(r.stderr).toContain('magic pyramid — ');
+		}
+		expect(seen).toEqual([]);
+	});
+});
+
 describe('magic pyramid task delete (destructive gate)', () => {
 	it('--yes without MAGIC_ALLOW_DESTRUCTIVE never reaches the API (exit 8)', async () => {
 		const r = await magicPyramid(['task', 'delete', 'WEB-42', '--yes']);

@@ -52,7 +52,8 @@ export async function runProductCli(
 		assertRegistry(product.id, ops);
 		const cmds = buildCommands(ops.filter((op) => onSurface(op, 'cli')));
 
-		if (rest.length === 0 || ['help', '--help', '-h'].includes(rest[0]!)) {
+		// `help` leads; `--help` / `-h` count anywhere, so no command runs with one as a value.
+		if (!rest.length || rest[0] === 'help' || rest.includes('--help') || rest.includes('-h')) {
 			io.err(helpText(product, cmds));
 			return 0;
 		}
