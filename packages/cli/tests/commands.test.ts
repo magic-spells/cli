@@ -56,6 +56,25 @@ describe('magic login --product-key', () => {
 		}
 	});
 
+	it('a key mistyped into any login argument is masked in the error, in JSON and text', async () => {
+		for (const tty of [false, true]) {
+			for (const argv of [
+				['login', `--product-key=${KEY}`],
+				['login', KEY],
+				['login', '--device', KEY],
+				['login', '--product', KEY],
+				['login', `--product=${KEY}`],
+			]) {
+				const r = await magic(argv, { tty });
+				expect(r.code).toBe(2);
+				expect(r.stderr).not.toContain(SECRET);
+				expect(r.stderr).toContain('pyramid_ab23cd45_…cdef');
+			}
+		}
+		// An ordinary typo is still quoted: that is what makes the error useful.
+		expect((await magic(['login', '--devcie'])).stderr).toContain('--devcie');
+	});
+
 	it('leftover arguments are a usage error that does not quote them', async () => {
 		const r = await magic(['login', '--product-key', 'pyramid', 'extra'], {
 			readSecret: secret(KEY),

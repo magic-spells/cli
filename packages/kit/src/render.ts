@@ -5,6 +5,7 @@
 //   - A TTY gets a compact table (arrays) or `key  value` lines (objects).
 //   - Lists print next_cursor as a stderr hint and never auto-paginate.
 
+import { maskKeys } from './credentials.js';
 import { exitCodeFor, type MagicError } from './errors.js';
 
 /** Global flags that shape output and confirmation (COMPONENT-SHELL). */
@@ -135,7 +136,7 @@ export function cell(v: unknown): string {
 /**
  * Render an error to stderr and return its exit code. JSON mode prints the envelope
  * `{ error: {...} }`; human mode prints `error [code]: message`, then the hint and any
- * candidates.
+ * candidates. A key in any of it (a mistyped `magic login <key>`) is masked.
  */
 export function renderError(
 	e: MagicError,
@@ -143,13 +144,14 @@ export function renderError(
 	io: RenderIO = processIO
 ): number {
 	const shape = e.toJSON();
+	const err = (text: string): void => line(io.err, maskKeys(text));
 	if (jsonMode(opts, io)) {
-		line(io.err, JSON.stringify({ error: shape }, null, 2));
+		err(JSON.stringify({ error: shape }, null, 2));
 	} else {
-		line(io.err, `error [${shape.code}]: ${shape.message}`);
-		if (shape.hint) line(io.err, `  hint: ${shape.hint}`);
+		err(`error [${shape.code}]: ${shape.message}`);
+		if (shape.hint) err(`  hint: ${shape.hint}`);
 		if (shape.candidates && shape.candidates.length > 0) {
-			line(io.err, `  candidates: ${shape.candidates.join(', ')}`);
+			err(`  candidates: ${shape.candidates.join(', ')}`);
 		}
 	}
 	return exitCodeFor(e.code);
