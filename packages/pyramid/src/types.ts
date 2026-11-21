@@ -199,7 +199,7 @@ export interface UpdateTaskInput {
 	priority?: TaskPriority;
 	due_date?: string | null;
 	start_date?: string | null;
-	estimate?: number;
+	estimate?: number | null;
 	guest_visible?: boolean;
 	// owner/reviewer ride the SAME PATCH as the content fields; null clears.
 	owner?: string | null;

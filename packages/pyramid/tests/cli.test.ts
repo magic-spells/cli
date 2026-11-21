@@ -24,8 +24,8 @@ const MEMBERS = [
 	{ id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com', role: 'admin' },
 ];
 
-/** WEB-42, archived, as the server's model.Task serialises it. */
-const ARCHIVED = {
+/** WEB-42 as the server's model.Task serialises it. */
+const TASK = {
 	id: 't-42',
 	project_id: 'p-web',
 	template_id: null,
@@ -47,18 +47,28 @@ const ARCHIVED = {
 	estimate_hours: null,
 	position: 'a0',
 	cover_image_url: null,
-	archived_at: '2026-11-10T00:00:00Z',
+	archived_at: null,
 	metadata: {},
 	created_by: 'u-ann',
 	created_at: '2026-10-01T00:00:00Z',
 	updated_at: '2026-11-10T00:00:00Z',
 };
+const ARCHIVED = {
+	...TASK,
+	id: 't-43',
+	number: 43,
+	key: 'WEB-43',
+	archived_at: '2026-11-10T00:00:00Z',
+};
 
 const ROUTES: Record<string, unknown> = {
-	// Search skips archived tasks (search.sql), so it cannot find WEB-42.
+	// Search skips archived tasks (search.sql), so it cannot find WEB-43.
 	'GET /v1/search/tasks': { data: [] },
-	'GET /v1/projects/p-web/tasks/by-number/42': ARCHIVED,
-	'POST /v1/tasks/t-42/unarchive': { ...ARCHIVED, archived_at: null },
+	'GET /v1/projects/p-web/tasks/by-number/42': TASK,
+	'GET /v1/projects/p-web/tasks/by-number/43': ARCHIVED,
+	'POST /v1/tasks/t-43/unarchive': { ...ARCHIVED, archived_at: null },
+	'GET /v1/tasks/t-42': TASK,
+	'PATCH /v1/tasks/t-42': TASK,
 	'GET /v1/me': { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' },
 	'GET /v1/workspaces': { data: [{ id: 'w1', handle: 'acme', name: 'Acme', role: 'owner' }] },
 	'GET /v1/projects': {
@@ -87,12 +97,19 @@ const ROUTES: Record<string, unknown> = {
 
 let server: Server;
 let baseUrl = '';
-const seen: { method: string; path: string; auth: string | undefined }[] = [];
+const seen: { method: string; path: string; auth: string | undefined; body: string }[] = [];
 
 beforeAll(async () => {
-	server = createServer((req: IncomingMessage, res) => {
+	server = createServer(async (req: IncomingMessage, res) => {
 		const url = new URL(req.url ?? '/', 'http://x');
-		seen.push({ method: req.method ?? '', path: url.pathname, auth: req.headers.authorization });
+		let sent = '';
+		for await (const chunk of req) sent += chunk;
+		seen.push({
+			method: req.method ?? '',
+			path: url.pathname,
+			auth: req.headers.authorization,
+			body: sent,
+		});
 		const body = ROUTES[`${req.method} ${url.pathname}`];
 		if (req.headers.authorization !== `Bearer ${KEY}`) {
 			res.writeHead(401, { 'content-type': 'application/json' });
@@ -206,13 +223,13 @@ describe('magic pyramid whoami / project list', () => {
 
 describe('magic pyramid task archive --unarchive', () => {
 	it('reaches an archived task by its key: the prefix names the project, then by number', async () => {
-		const r = await magicPyramid(['task', 'archive', 'web-42', '--unarchive']);
+		const r = await magicPyramid(['task', 'archive', 'web-43', '--unarchive']);
 		expect(r.code).toBe(0);
-		expect(JSON.parse(r.stdout)).toMatchObject({ key: 'WEB-42', archived: false });
+		expect(JSON.parse(r.stdout)).toMatchObject({ key: 'WEB-43', archived: false });
 		expect(seen.map((s) => `${s.method} ${s.path}`)).toEqual(
 			expect.arrayContaining([
-				'GET /v1/projects/p-web/tasks/by-number/42',
-				'POST /v1/tasks/t-42/unarchive',
+				'GET /v1/projects/p-web/tasks/by-number/43',
+				'POST /v1/tasks/t-43/unarchive',
 			])
 		);
 	});
@@ -223,6 +240,31 @@ describe('magic pyramid task archive --unarchive', () => {
 		expect(JSON.parse(r.stderr).error).toMatchObject({
 			code: 'not_found',
 			details: { kind: 'task' },
+		});
+	});
+});
+
+describe('magic pyramid task update', () => {
+	it('`null` clears a nullable field, in both flag spellings: the PATCH sends JSON null', async () => {
+		const r = await magicPyramid([
+			'task',
+			'update',
+			'WEB-42',
+			'--owner',
+			'null',
+			'--description=null',
+			'--due-date',
+			'null',
+			'--estimate',
+			'null',
+		]);
+		expect(r.code).toBe(0);
+		const patch = seen.find((s) => s.method === 'PATCH')!;
+		expect(JSON.parse(patch.body)).toEqual({
+			description: null,
+			due_date: null,
+			estimate: null,
+			owner_id: null,
 		});
 	});
 });

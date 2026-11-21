@@ -1,9 +1,11 @@
 // Flag and positional derivation from zod (FEATURE-KIT-EXTRACTION acceptance).
 
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
 	buildCommands,
+	coerce,
 	describeFields,
 	flagToKey,
 	matchCommand,
@@ -126,5 +128,24 @@ describe('parseCommandArgs', () => {
 			'unarchive',
 		]);
 		expect(parseCommandArgs(cmd('demo.widget.bulk'), ['--file', 'x.json']).file).toBe('x.json');
+	});
+});
+
+describe('coerce', () => {
+	it('`null` clears a nullable field in both spellings, and stays text elsewhere', () => {
+		const input = z.object({
+			owner: z.string().nullable().optional(),
+			estimate: z.number().nullable().optional(),
+			title: z.string().optional(),
+		});
+		const [update] = buildCommands([
+			{ name: 'demo.widget.update', summary: '', input, run: async () => null },
+		]);
+		const p = parseCommandArgs(update!, ['--owner', 'null', '--estimate=null', '--title', 'null']);
+		expect(coerce(p.raw, describeFields(input))).toEqual({
+			owner: null,
+			estimate: null,
+			title: 'null',
+		});
 	});
 });

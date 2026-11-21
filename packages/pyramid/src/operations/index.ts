@@ -686,7 +686,7 @@ const taskUpdateInput = z.object({
 	priority: z.string().optional(),
 	due_date: z.string().nullable().optional(),
 	start_date: z.string().nullable().optional(),
-	estimate: z.number().optional(),
+	estimate: z.number().nullable().optional(),
 	guest_visible: z.boolean().optional(),
 	owner: z.string().nullable().optional(),
 	reviewer: z.string().nullable().optional(),
