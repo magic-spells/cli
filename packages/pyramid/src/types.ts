@@ -110,7 +110,6 @@ export interface TaskComment {
 	author: UserStub;
 	content: string;
 	mentions: UserStub[];
-	replies: Omit<TaskComment, 'replies'>[];
 	created_at: string;
 }
 

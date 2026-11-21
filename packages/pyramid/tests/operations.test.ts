@@ -701,6 +701,8 @@ describe('operation: list_comments (real registry)', () => {
 
 		expect(page.items[0]).not.toHaveProperty('parent_id');
 		expect(page.items[1]).toMatchObject({ id: 'c-reply', parent_id: 'c-root' });
+		// parent_id is the one thread truth: no root claims an empty `replies` beside its reply.
+		for (const c of page.items) expect(c).not.toHaveProperty('replies');
 	});
 });
 

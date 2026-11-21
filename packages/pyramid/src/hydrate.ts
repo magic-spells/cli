@@ -109,30 +109,10 @@ export function hydrateTaskDetail(raw: any, workflow: Workflow): TaskDetail {
 
 export function hydrateComment(raw: any, workflow: Workflow): TaskComment {
 	const c = obj(raw);
-	const replies = (Array.isArray(c.replies) ? c.replies : []).map((r: any) =>
-		hydrateReply(r, workflow)
-	);
-
 	return {
 		id: str(c.id),
 		task_id: str(c.task_id),
 		...(typeof c.parent_id === 'string' && { parent_id: c.parent_id }),
-		stage: stageRef(workflow, str(c.stage_id)),
-		author: authorStub(workflow, c.author, c.author_id),
-		content: str(c.content),
-		mentions: mentionStubs(workflow, c.mentions),
-		replies,
-		created_at: str(c.created_at),
-	};
-}
-
-// ============ Comment reply (one level; no nested replies) ============
-
-function hydrateReply(raw: any, workflow: Workflow): Omit<TaskComment, 'replies'> {
-	const c = obj(raw);
-	return {
-		id: str(c.id),
-		task_id: str(c.task_id),
 		stage: stageRef(workflow, str(c.stage_id)),
 		author: authorStub(workflow, c.author, c.author_id),
 		content: str(c.content),
