@@ -230,6 +230,20 @@ describe('magic doctor', () => {
 		expect(checks.some((c) => c.name === 'pyramid auth')).toBe(false);
 	});
 
+	it('every product: an unreachable API of a product with no key warns, exit 0', async () => {
+		const r = await magic(['doctor'], {
+			env: { MAGIC_PYRAMID_KEY: KEY, MAGIC_PYRAMID_URL: api.url, MAGIC_MARKETING_URL: api.url },
+		});
+		expect(r.code).toBe(0);
+		const out = JSON.parse(r.stdout);
+		expect(out.ok).toBe(true);
+		const sites = out.checks.filter((c: { product: string }) => c.product === 'sites');
+		expect(sites).toMatchObject([
+			{ name: 'sites api', ok: true, warn: true, code: 'network' },
+			{ name: 'sites key', ok: true, warn: true, code: 'not_logged_in' },
+		]);
+	});
+
 	it('an unreachable API is network, exit 10', async () => {
 		const closed = await startFakeApi();
 		await closed.close();
