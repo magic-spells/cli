@@ -116,6 +116,7 @@ export function hydrateComment(raw: any, workflow: Workflow): TaskComment {
 	return {
 		id: str(c.id),
 		task_id: str(c.task_id),
+		...(typeof c.parent_id === 'string' && { parent_id: c.parent_id }),
 		stage: stageRef(workflow, str(c.stage_id)),
 		author: authorStub(workflow, c.author, c.author_id),
 		content: str(c.content),

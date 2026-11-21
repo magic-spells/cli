@@ -663,6 +663,44 @@ describe('operation: list_comments (real registry)', () => {
 		expect(listComments).toHaveBeenCalled();
 		expect(out.items).toHaveLength(1);
 	});
+
+	it('keeps a thread: a reply carries parent_id, a root comment has no such key', async () => {
+		const op = operationsByName.get('pyramid.comment.list')!;
+		// The server's model.Comment rows: one flat page, roots and replies together.
+		const comment = (id: string, parent: string | null) => ({
+			id,
+			task_id: TASK_UUID,
+			stage_id: 'stg-doing',
+			parent_id: parent,
+			thread_root_id: parent,
+			content: id,
+			content_html: null,
+			mentions: [],
+			edited_at: null,
+			edit_count: 0,
+			is_deleted: false,
+			deleted_at: null,
+			deleted_by: null,
+			project_id: 'p-apollo',
+			author_id: 'u-ann',
+			created_at: '2026-11-01T09:00:00Z',
+			updated_at: '2026-11-01T09:00:00Z',
+			reactions: [],
+			attachment_ids: [],
+		});
+		const listComments = vi.fn(async () => ({
+			data: [comment('c-root', null), comment('c-reply', 'c-root')],
+			cursor: null,
+		}));
+		const getTask = vi.fn(async () => SERVER_TASK);
+		const page = (await op.run(
+			{ task: TASK_UUID, stage: 'all' },
+			makeCtx({ getTask, listComments }, makeResolver())
+		)) as { items: Record<string, unknown>[] };
+
+		expect(page.items[0]).not.toHaveProperty('parent_id');
+		expect(page.items[1]).toMatchObject({ id: 'c-reply', parent_id: 'c-root' });
+	});
 });
 
 // --- task.move (real op) --------------------------------------------------

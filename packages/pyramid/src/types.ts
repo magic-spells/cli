@@ -104,6 +104,8 @@ export interface TaskReference {
 export interface TaskComment {
 	id: string;
 	task_id: string;
+	/** Set on a reply only: the root comment it answers. */
+	parent_id?: string;
 	stage: { id: string; name: string };
 	author: UserStub;
 	content: string;
