@@ -339,6 +339,66 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 /** A UUID-shaped string the real `resolveTaskRef` accepts via the UUID branch. */
 const TASK_UUID = '11111111-1111-4111-8111-111111111111';
 
+/** One task exactly as the server serialises it (model.Task, GET /tasks/{id} without expand). */
+const SERVER_TASK = {
+	id: TASK_UUID,
+	project_id: 'p-apollo',
+	template_id: null,
+	number: 42,
+	key: 'APO-42',
+	title: 'Ship it',
+	description: null,
+	guest_visible: true,
+	status_id: 'st-review',
+	priority: 'high',
+	owner_id: 'u-ann',
+	reviewer_id: null,
+	task_group_id: null,
+	release_id: null,
+	due_date: '2026-12-01T00:00:00Z',
+	start_date: null,
+	completed_at: null,
+	estimate_points: null,
+	estimate_hours: 3.5,
+	position: 'a0',
+	cover_image_url: null,
+	archived_at: null,
+	metadata: {},
+	created_by: 'u-ann',
+	created_at: '2026-11-01T09:00:00Z',
+	updated_at: '2026-11-02T09:00:00Z',
+};
+
+describe('task output carries what the server sends', () => {
+	it('a list row has priority and due date, the fields work is picked by', async () => {
+		const op = operationsByName.get('pyramid.task.list')!;
+		const listTasks = vi.fn(async () => ({ data: [SERVER_TASK], cursor: null }));
+		const page = (await op.run({ project: 'apollo' }, makeCtx({ listTasks }, makeResolver()))) as {
+			items: Record<string, unknown>[];
+		};
+		expect(page.items[0]).toMatchObject({ priority: 'high', due_date: '2026-12-01T00:00:00Z' });
+		expect(page.items[0]).not.toHaveProperty('estimate_hours');
+	});
+
+	it('task get adds the dates, the estimate and guest visibility; null stays null', async () => {
+		const op = operationsByName.get('pyramid.task.get')!;
+		const getTask = vi.fn(async () => SERVER_TASK);
+		const out = (await op.run(
+			{ task: TASK_UUID },
+			makeCtx({ getTask }, makeResolver())
+		)) as TaskDetail;
+		expect(out).toMatchObject({
+			priority: 'high',
+			due_date: '2026-12-01T00:00:00Z',
+			start_date: null,
+			estimate_hours: 3.5,
+			completed_at: null,
+			guest_visible: true,
+			created_at: '2026-11-01T09:00:00Z',
+		});
+	});
+});
+
 /**
  * A client mock whose task-ref reads (searchTasks for keys, getTask for UUIDs)
  * mirror the rows the real Pyramid server returns. `searchTasks` echoes a single

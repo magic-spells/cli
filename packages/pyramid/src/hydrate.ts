@@ -17,6 +17,7 @@
 import type {
 	TaskComment,
 	TaskDetail,
+	TaskPriority,
 	TaskReference,
 	TaskSummary,
 	TimelineEvent,
@@ -41,6 +42,9 @@ export function hydrateTaskSummary(raw: any, workflow: Workflow): TaskSummary {
 		reviewer: ownerStub(workflow, r.reviewer, r.reviewer_id),
 		// Only ?expand rows carry labels; elsewhere omit them rather than claim none.
 		...(Array.isArray(r.labels) && { labels: labelNames(workflow, r.labels) }),
+		// What work is picked by. The database constrains priority to TaskPriority.
+		priority: str(r.priority) as TaskPriority,
+		due_date: nullableStr(r.due_date),
 		archived: r.archived_at != null || r.archived === true,
 		updated_at: str(r.updated_at),
 	};
@@ -48,7 +52,14 @@ export function hydrateTaskSummary(raw: any, workflow: Workflow): TaskSummary {
 
 export function hydrateTaskDetail(raw: any, workflow: Workflow): TaskDetail {
 	const r = obj(raw);
-	const detail: TaskDetail = hydrateTaskSummary(raw, workflow);
+	const detail: TaskDetail = {
+		...hydrateTaskSummary(raw, workflow),
+		start_date: nullableStr(r.start_date),
+		estimate_hours: typeof r.estimate_hours === 'number' ? r.estimate_hours : null,
+		completed_at: nullableStr(r.completed_at),
+		guest_visible: r.guest_visible === true,
+		created_at: str(r.created_at),
+	};
 
 	// description is required on the summary already; keep it consistent here.
 	detail.description = nullableStr(r.description);

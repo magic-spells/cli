@@ -85,6 +85,8 @@ export interface TaskSummary {
 	reviewer: UserStub | null;
 	/** Present only when the server sent the labels (`task list`, `task get --expand`). */
 	labels?: string[];
+	priority: TaskPriority;
+	due_date: string | null;
 	archived: boolean;
 	updated_at: string;
 }
@@ -111,6 +113,12 @@ export interface TaskComment {
 }
 
 export interface TaskDetail extends TaskSummary {
+	start_date: string | null;
+	/** null when unset, and always for a guest (the server withholds estimates). */
+	estimate_hours: number | null;
+	completed_at: string | null;
+	guest_visible: boolean;
+	created_at: string;
 	field_values?: { field: string; value: unknown }[];
 	estimates?: { total_hours: number; by_stage: Record<string, number> };
 	comments?: TaskComment[];
