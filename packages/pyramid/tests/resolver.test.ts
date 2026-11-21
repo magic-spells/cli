@@ -195,6 +195,15 @@ describe('Resolver — precedence (DOC-NAME-RESOLUTION)', () => {
 		expect(p.handle).toBe('website-redesign');
 	});
 
+	it('a task prefix names exactly one project, case-insensitively, from the cached list', async () => {
+		const client = makeFakeClient();
+		const r = new Resolver(client);
+		expect((await r.projectByPrefix('web'))?.id).toBe('p-website');
+		// exact only: "WE" is no prefix, though it starts two of them.
+		expect(await r.projectByPrefix('WE')).toBeUndefined();
+		expect(client.calls.projects).toBe(1);
+	});
+
 	it('project: exact handle match is case-insensitive', async () => {
 		const r = new Resolver(makeFakeClient());
 		expect((await r.resolveProject('APOLLO')).id).toBe('p-apollo');

@@ -24,12 +24,66 @@ const MEMBERS = [
 	{ id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com', role: 'admin' },
 ];
 
+/** WEB-42 as the server's model.Task serialises it. */
+const TASK = {
+	id: 't-42',
+	project_id: 'p-web',
+	template_id: null,
+	number: 42,
+	key: 'WEB-42',
+	title: 'Ship the CLI',
+	description: null,
+	guest_visible: false,
+	status_id: 'st-review',
+	priority: 'none',
+	owner_id: 'u-ann',
+	reviewer_id: null,
+	task_group_id: null,
+	release_id: null,
+	due_date: null,
+	start_date: null,
+	completed_at: null,
+	estimate_points: null,
+	estimate_hours: null,
+	position: 'a0',
+	cover_image_url: null,
+	archived_at: null,
+	metadata: {},
+	created_by: 'u-ann',
+	created_at: '2026-10-01T00:00:00Z',
+	updated_at: '2026-11-10T00:00:00Z',
+};
+const ARCHIVED = {
+	...TASK,
+	id: 't-43',
+	number: 43,
+	key: 'WEB-43',
+	archived_at: '2026-11-10T00:00:00Z',
+};
+/** LATE-1, in a project on the second page of the project list. */
+const LATE = { ...TASK, id: 't-late-1', project_id: 'p-late', number: 1, key: 'LATE-1' };
+
 const ROUTES: Record<string, unknown> = {
+	'GET /v1/projects/p-web/tasks/by-number/42': TASK,
+	'GET /v1/projects/p-web/tasks/by-number/43': ARCHIVED,
+	'POST /v1/tasks/t-43/unarchive': { ...ARCHIVED, archived_at: null },
+	'GET /v1/tasks/t-42': TASK,
+	'PATCH /v1/tasks/t-42': TASK,
 	'GET /v1/me': { id: 'u-ann', display_name: 'Ann Smith', email: 'ann@example.com' },
 	'GET /v1/workspaces': { data: [{ id: 'w1', handle: 'acme', name: 'Acme', role: 'owner' }] },
-	'GET /v1/projects': {
+	// Two pages: the server's keyset cursor is the last row's id, null on the last page.
+	// Keyed exactly, so wrong paging parameters 404 at once instead of looping on page 1.
+	'GET /v1/projects?limit=100': {
 		data: [{ id: 'p-web', handle: 'web', name: 'Website', task_prefix: 'WEB', my_role: 'admin' }],
+		cursor: 'p-web',
 	},
+	'GET /v1/projects?limit=100&cursor=p-web': {
+		data: [{ id: 'p-late', handle: 'late', name: 'Late', task_prefix: 'LATE', my_role: 'member' }],
+		cursor: null,
+	},
+	'GET /v1/projects/p-late/tasks/by-number/1': LATE,
+	'GET /v1/tasks/t-late-1': LATE,
+	'DELETE /v1/tasks/t-late-1': {},
 	'GET /v1/me/tasks': {
 		data: [
 			{
@@ -53,13 +107,22 @@ const ROUTES: Record<string, unknown> = {
 
 let server: Server;
 let baseUrl = '';
-const seen: { method: string; path: string; auth: string | undefined }[] = [];
+const seen: { method: string; path: string; auth: string | undefined; body: string }[] = [];
 
 beforeAll(async () => {
-	server = createServer((req: IncomingMessage, res) => {
+	server = createServer(async (req: IncomingMessage, res) => {
 		const url = new URL(req.url ?? '/', 'http://x');
-		seen.push({ method: req.method ?? '', path: url.pathname, auth: req.headers.authorization });
-		const body = ROUTES[`${req.method} ${url.pathname}`];
+		let sent = '';
+		for await (const chunk of req) sent += chunk;
+		seen.push({
+			method: req.method ?? '',
+			path: url.pathname,
+			auth: req.headers.authorization,
+			body: sent,
+		});
+		const body =
+			ROUTES[`${req.method} ${url.pathname}${url.search}`] ??
+			ROUTES[`${req.method} ${url.pathname}`];
 		if (req.headers.authorization !== `Bearer ${KEY}`) {
 			res.writeHead(401, { 'content-type': 'application/json' });
 			res.end(JSON.stringify({ error: { code: 'unauthorized', message: 'bad key' } }));
@@ -155,8 +218,9 @@ describe('magic pyramid whoami / project list', () => {
 		expect(seen).toEqual([]);
 	});
 
-	it('project list', async () => {
+	it('project list follows the cursor through every page', async () => {
 		const r = await magicPyramid(['project', 'list']);
+		expect(r.stderr).toBe(''); // a page asked for wrongly shows here as the fake's 404
 		expect(JSON.parse(r.stdout)).toEqual([
 			{
 				id: 'p-web',
@@ -166,7 +230,96 @@ describe('magic pyramid whoami / project list', () => {
 				role: 'admin',
 				archived: false,
 			},
+			{
+				id: 'p-late',
+				handle: 'late',
+				name: 'Late',
+				task_prefix: 'LATE',
+				role: 'member',
+				archived: false,
+			},
 		]);
+	});
+
+	it('a key whose project is on the second page resolves', async () => {
+		const r = await magicPyramid(['task', 'delete', 'LATE-1', '--yes'], {
+			MAGIC_ALLOW_DESTRUCTIVE: '1',
+		});
+		expect(r.stderr).toBe('');
+		expect(r.code).toBe(0);
+		expect(JSON.parse(r.stdout)).toEqual({ id: 't-late-1', key: 'LATE-1', deleted: true });
+	});
+});
+
+describe('magic pyramid task archive --unarchive', () => {
+	it('reaches an archived task by its key: the prefix names the project, then by number', async () => {
+		const r = await magicPyramid(['task', 'archive', 'web-43', '--unarchive']);
+		expect(r.code).toBe(0);
+		expect(JSON.parse(r.stdout)).toMatchObject({ key: 'WEB-43', archived: false });
+		expect(seen.map((s) => `${s.method} ${s.path}`)).toEqual(
+			expect.arrayContaining([
+				'GET /v1/projects/p-web/tasks/by-number/43',
+				'POST /v1/tasks/t-43/unarchive',
+			])
+		);
+	});
+
+	it('a key whose prefix names no project is task not_found, exit 5', async () => {
+		const r = await magicPyramid(['task', 'get', 'NOPE-1']);
+		expect(r.code).toBe(5);
+		expect(JSON.parse(r.stderr).error).toMatchObject({
+			code: 'not_found',
+			details: { kind: 'task' },
+		});
+	});
+});
+
+describe('magic pyramid task update', () => {
+	it('`null` clears a nullable field, in both flag spellings: the PATCH sends JSON null', async () => {
+		const r = await magicPyramid([
+			'task',
+			'update',
+			'WEB-42',
+			'--owner',
+			'null',
+			'--description=null',
+			'--due-date',
+			'null',
+			'--estimate',
+			'null',
+		]);
+		expect(r.code).toBe(0);
+		const patch = seen.find((s) => s.method === 'PATCH')!;
+		expect(JSON.parse(patch.body)).toEqual({
+			description: null,
+			due_date: null,
+			estimate: null,
+			owner_id: null,
+		});
+	});
+
+	it('the estimate is estimate_hours, as on output; --estimate still reaches it', async () => {
+		for (const flag of ['--estimate-hours', '--estimate']) {
+			seen.length = 0;
+			expect((await magicPyramid(['task', 'update', 'WEB-42', flag, '2.5'])).code).toBe(0);
+			const patch = seen.find((s) => s.method === 'PATCH')!;
+			expect(JSON.parse(patch.body)).toEqual({ estimate: 2.5 });
+		}
+	});
+});
+
+describe('help after a command', () => {
+	it('prints the product help and writes nothing: no comment "-h", no task "-h"', async () => {
+		for (const argv of [
+			['task', 'comment', 'WEB-42', '-h'],
+			['task', 'create', '-h', '--project', 'web'],
+			['task', 'list', 'web', '--help'],
+		]) {
+			const r = await magicPyramid(argv);
+			expect(r.code).toBe(0);
+			expect(r.stderr).toContain('magic pyramid — ');
+		}
+		expect(seen).toEqual([]);
 	});
 });
 

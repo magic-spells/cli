@@ -136,6 +136,8 @@ export interface FieldSpec {
 	kind: FieldKind;
 	values?: string[];
 	required: boolean;
+	/** The schema accepts null, so the value `null` clears the field. */
+	nullable?: true;
 }
 
 /** The slice of a zod 4 schema definition the introspection reads. */
@@ -150,20 +152,22 @@ function defOf(schema: z.ZodType | undefined): Def | undefined {
 	return (schema as unknown as { def?: Def } | undefined)?.def;
 }
 
-function baseType(schema: z.ZodType): { type: z.ZodType; optional: boolean } {
+function baseType(schema: z.ZodType): { type: z.ZodType; optional: boolean; nullable: boolean } {
 	let cur: z.ZodType = schema;
 	let optional = false;
+	let nullable = false;
 	for (let guard = 0; guard < 12; guard++) {
 		const def = defOf(cur);
 		const name = def?.type;
 		if ((name === 'optional' || name === 'nullable' || name === 'default') && def?.innerType) {
 			optional = true;
+			nullable ||= name === 'nullable';
 			cur = def.innerType;
 			continue;
 		}
 		break;
 	}
-	return { type: cur, optional };
+	return { type: cur, optional, nullable };
 }
 
 /** The fields of an operation's input, for flag and positional derivation. */
@@ -171,7 +175,7 @@ export function describeFields(input: z.ZodType): FieldSpec[] {
 	const shape = (input as unknown as { shape?: Record<string, z.ZodType> }).shape;
 	if (!shape) return [];
 	return Object.entries(shape).map(([key, raw]) => {
-		const { type, optional } = baseType(raw);
+		const { type, optional, nullable } = baseType(raw);
 		const def = defOf(type);
 		let kind: FieldKind = 'string';
 		let values: string[] | undefined;
@@ -199,6 +203,7 @@ export function describeFields(input: z.ZodType): FieldSpec[] {
 		}
 		const spec: FieldSpec = { key, kind, required: !optional };
 		if (values) spec.values = values;
+		if (nullable) spec.nullable = true;
 		return spec;
 	});
 }
@@ -309,13 +314,15 @@ function parseJsonFlag(label: string, flag: string, value: string): unknown {
 	}
 }
 
-/** Strings to numbers where the schema wants numbers; zod has the final word. */
+/** Strings to numbers, and `null` to null, where the schema wants them; zod has the final word. */
 export function coerce(raw: RawValues, fields: FieldSpec[]): Record<string, unknown> {
 	const out: Record<string, unknown> = {};
 	for (const f of fields) {
 		const v = raw[f.key];
 		if (v === undefined) continue;
-		if (f.kind === 'number' && typeof v === 'string') {
+		if (v === 'null' && f.nullable) {
+			out[f.key] = null;
+		} else if (f.kind === 'number' && typeof v === 'string') {
 			const n = Number(v);
 			out[f.key] = Number.isNaN(n) ? v : n;
 		} else {

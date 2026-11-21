@@ -74,6 +74,7 @@ const APOLLO_WORKFLOW: Workflow = {
 function makeResolver() {
 	return {
 		resolveProject: vi.fn(async (_name: string) => APOLLO_WORKFLOW.project),
+		projectByPrefix: vi.fn(async (_prefix: string) => APOLLO_WORKFLOW.project),
 		getWorkflow: vi.fn(async (_projectId: string) => APOLLO_WORKFLOW),
 		resolveStatus: vi.fn(async (_pid: string, q: string, stage?: string) => {
 			// With a stage, only its statuses count (mirrors the real resolver).
@@ -330,27 +331,89 @@ describe('hydrateTaskSummary (invariant: no bare UUID surfaces in a named field)
 //   - the result is hydrated back to names (names-out),
 //   - the destructive gate (destructive_action_disabled) fires BEFORE any write.
 //
-// NOTE — task-ref resolution: the ops resolve a "WEB-42" key or UUID via the
-// CLIENT (resolveTaskRef -> client.searchTasks for a key, client.getTask for a
-// UUID), not the resolver, so the mocks here implement those client methods. A search row
-// carries `{ id, key, project_id }`; we mint a stable `id-<KEY>` id per key so the
-// assertions can name the exact UUID handed to the client.
+// NOTE — task-ref resolution: the ops resolve a "WEB-42" key by its prefix's project
+// (resolver.projectByPrefix) and then client.getTaskByNumber, and a UUID by
+// client.getTask, so the mocks here implement those methods. We mint a stable
+// `id-<KEY>` id per key so the assertions can name the exact UUID handed to the client.
 
 /** A UUID-shaped string the real `resolveTaskRef` accepts via the UUID branch. */
 const TASK_UUID = '11111111-1111-4111-8111-111111111111';
 
+/** One task exactly as the server serialises it (model.Task, GET /tasks/{id} without expand). */
+const SERVER_TASK = {
+	id: TASK_UUID,
+	project_id: 'p-apollo',
+	template_id: null,
+	number: 42,
+	key: 'APO-42',
+	title: 'Ship it',
+	description: null,
+	guest_visible: true,
+	status_id: 'st-review',
+	priority: 'high',
+	owner_id: 'u-ann',
+	reviewer_id: null,
+	task_group_id: null,
+	release_id: null,
+	due_date: '2026-12-01T00:00:00Z',
+	start_date: null,
+	completed_at: null,
+	estimate_points: null,
+	estimate_hours: 3.5,
+	position: 'a0',
+	cover_image_url: null,
+	archived_at: null,
+	metadata: {},
+	created_by: 'u-ann',
+	created_at: '2026-11-01T09:00:00Z',
+	updated_at: '2026-11-02T09:00:00Z',
+};
+
+describe('task output carries what the server sends', () => {
+	it('a list row has priority and due date, the fields work is picked by', async () => {
+		const op = operationsByName.get('pyramid.task.list')!;
+		const listTasks = vi.fn(async () => ({ data: [SERVER_TASK], cursor: null }));
+		const page = (await op.run({ project: 'apollo' }, makeCtx({ listTasks }, makeResolver()))) as {
+			items: Record<string, unknown>[];
+		};
+		expect(page.items[0]).toMatchObject({ priority: 'high', due_date: '2026-12-01T00:00:00Z' });
+		expect(page.items[0]).not.toHaveProperty('estimate_hours');
+	});
+
+	it('task get adds the dates, the estimate and guest visibility; null stays null', async () => {
+		const op = operationsByName.get('pyramid.task.get')!;
+		const getTask = vi.fn(async () => SERVER_TASK);
+		const out = (await op.run(
+			{ task: TASK_UUID },
+			makeCtx({ getTask }, makeResolver())
+		)) as TaskDetail;
+		expect(out).toMatchObject({
+			priority: 'high',
+			due_date: '2026-12-01T00:00:00Z',
+			start_date: null,
+			estimate_hours: 3.5,
+			completed_at: null,
+			guest_visible: true,
+			created_at: '2026-11-01T09:00:00Z',
+		});
+		// Without --expand the row that resolved the reference is the answer: one read.
+		expect(getTask).toHaveBeenCalledOnce();
+	});
+});
+
 /**
- * A client mock whose task-ref reads (searchTasks for keys, getTask for UUIDs)
- * mirror the rows the real Pyramid server returns. `searchTasks` echoes a single
- * row whose `id` is `id-<KEY>` so a test can assert the exact resolved UUID; the
- * write method under test is injected per case.
+ * A client mock whose task-ref reads (getTaskByNumber for keys, getTask for UUIDs)
+ * return the server's model.Task row. A key's row has `id` `id-<KEY>` so a test can
+ * assert the exact resolved UUID; the write method under test is injected per case.
  */
 function makeRefClient(extra: Record<string, unknown>) {
 	return {
-		// key -> one matching row (id derived from the key, project_id = apollo).
-		searchTasks: vi.fn(async (q: { q: string }) => ({
-			data: [{ id: `id-${q.q}`, key: q.q, project_id: 'p-apollo' }],
-			cursor: null,
+		// key -> that project's task by number (the resolver mock names apollo).
+		getTaskByNumber: vi.fn(async (_projectId: string, n: string) => ({
+			...SERVER_TASK,
+			id: `id-APO-${n}`,
+			number: Number(n),
+			key: `APO-${n}`,
 		})),
 		// UUID -> a task row carrying its project + key.
 		getTask: vi.fn(async (id: string) => ({
@@ -603,6 +666,46 @@ describe('operation: list_comments (real registry)', () => {
 		expect(listComments).toHaveBeenCalled();
 		expect(out.items).toHaveLength(1);
 	});
+
+	it('keeps a thread: a reply carries parent_id, a root comment has no such key', async () => {
+		const op = operationsByName.get('pyramid.comment.list')!;
+		// The server's model.Comment rows: one flat page, roots and replies together.
+		const comment = (id: string, parent: string | null) => ({
+			id,
+			task_id: TASK_UUID,
+			stage_id: 'stg-doing',
+			parent_id: parent,
+			thread_root_id: parent,
+			content: id,
+			content_html: null,
+			mentions: [],
+			edited_at: null,
+			edit_count: 0,
+			is_deleted: false,
+			deleted_at: null,
+			deleted_by: null,
+			project_id: 'p-apollo',
+			author_id: 'u-ann',
+			created_at: '2026-11-01T09:00:00Z',
+			updated_at: '2026-11-01T09:00:00Z',
+			reactions: [],
+			attachment_ids: [],
+		});
+		const listComments = vi.fn(async () => ({
+			data: [comment('c-root', null), comment('c-reply', 'c-root')],
+			cursor: null,
+		}));
+		const getTask = vi.fn(async () => SERVER_TASK);
+		const page = (await op.run(
+			{ task: TASK_UUID, stage: 'all' },
+			makeCtx({ getTask, listComments }, makeResolver())
+		)) as { items: Record<string, unknown>[] };
+
+		expect(page.items[0]).not.toHaveProperty('parent_id');
+		expect(page.items[1]).toMatchObject({ id: 'c-reply', parent_id: 'c-root' });
+		// parent_id is the one thread truth: no root claims an empty `replies` beside its reply.
+		for (const c of page.items) expect(c).not.toHaveProperty('replies');
+	});
 });
 
 // --- task.move (real op) --------------------------------------------------
@@ -634,9 +737,10 @@ describe('operation: move_task (real registry)', () => {
 			ctx
 		)) as TaskDetail;
 
-		// both the task and its neighbor were resolved via the client (key -> id).
-		expect(client.searchTasks).toHaveBeenCalledWith(expect.objectContaining({ q: 'APO-42' }));
-		expect(client.searchTasks).toHaveBeenCalledWith(expect.objectContaining({ q: 'APO-10' }));
+		// both the task and its neighbor were read by their exact key (prefix -> project, number).
+		expect(resolver.projectByPrefix).toHaveBeenCalledWith('APO');
+		expect(client.getTaskByNumber).toHaveBeenCalledWith('p-apollo', '42');
+		expect(client.getTaskByNumber).toHaveBeenCalledWith('p-apollo', '10');
 		expect(resolver.resolveStatus).toHaveBeenCalledWith('p-apollo', 'In Review', undefined);
 
 		// REAL contract (task_move.go): before_id is the record ABOVE the slot, so
@@ -690,7 +794,7 @@ describe('operation: move_task (real registry)', () => {
 		).rejects.toMatchObject({ code: 'validation_failed' });
 
 		// the guard fires first — no task-ref resolution, no move.
-		expect(client.searchTasks).not.toHaveBeenCalled();
+		expect(client.getTaskByNumber).not.toHaveBeenCalled();
 		expect(moveTask).not.toHaveBeenCalled();
 	});
 
@@ -766,7 +870,7 @@ describe('operation: delete_task (real registry)', () => {
 		const r = await callTool('pyramid', op, async () => ctx, { task: 'APO-42', yes: true });
 		expect(r.isError).toBe(true);
 		expect(JSON.parse(r.content[0]!.text).error.code).toBe('destructive_action_disabled');
-		expect(client.searchTasks).not.toHaveBeenCalled();
+		expect(client.getTaskByNumber).not.toHaveBeenCalled();
 		expect(deleteTask).not.toHaveBeenCalled();
 	});
 
@@ -784,7 +888,7 @@ describe('operation: delete_task (real registry)', () => {
 		};
 
 		// key -> id via the client, then a HARD delete (hard = true).
-		expect(client.searchTasks).toHaveBeenCalledWith(expect.objectContaining({ q: 'APO-42' }));
+		expect(client.getTaskByNumber).toHaveBeenCalledWith('p-apollo', '42');
 		expect(deleteTask).toHaveBeenCalledWith('id-APO-42', true);
 		expect(out).toEqual({ id: 'id-APO-42', key: 'APO-42', deleted: true });
 	});
@@ -920,6 +1024,16 @@ describe('operation: update_task (real registry)', () => {
 			reviewer_id: 'u-bob',
 		});
 		expect(resolver.resolveUser).toHaveBeenCalledTimes(1);
+	});
+
+	it('estimate_hours, the name output uses, survives the schema and clears the estimate', async () => {
+		const op = operationsByName.get('pyramid.task.update')!;
+		const updateTask = vi.fn(async () => ({ id: TASK_UUID }));
+		const getTask = vi.fn(async (id: string) => ({ id, project_id: 'p-apollo' }));
+		// MCP hands the tool arguments through the operation's schema, as here.
+		const input = op.input.parse({ task: TASK_UUID, estimate_hours: null });
+		await op.run(input, makeCtx({ getTask, updateTask }, makeResolver()));
+		expect(updateTask).toHaveBeenCalledWith(TASK_UUID, { estimate: null });
 	});
 
 	it('an empty custom_fields list sends no field-values write (the server 422s on {})', async () => {
@@ -1330,6 +1444,8 @@ describe('list_comments: stage scoping', () => {
 		await op.run({ task: TASK_UUID }, makeCtx({ getTask, listComments }, resolver));
 		// st-review lives in stg-doing -> default stage_id = stg-doing.
 		expect(callArg(listComments, 1).stage_id).toBe('stg-doing');
+		// The stage comes from the row the reference was read from: one task read.
+		expect(getTask).toHaveBeenCalledOnce();
 	});
 
 	it('lists ALL stages when stage: "all"', async () => {

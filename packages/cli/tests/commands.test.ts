@@ -56,6 +56,25 @@ describe('magic login --product-key', () => {
 		}
 	});
 
+	it('a key mistyped into any login argument is masked in the error, in JSON and text', async () => {
+		for (const tty of [false, true]) {
+			for (const argv of [
+				['login', `--product-key=${KEY}`],
+				['login', KEY],
+				['login', '--device', KEY],
+				['login', '--product', KEY],
+				['login', `--product=${KEY}`],
+			]) {
+				const r = await magic(argv, { tty });
+				expect(r.code).toBe(2);
+				expect(r.stderr).not.toContain(SECRET);
+				expect(r.stderr).toContain('pyramid_ab23cd45_…cdef');
+			}
+		}
+		// An ordinary typo is still quoted: that is what makes the error useful.
+		expect((await magic(['login', '--devcie'])).stderr).toContain('--devcie');
+	});
+
 	it('leftover arguments are a usage error that does not quote them', async () => {
 		const r = await magic(['login', '--product-key', 'pyramid', 'extra'], {
 			readSecret: secret(KEY),
@@ -209,6 +228,20 @@ describe('magic doctor', () => {
 			code: 'not_logged_in',
 		});
 		expect(checks.some((c) => c.name === 'pyramid auth')).toBe(false);
+	});
+
+	it('every product: an unreachable API of a product with no key warns, exit 0', async () => {
+		const r = await magic(['doctor'], {
+			env: { MAGIC_PYRAMID_KEY: KEY, MAGIC_PYRAMID_URL: api.url, MAGIC_MARKETING_URL: api.url },
+		});
+		expect(r.code).toBe(0);
+		const out = JSON.parse(r.stdout);
+		expect(out.ok).toBe(true);
+		const sites = out.checks.filter((c: { product: string }) => c.product === 'sites');
+		expect(sites).toMatchObject([
+			{ name: 'sites api', ok: true, warn: true, code: 'network' },
+			{ name: 'sites key', ok: true, warn: true, code: 'not_logged_in' },
+		]);
 	});
 
 	it('an unreachable API is network, exit 10', async () => {

@@ -85,6 +85,8 @@ export interface TaskSummary {
 	reviewer: UserStub | null;
 	/** Present only when the server sent the labels (`task list`, `task get --expand`). */
 	labels?: string[];
+	priority: TaskPriority;
+	due_date: string | null;
 	archived: boolean;
 	updated_at: string;
 }
@@ -102,15 +104,22 @@ export interface TaskReference {
 export interface TaskComment {
 	id: string;
 	task_id: string;
+	/** Set on a reply only: the root comment it answers. */
+	parent_id?: string;
 	stage: { id: string; name: string };
 	author: UserStub;
 	content: string;
 	mentions: UserStub[];
-	replies: Omit<TaskComment, 'replies'>[];
 	created_at: string;
 }
 
 export interface TaskDetail extends TaskSummary {
+	start_date: string | null;
+	/** null when unset, and always for a guest (the server withholds estimates). */
+	estimate_hours: number | null;
+	completed_at: string | null;
+	guest_visible: boolean;
+	created_at: string;
 	field_values?: { field: string; value: unknown }[];
 	estimates?: { total_hours: number; by_stage: Record<string, number> };
 	comments?: TaskComment[];
@@ -148,74 +157,4 @@ export interface Page<T> {
 	has_more: boolean;
 }
 
-// ============ Operation inputs (DATATYPE-*-INPUT; mirror the zod schemas) ============
-// Human names/keys in; the resolver turns them into UUIDs before they reach the
-// client. These are the typed shapes the Phase-2 write/comment operations build.
-
-export interface CustomFieldValue {
-	field: string;
-	value: unknown;
-}
-
 export type TaskPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
-
-export interface CreateTaskInput {
-	project: string;
-	title: string;
-	description?: string;
-	stage?: string;
-	status?: string;
-	owner?: string;
-	reviewer?: string;
-	labels?: string[];
-	priority?: TaskPriority;
-	due_date?: string;
-	estimate_hours?: number;
-	guest_visible?: boolean;
-	custom_fields?: CustomFieldValue[];
-}
-
-export interface CreateTasksBulkInput {
-	project: string;
-	template: string; // resolved to template_id (required by the backend)
-	defaults?: { stage?: string; status?: string; labels?: string[] };
-	tasks: Omit<CreateTaskInput, 'project'>[];
-}
-
-export interface UpdateTaskInput {
-	task: string; // "WEB-42" or UUID
-	title?: string;
-	description?: string | null;
-	priority?: TaskPriority;
-	due_date?: string | null;
-	start_date?: string | null;
-	estimate?: number;
-	guest_visible?: boolean;
-	// owner/reviewer ride the SAME PATCH as the content fields; null clears.
-	owner?: string | null;
-	reviewer?: string | null;
-	// Convenience fields the PATCH does not accept — the op fans them out to the
-	// dedicated labels / field-values endpoints.
-	add_labels?: string[];
-	remove_labels?: string[];
-	custom_fields?: CustomFieldValue[];
-}
-
-export interface MoveTaskInput {
-	task: string;
-	status: string; // carries its stage
-	after_task?: string;
-	before_task?: string;
-}
-
-export interface AddCommentInput {
-	task: string;
-	content: string;
-	stage?: string; // default = task's current stage
-	mentions?: string[];
-}
-
-export interface ReplyCommentInput {
-	comment_id: string; // ROOT comment
-	content: string;
-}

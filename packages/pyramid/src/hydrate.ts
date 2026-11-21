@@ -17,6 +17,7 @@
 import type {
 	TaskComment,
 	TaskDetail,
+	TaskPriority,
 	TaskReference,
 	TaskSummary,
 	TimelineEvent,
@@ -41,6 +42,9 @@ export function hydrateTaskSummary(raw: any, workflow: Workflow): TaskSummary {
 		reviewer: ownerStub(workflow, r.reviewer, r.reviewer_id),
 		// Only ?expand rows carry labels; elsewhere omit them rather than claim none.
 		...(Array.isArray(r.labels) && { labels: labelNames(workflow, r.labels) }),
+		// What work is picked by. The database constrains priority to TaskPriority.
+		priority: str(r.priority) as TaskPriority,
+		due_date: nullableStr(r.due_date),
 		archived: r.archived_at != null || r.archived === true,
 		updated_at: str(r.updated_at),
 	};
@@ -48,10 +52,14 @@ export function hydrateTaskSummary(raw: any, workflow: Workflow): TaskSummary {
 
 export function hydrateTaskDetail(raw: any, workflow: Workflow): TaskDetail {
 	const r = obj(raw);
-	const detail: TaskDetail = hydrateTaskSummary(raw, workflow);
-
-	// description is required on the summary already; keep it consistent here.
-	detail.description = nullableStr(r.description);
+	const detail: TaskDetail = {
+		...hydrateTaskSummary(raw, workflow),
+		start_date: nullableStr(r.start_date),
+		estimate_hours: typeof r.estimate_hours === 'number' ? r.estimate_hours : null,
+		completed_at: nullableStr(r.completed_at),
+		guest_visible: r.guest_visible === true,
+		created_at: str(r.created_at),
+	};
 
 	if (Array.isArray(r.field_values)) {
 		detail.field_values = r.field_values.map((fv: any) => {
@@ -98,29 +106,10 @@ export function hydrateTaskDetail(raw: any, workflow: Workflow): TaskDetail {
 
 export function hydrateComment(raw: any, workflow: Workflow): TaskComment {
 	const c = obj(raw);
-	const replies = (Array.isArray(c.replies) ? c.replies : []).map((r: any) =>
-		hydrateReply(r, workflow)
-	);
-
 	return {
 		id: str(c.id),
 		task_id: str(c.task_id),
-		stage: stageRef(workflow, str(c.stage_id)),
-		author: authorStub(workflow, c.author, c.author_id),
-		content: str(c.content),
-		mentions: mentionStubs(workflow, c.mentions),
-		replies,
-		created_at: str(c.created_at),
-	};
-}
-
-// ============ Comment reply (one level; no nested replies) ============
-
-function hydrateReply(raw: any, workflow: Workflow): Omit<TaskComment, 'replies'> {
-	const c = obj(raw);
-	return {
-		id: str(c.id),
-		task_id: str(c.task_id),
+		...(typeof c.parent_id === 'string' && { parent_id: c.parent_id }),
 		stage: stageRef(workflow, str(c.stage_id)),
 		author: authorStub(workflow, c.author, c.author_id),
 		content: str(c.content),

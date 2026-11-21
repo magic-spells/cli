@@ -1,8 +1,9 @@
 // `magic doctor [--json]` (FEATURE-WHOAMI-DOCTOR): the shell's own checks (Node,
 // credential store, CLI version), Account (reachable, a grant stored), then per
 // product: API reachable, key present and well-formed, and the product's own checks
-// through the kit's runDoctorChecks. A product without a key fails only when nothing
-// at all is signed in; otherwise it is a warning (no workspace there, or not used).
+// through the kit's runDoctorChecks. A product without a key is not in use: its API
+// out of reach is a warning, and the missing key fails only when nothing at all is
+// signed in.
 // Exit 0 when every check passes, else the class of the first failure.
 
 import {
@@ -184,6 +185,15 @@ async function productChecks(
 	}
 	const apiUrl = config.products[id]!.apiUrl;
 	const results: DoctorResult[] = [];
+	const workspace = config.defaultWorkspace[id];
+	const session = await resolveCredential(product, {
+		env: shell.env,
+		store: shell.store,
+		...(workspace ? { workspace } : {}),
+	}).catch((err: unknown) => fail(`${id} key`, err));
+	// In use = it has a key, even one that does not resolve (several workspaces, a bad
+	// prefix). Only a product in use fails on an unreachable API; the rest warn.
+	const inUse = !('ok' in session) || session.code !== 'not_logged_in';
 
 	try {
 		const res = await fetch(apiUrl, {
@@ -197,23 +207,15 @@ async function productChecks(
 			detail: `${apiUrl} answers (HTTP ${res.status})`,
 		});
 	} catch (err) {
-		results.push(fail(`${id} api`, networkish(err)));
+		const failed = fail(`${id} api`, networkish(err));
+		results.push(inUse ? failed : { ...failed, ok: true, warn: true });
 	}
 
-	let session;
-	try {
-		const workspace = config.defaultWorkspace[id];
-		session = await resolveCredential(product, {
-			env: shell.env,
-			store: shell.store,
-			...(workspace ? { workspace } : {}),
-		});
-	} catch (err) {
-		const failed = fail(`${id} key`, err);
+	if ('ok' in session) {
 		// Several workspaces with no default, or no key while signed in elsewhere: worth
 		// knowing, not broken.
-		const soft = failed.code === 'usage' || (failed.code === 'not_logged_in' && signedIn);
-		results.push(soft ? { ...failed, ok: true, warn: true } : failed);
+		const soft = session.code === 'usage' || (!inUse && signedIn);
+		results.push(soft ? { ...session, ok: true, warn: true } : session);
 		return results;
 	}
 	let ctx = contextFor(product, config, session);

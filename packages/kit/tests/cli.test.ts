@@ -43,6 +43,19 @@ describe('help and dispatch', () => {
 		}
 	});
 
+	it('-h or --help anywhere prints the help and runs nothing', async () => {
+		for (const argv of [
+			['widget', 'move', 'W-1', '-h'],
+			['widget', 'move', '--help', 'W-1'],
+			['widget', 'move', '-h', '--status', 'Done'],
+		]) {
+			const r = await run(argv);
+			expect(r.code).toBe(0);
+			expect(r.stderr).toContain('widget move <widget>');
+		}
+		expect(demoCalls()).toEqual([]);
+	});
+
 	it('an unknown command is a usage error, exit 2', async () => {
 		const r = await run(['widget', 'bogus']);
 		expect(r.code).toBe(2);

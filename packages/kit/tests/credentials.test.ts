@@ -7,6 +7,7 @@ import {
 	forgetProductKey,
 	manualItem,
 	maskKey,
+	maskKeys,
 	parseStoredSession,
 	resolveCredential,
 	saveProductKey,
@@ -85,13 +86,27 @@ describe('pasted keys', () => {
 });
 
 describe('maskKey', () => {
+	// The shapes the products mint: pyramid_ (base32), sites_ (hex), marketing_ (base62).
+	const PYRAMID = 'pyramid_ab23cd45_abcdefghijklmnopqrstuvwxyz234567';
+	const SITES = `sites_0123456789abc_${'0123456789abcdef'.repeat(4)}`;
+	const MARKETING = 'marketing_live_0123456789abcdefghijklmnopqrstuv';
+
 	it('keeps the prefix, hides the secret, shows the last 4', () => {
-		expect(maskKey('dmk_abc123_secretvalue', 'dmk_')).toBe('dmk_abc123_…alue');
+		expect(maskKey(PYRAMID, 'pyramid_')).toBe('pyramid_ab23cd45_…4567');
+		expect(maskKey(SITES, 'sites_')).toBe('sites_0123456789abc_…cdef');
+		expect(maskKey(MARKETING, 'marketing_')).toBe('marketing_live_…stuv');
 	});
-	it('never reveals the full secret', () => {
-		expect(maskKey('dmk_abc123_secretvalue', 'dmk_')).not.toContain('secretvalue');
-	});
-	it('degrades gracefully on a malformed key', () => {
+	it('degrades to the prefix alone on a key of no key shape', () => {
 		expect(maskKey('garbage', 'dmk_')).toBe('dmk_…');
+		expect(maskKey(DEMO_KEY, 'dmk_')).toBe('dmk_…');
+	});
+	it('maskKeys masks every key in a text and leaves the rest', () => {
+		const text = `login: unexpected argument "${PYRAMID}" or "--devcie"; set MAGIC_PYRAMID_KEY`;
+		expect(maskKeys(text)).toBe(
+			'login: unexpected argument "pyramid_ab23cd45_…4567" or "--devcie"; set MAGIC_PYRAMID_KEY'
+		);
+		expect(maskKeys('task_not_found: release_notes_v2 my_tasks_backlog2026.json')).toBe(
+			'task_not_found: release_notes_v2 my_tasks_backlog2026.json'
+		);
 	});
 });

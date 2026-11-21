@@ -197,71 +197,59 @@ const EMPTY_WORKFLOW: Workflow = {
 // ============ Phase-2 shared helpers ============
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const TASK_KEY_RE = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
+const TASK_KEY_RE = /^([A-Za-z][A-Za-z0-9]*)-(\d+)$/;
 
-/** A resolved task reference: its UUID, owning project, and human key. */
+/** A resolved task reference: its UUID, owning project, human key, and the row read. */
 interface TaskRef {
 	id: string;
 	projectId: string;
 	key: string;
+	row: Record<string, unknown>;
 }
 
 /**
  * Resolve a `task` input (a "WEB-42" human key OR a raw UUID) to its UUID +
- * owning project. The resolver owns project/status/user/label name resolution
- * but not task lookup, so this lives here (DOC-NAME-RESOLUTION r"Task"):
- *   - UUID  -> fetch the task, read its `project_id`/`key` off the raw row.
- *   - key   -> full-text search for the key, match the row whose `key` equals
- *              it (case-insensitive), then read its ids.
+ * owning project, reading the task by that exact identifier, so an archived task
+ * resolves too (DOC-NAME-RESOLUTION r"Task"):
+ *   - UUID -> the task by id.
+ *   - key  -> the project its prefix names, then that project's task by number.
  * A miss throws `task_not_found`.
  */
 async function resolveTaskRef(ctx: OpContext, ref: string): Promise<TaskRef> {
 	const trimmed = ref.trim();
-
+	const key = TASK_KEY_RE.exec(trimmed);
+	let raw: unknown;
 	if (UUID_RE.test(trimmed)) {
-		const raw = rec(await ctx.client.api.getTask(trimmed));
-		return {
-			id: readStr(raw.id) ?? trimmed,
-			projectId: readStr(raw.project_id) ?? '',
-			key: readStr(raw.key) ?? '',
-		};
+		raw = await ctx.client.api.getTask(trimmed);
+	} else if (key) {
+		const project = await ctx.client.resolver.projectByPrefix(key[1]!);
+		if (!project) throw pyramidError('task_not_found', `No task matches "${ref}".`);
+		raw = await ctx.client.api.getTaskByNumber(project.id, key[2]!);
+	} else {
+		throw pyramidError(
+			'task_not_found',
+			`"${ref}" is neither a task key (e.g. WEB-42) nor a UUID.`
+		);
 	}
-
-	if (TASK_KEY_RE.test(trimmed)) {
-		const page = await ctx.client.api.searchTasks({ q: trimmed, limit: 50 });
-		const needle = trimmed.toLowerCase();
-		const hit = page.data.map(rec).find((r) => (readStr(r.key) ?? '').toLowerCase() === needle);
-		if (hit) {
-			return {
-				id: readStr(hit.id) ?? '',
-				projectId: readStr(hit.project_id) ?? '',
-				key: readStr(hit.key) ?? trimmed,
-			};
-		}
-		throw pyramidError('task_not_found', `No task matches "${ref}".`);
-	}
-
-	throw pyramidError('task_not_found', `"${ref}" is neither a task key (e.g. WEB-42) nor a UUID.`);
+	const r = rec(raw);
+	return {
+		id: readStr(r.id) ?? '',
+		projectId: readStr(r.project_id) ?? '',
+		key: readStr(r.key) ?? '',
+		row: r,
+	};
 }
 
-/**
- * Hydrate a raw task detail against its project workflow. Fetches the (cached)
- * workflow when a projectId is known; otherwise hydrates against EMPTY_WORKFLOW
- * so names degrade gracefully without inventing UUIDs.
- */
+/** Hydrate a raw task detail against its project's (cached) workflow. */
 async function hydrateDetailFor(
 	ctx: OpContext,
 	raw: unknown,
 	projectId: string
 ): Promise<TaskDetail> {
-	const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
-	return hydrateTaskDetail(raw, wf);
+	return hydrateTaskDetail(raw, await ctx.client.resolver.getWorkflow(projectId));
 }
 
-/**
- * The custom-field zod row: a field name/key + an arbitrary JSON value. Mirrors
- * CustomFieldValue in src/types.ts.
- */
+/** The custom-field zod row: a field name/key + an arbitrary JSON value. */
 const customFieldSchema = z.object({
 	field: z.string(),
 	value: z.unknown(),
@@ -552,9 +540,8 @@ const taskShow: Operation<TaskShowInput, TaskDetail> = {
 	meta: { cli: { positionals: ['task'], verbAliases: ['show'] } },
 	async run(input, ctx): Promise<TaskDetail> {
 		const ref = await resolveTaskRef(ctx, input.task);
-		const raw = await ctx.client.api.getTask(ref.id, input.expand ? EXPAND : undefined);
-		const projectId = readStr(rec(raw).project_id) ?? ref.projectId;
-		return hydrateDetailFor(ctx, raw, projectId);
+		const raw = input.expand ? await ctx.client.api.getTask(ref.id, EXPAND) : ref.row;
+		return hydrateDetailFor(ctx, raw, ref.projectId);
 	},
 };
 
@@ -692,7 +679,7 @@ const taskUpdateInput = z.object({
 	priority: z.string().optional(),
 	due_date: z.string().nullable().optional(),
 	start_date: z.string().nullable().optional(),
-	estimate: z.number().optional(),
+	estimate_hours: z.number().nullable().optional(),
 	guest_visible: z.boolean().optional(),
 	owner: z.string().nullable().optional(),
 	reviewer: z.string().nullable().optional(),
@@ -705,7 +692,7 @@ type TaskUpdateInput = z.infer<typeof taskUpdateInput>;
 const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 	name: 'pyramid.task.update',
 	summary:
-		'Update a task, including its owner/reviewer (pass null to clear). Labels and custom fields fan out to their endpoints.',
+		'Update a task; null clears a nullable field. Labels and custom fields fan out to their endpoints.',
 	input: taskUpdateInput,
 	meta: { cli: { positionals: ['task'] } },
 	async run(input, ctx): Promise<TaskDetail> {
@@ -723,7 +710,7 @@ const taskUpdate: Operation<TaskUpdateInput, TaskDetail> = {
 		if (input.priority !== undefined) patch.priority = input.priority;
 		if (input.due_date !== undefined) patch.due_date = input.due_date;
 		if (input.start_date !== undefined) patch.start_date = input.start_date;
-		if (input.estimate !== undefined) patch.estimate = input.estimate;
+		if (input.estimate_hours !== undefined) patch.estimate = input.estimate_hours;
 		if (input.guest_visible !== undefined) patch.guest_visible = input.guest_visible;
 
 		// owner/reviewer: a name resolves to a UUID; an explicit null CLEARS the
@@ -927,22 +914,14 @@ const commentAdd: Operation<CommentAddInput, TaskComment> = {
 		if (mentionIds !== undefined) body.mention_user_ids = mentionIds;
 
 		const raw = await ctx.client.api.addComment(ref.id, body);
-		const wf = projectId ? await ctx.client.resolver.getWorkflow(projectId) : EMPTY_WORKFLOW;
-		return hydrateComment(raw, wf);
+		return hydrateComment(raw, await ctx.client.resolver.getWorkflow(projectId));
 	},
 };
 
-/** The task's current stage id, derived from its status via the workflow. */
+/** The task's current stage id: its status's stage, from the workflow. */
 async function currentStageId(ctx: OpContext, ref: TaskRef): Promise<string | undefined> {
-	if (!ref.projectId) return undefined;
-	const raw = rec(await ctx.client.api.getTask(ref.id));
-	const statusId = readStr(raw.status_id);
-	if (statusId) {
-		const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
-		const status = wf.statuses.find((s) => s.id === statusId);
-		if (status) return status.stage_id;
-	}
-	return readStr(raw.stage_id);
+	const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
+	return wf.statuses.find((s) => s.id === ref.row.status_id)?.stage_id;
 }
 
 // ---------- comment.reply ----------
@@ -1038,9 +1017,7 @@ const listComments: Operation<ListCommentsInput, Page<TaskComment>> = {
 			limit: input.limit ?? DEFAULT_LIMIT,
 			cursor: input.cursor,
 		});
-		const wf = ref.projectId
-			? await ctx.client.resolver.getWorkflow(ref.projectId)
-			: EMPTY_WORKFLOW;
+		const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
 		const items = page.data.map((raw) => hydrateComment(raw, wf));
 		return { items, next_cursor: page.cursor, has_more: page.cursor !== null };
 	},
@@ -1075,9 +1052,7 @@ const taskTimeline: Operation<TaskTimelineInput, Page<TimelineEvent>> = {
 		});
 		// Only the actor is joined to a name; the per-event values stay raw because
 		// their shape is event_type-dependent (DATATYPE-TIMELINE-EVENT).
-		const wf = ref.projectId
-			? await ctx.client.resolver.getWorkflow(ref.projectId)
-			: EMPTY_WORKFLOW;
+		const wf = await ctx.client.resolver.getWorkflow(ref.projectId);
 		const items = page.data.map((raw) => hydrateTimelineEvent(raw, wf));
 		return { items, next_cursor: page.cursor, has_more: page.cursor !== null };
 	},

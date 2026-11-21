@@ -40,15 +40,18 @@ export function manualItem(product: string): string {
 	return `${product}:manual`;
 }
 
-/** Show a key without its secret: the prefix and the last four characters. */
-export function maskKey(key: string, prefix: string): string {
-	const m = new RegExp(`^${escapeRegExp(prefix)}([^_]+)_(.+)$`).exec(key);
-	if (!m) return `${prefix}…`;
-	return `${prefix}${m[1]}_…${m[2]!.slice(-4)}`;
+/** Every product key is `<product>_<public id>_<secret>`, the secret 32 or more letters and digits. */
+const KEY = /([a-z]+_[A-Za-z0-9]+_)[A-Za-z0-9]{28,}([A-Za-z0-9]{4})/g;
+
+/** Mask every key in `text` to its public part and the secret's last four characters. */
+export function maskKeys(text: string): string {
+	return text.replace(KEY, '$1…$2');
 }
 
-function escapeRegExp(s: string): string {
-	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Show a key without its secret; one of no key shape shows only the product prefix. */
+export function maskKey(key: string, prefix: string): string {
+	const masked = maskKeys(key);
+	return masked === key ? `${prefix}…` : masked;
 }
 
 /** Read a stored session; tolerates a bare key string from an older writer. */
